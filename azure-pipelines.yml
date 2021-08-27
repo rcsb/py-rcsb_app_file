@@ -1,0 +1,50 @@
+# File: azure-pipelines.yml
+# Date: 4-Jul-2019 jdw Created pipeline
+#       8-Jul-2019 jdw add macos test/publish
+#       8-Jul-2019 jdw templatize
+#       9-Jul-2019 jdw add publish jobs
+#      21-Jul-2019 jdw update to py39
+#      10-Mar-2020 jdw py39 only
+#      22-Aug-2020 jdw add container workflow
+#
+name: $(BuildDefinitionName)_$(Date:yyyyMMdd)$(Rev:.rr)
+
+trigger:
+  - master
+
+pr:
+  - master
+
+schedules:
+  - cron: "0 12 * * 0"
+    displayName: Weekly Sunday build
+    branches:
+      include:
+        - master
+    always: true
+
+jobs:
+  - template: azure/azure-template-tox-job.yml
+    parameters: { tox: "format_pep8", python: "3.9", os: "linux" }
+  - template: azure/azure-template-tox-job.yml
+    parameters: { tox: "lint_pylint", python: "3.9", os: "linux" }
+  #
+  - template: azure/azure-template-tox-job.yml
+    parameters: { tox: "test_coverage", python: "3.9", os: "linux" }
+  #
+  - template: azure/azure-template-tox-job.yml
+    parameters: { tox: "py39", python: "3.9", os: "linux" }
+  #
+  #- template: azure-template-tox-job.yml
+  #  parameters: {tox: 'py39', python: '3.9', os: 'macos'}
+  #- template: azure-template-publish-job.yml
+  #  parameters: {tox: 'py39', python: '3.9', os: 'macos'}
+  #
+  - template: azure/azure-template-publish-job.yml
+    parameters: { tox: "py39", python: "3.9", os: "linux" }
+  #
+  - template: azure/azure-template-docker-job.yml
+    parameters: { os: "linux", docker_task: "build_and_test" }
+  - template: azure/azure-template-docker-publish-job.yml
+    parameters: { os: "linux", docker_task: "build_and_publish" }
+#

@@ -1,0 +1,93 @@
+# File: azure-template-docker-job.yml
+# Date: 22-Aug-2020 jdw Preliminary version
+#
+# Updates:
+#
+##
+parameters:
+  os: ""
+  docker_task: ""
+
+jobs:
+  - job: ${{ format('build_docker_{0}_{1}', parameters.docker_task, parameters.os) }}
+    timeoutInMinutes: 0
+    pool:
+      ${{ if eq(parameters.os, 'linux') }}:
+        vmImage: "ubuntu-20.04"
+
+    dependsOn:
+      - ${{ format('build_docker_{0}_{1}', 'build_and_test', parameters.os) }}
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+
+    variables:
+      - template: azure-template-variables.yml
+
+    steps:
+      - bash: echo "variables - py_module ${{variables.py_module}} image_name ${{variables.image_name}} registry_user ${{variables.registry_user}} "
+      - bash: echo "parameters - docker_task ${{parameters.docker_task}} os ${{parameters.os}}"
+      #
+      - checkout: self
+        submodules: true
+      #
+      - task: DockerInstaller@0
+        displayName: "Docker Installer"
+        inputs:
+          #dockerVersion: 17.09.0-ce
+          #dockerVersion: 19.03.9
+          dockerVersion: 20.10.8
+          releaseType: stable
+      #
+      #
+      - ${{ if startsWith(parameters.docker_task, 'build_and_publish') }}:
+          - task: Docker@2
+            displayName: "Login to DockerHub"
+            inputs:
+              command: login
+              containerRegistry: dockerhubtest
+          #
+          - bash: echo "DONE with LOGIN"
+          #
+          - bash: |
+              set -e
+              pwd
+              REGISTRY_USER=${{ variables.registry_user }}
+              #
+              IMAGE_NAME=${IMAGE_NAME:-"${{ variables.image_name }}"}
+              TAG_TEST=${TAG_TEST:-"unittest"}
+              TAG_BASE=${TAG_BASE:-"devel"}
+              PY_MODULE=${PY_MODULE:-"${{ variables.py_module }}"}
+              #
+              VER=`grep '__version__' rcsb/app/${PY_MODULE}/__init__.py | awk '{print $3}' | tr -d '"'`
+              echo "##vso[task.setvariable variable=VER]$VER"
+              echo "##vso[task.setvariable variable=TAG_BASE]$TAG_BASE"
+              #
+              #docker rmi -f ${IMAGE_NAME}
+              #docker rmi -f ${IMAGE_NAME}:${TAG_TEST}
+              #docker rm -f ${IMAGE_NAME}
+              #
+              docker image ls
+              docker build --build-arg BUILD_DATE=`date -u +"%Y-%m-%dT%H:%M:%SZ"` \
+                          --build-arg VCS_REF=`git rev-parse --short HEAD` \
+                          --build-arg VERSION=$VER \
+                          --build-arg USER_ID=$(id -u) \
+                          --build-arg GROUP_ID=$(id -g) \
+                          --tag ${REGISTRY_USER}/${IMAGE_NAME}:${TAG_BASE} \
+                          --tag ${REGISTRY_USER}/${IMAGE_NAME}:${VER} \
+                          --file ./Dockerfile.devel  .
+              #
+              docker image ls
+            displayName: "Production build script"
+          - bash: echo "Image ${{ format('{0}/{1}', variables['registry_user'], variables['image_name'] ) }} version $(VER) tag_base $(TAG_BASE)"
+          #
+          - task: Docker@2
+            displayName: "Push to DockerHub"
+            inputs:
+              command: push
+              containerRegistry: dockerhubtest
+              repository: ${{ format('{0}/{1}', variables['registry_user'], variables['image_name'] ) }}
+              tags: |
+                $(VER)
+                $(TAG_BASE)
+          #
+          - bash: echo "DONE with PUSH"
+        #

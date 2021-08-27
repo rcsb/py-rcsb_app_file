@@ -1,0 +1,46 @@
+{
+   "versionNumber": 0.3,
+   "ccsiKwargs": {
+      "ccUrlTarget": "/Users/jwest/MY_FILES/Developing/RCSB/py-rcsb_utils_chem/rcsb/utils/tests-chem/test-data/components-abbrev.cif",
+      "birdUrlTarget": "/Users/jwest/MY_FILES/Developing/RCSB/py-rcsb_utils_chem/rcsb/utils/tests-chem/test-data/prdcc-abbrev.cif",
+      "cachePath": "/Users/jwest/MY_FILES/Developing/RCSB/py-rcsb_utils_chem/rcsb/utils/tests-chem/test-output/CACHE",
+      "useCache": false,
+      "ccFileNamePrefix": "cc-abbrev",
+      "oeFileNamePrefix": "oe-cc-abbrev",
+      "limitPerceptions": false,
+      "minCount": null,
+      "numProc": 12,
+      "quietFlag": true,
+      "maxChunkSize": 10,
+      "molLimit": null,
+      "logSizes": false
+   },
+   "oesmpKwargs": {
+      "ccUrlTarget": "/Users/jwest/MY_FILES/Developing/RCSB/py-rcsb_utils_chem/rcsb/utils/tests-chem/test-data/components-abbrev.cif",
+      "birdUrlTarget": "/Users/jwest/MY_FILES/Developing/RCSB/py-rcsb_utils_chem/rcsb/utils/tests-chem/test-data/prdcc-abbrev.cif",
+      "cachePath": "/Users/jwest/MY_FILES/Developing/RCSB/py-rcsb_utils_chem/rcsb/utils/tests-chem/test-output/CACHE",
+      "useCache": false,
+      "ccFileNamePrefix": "cc-abbrev",
+      "oeFileNamePrefix": "oe-cc-abbrev",
+      "limitPerceptions": false,
+      "minCount": null,
+      "maxFpResults": 50,
+      "fpTypeCuttoffD": {
+         "TREE": 0.6,
+         "MACCS": 0.9
+      },
+      "buildTypeList": [
+         "oe-iso-smiles",
+         "oe-smiles",
+         "cactvs-iso-smiles",
+         "cactvs-smiles",
+         "inchi"
+      ],
+      "screenTypeList": null,
+      "quietFlag": true,
+      "numProc": 12,
+      "maxChunkSize": 10,
+      "molLimit": null,
+      "logSizes": false
+   }
+}

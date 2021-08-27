@@ -1,13 +1,11 @@
 #
+# My local output directories
 test-output/
-settings.json
 LOGTOX
-#
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-
 
 # C extensions
 *.so
