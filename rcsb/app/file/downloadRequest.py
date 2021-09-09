@@ -14,6 +14,7 @@ from enum import Enum
 
 from fastapi import APIRouter
 from fastapi import Depends
+from fastapi import HTTPException
 from fastapi import Path
 from fastapi import Query
 from fastapi.responses import FileResponse
@@ -38,10 +39,10 @@ class HashType(str, Enum):
     SHA256 = "SHA256"
 
 
-@router.get("/download/{repository}", dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+@router.get("/download/{repositoryType}", dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
 async def download(
     idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_00000000"),
-    repoType: str = Path(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
+    repositoryType: str = Path(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
     contentType: str = Query(None, title="Content type", description="Content type", example="model, sf, val-report-full"),
     contentFormat: str = Query(None, title="Content format", description="Content format", example="cif, xml, json, txt"),
     partNumber: int = Query(1, title="Content part", description="Content part", example="1,2,3"),
@@ -53,23 +54,39 @@ async def download(
     pathU = PathUtils(cP)
     filePath = fileName = mimeType = hashDigest = None
     success = False
+    tD = {}
     try:
-        filePath = pathU.getVersionedPath(repoType, idCode, contentType, partNumber, contentFormat, version)
+        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
         success = FileUtil().exists(filePath)
-        if not success:
-            logger.error("bad path %r", filePath)
-        mimeType = pathU.getMimeType(contentFormat)
-        logger.debug("success %r idCode %r contentType %r format %r version %r fileName %r (%r)", success, idCode, contentType, contentFormat, version, fileName, mimeType)
 
+        mimeType = pathU.getMimeType(contentFormat)
+        logger.info(
+            "success %r repositoryType %r idCode %r contentType %r format %r version %r fileName %r (%r)",
+            success,
+            repositoryType,
+            idCode,
+            contentType,
+            contentFormat,
+            version,
+            fileName,
+            mimeType,
+        )
         # Check hash
-        if hashType:
+        if hashType and success:
             hD = CryptUtils().getFileHash(filePath, hashType.name)
             hashDigest = hD["hashDigest"]
             tD = {"rcsb_hash_type": hashType.name, "rcsb_hexdigest": hashDigest}
     except Exception as e:
         logger.exception("Failing with %s", str(e))
         success = False
-    return FileResponse(path=filePath, media_type=mimeType, filename=fileName, headers=tD)
+    #
+    if not success:
+        if filePath:
+            raise HTTPException(status_code=403, detail="Request file path does not exist %s" % filePath)
+        else:
+            raise HTTPException(status_code=403, detail="Bad or incomplete path metadata")
+
+    return FileResponse(path=filePath, media_type=mimeType, filename=os.path.basename(filePath), headers=tD)
 
 
 def isPositiveInteger(tS):

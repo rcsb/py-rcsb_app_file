@@ -53,7 +53,7 @@ class FileDownloadTests(unittest.TestCase):
         dataPath = os.path.join(HERE, "test-data")
         cachePath = os.environ.get("CACHE_PATH")
         sessionPath = os.path.join(cachePath, "sessions")
-        repoTestPath = os.path.join(cachePath, "test-repo")
+        repoTestPath = os.path.join(cachePath, "repository", "archive")
 
         fU = FileUtil()
         fU.mkdir(sessionPath)
@@ -115,7 +115,7 @@ class FileDownloadTests(unittest.TestCase):
 
     def setUp(self):
         self.__cachePath = os.environ.get("CACHE_PATH")
-        self.__repoTestPath = os.path.join(self.__cachePath, "test-repo")
+        self.__repoTestPath = os.path.join(self.__cachePath, "repository", "archive")
         self.__dataPath = os.path.join(HERE, "test-data")
         self.__testFilePath = os.path.join(self.__dataPath, "config", "example-data.cif")
         self.__downloadFilePath = os.path.join(self.__cachePath, "downloadFile.dat")
@@ -167,6 +167,7 @@ class FileDownloadTests(unittest.TestCase):
                 with TestClient(app) as client:
                     response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                     logger.info("download response status code %r", response.status_code)
+                    logger.debug("response %r %r %r", response.status_code, response.reason, response.content)
                     self.assertTrue(response.status_code == 200)
                     logger.info("Content length (%d)", len(response.content))
                     rspHashType = response.headers["rcsb_hash_type"]

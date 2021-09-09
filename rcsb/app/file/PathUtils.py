@@ -62,11 +62,11 @@ class PathUtils:
         fnBase = f"{sessionId}_{sliceIndex}.{sliceTotal}"
         return os.path.join(lockPath, fnBase + ".lock")
 
-    def getVersionedPath(self, repoType: str, idCode: str, contentType: str, partNumber: int, contentFormat: str, version: str) -> typing.Optional[str]:
+    def getVersionedPath(self, repositoryType: str, idCode: str, contentType: str, partNumber: int, contentFormat: str, version: str) -> typing.Optional[str]:
         fTupL = []
         filePath = None
         try:
-            repoPath = self.getRepositoryDirPath(repoType)
+            repoPath = self.getRepositoryDirPath(repositoryType)
             fnBase = f"{idCode}_{contentType}_P{partNumber}.{contentFormat}.V"
             filePattern = os.path.join(repoPath, idCode, fnBase)
             if version.isdigit():
