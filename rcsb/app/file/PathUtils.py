@@ -18,7 +18,9 @@ __license__ = "Apache 2.0"
 import glob
 import logging
 import os
+import typing
 
+from rcsb.app.file.ConfigProvider import ConfigProvider
 
 logger = logging.getLogger(__name__)
 
@@ -26,21 +28,45 @@ logger = logging.getLogger(__name__)
 class PathUtils:
     """Collected utilities for file system path and file name access."""
 
-    def __init__(self, topRepositoryPath=None):
-        self.__topRepositoryPath = topRepositoryPath if topRepositoryPath else os.environ.get("TOP_REPOSITORY_PATH", ".")
+    def __init__(self, cP: typing.Type[ConfigProvider]):
+        self.__cP = cP
+        self.__repositoryDirPath = self.__cP.get("REPOSITORY_DIR_PATH")
+        self.__sessionDirPath = self.__cP.get("SESSION_DIR_PATH")
+        self.__sharedLockDirPath = self.__cP.get("SHARED_LOCK_PATH")
 
-    def getRepositoryPath(self, repositoryType):
-        if repositoryType.lower() in ["onedep-archive"]:
-            return os.path.join(self.__topRepositoryPath, "archive")
-        elif repositoryType.lower() in ["onedep-deposit"]:
-            return os.path.join(self.__topRepositoryPath, "deposit")
+    def getSessionDirPath(self) -> str:
+        return self.__sessionDirPath
+
+    def getSharedLockDirPath(self) -> str:
+        return self.__sharedLockDirPath
+
+    def getRepositoryDirPath(self, repositoryType: str) -> typing.Optional[str]:
+        if repositoryType.lower() in ["onedep-archive", "archive"]:
+            return os.path.join(self.__repositoryDirPath, "archive")
+        elif repositoryType.lower() in ["onedep-deposit", "deposit"]:
+            return os.path.join(self.__repositoryDirPath, "deposit")
         return None
 
-    def getVersionedPath(self, repoType, idCode, contentType, partNumber, contentFormat, version):
+    def getFileLockPath(self, idCode: str, contentType: str, partNumber: int, contentFormat: str) -> str:
+        lockPath = self.getSharedLockDirPath()
+        fnBase = f"{idCode}_{contentType}_P{partNumber}.{contentFormat}"
+        return os.path.join(lockPath, fnBase + ".lock")
+
+    def getSliceFilePath(self, sessionId: str, sliceIndex: int, sliceTotal: int) -> str:
+        sessionPath = self.getSessionDirPath()
+        fnBase = f"{sessionId}_{sliceIndex}.{sliceTotal}"
+        return os.path.join(sessionPath, sessionId, fnBase)
+
+    def getSliceLockPath(self, sessionId: str, sliceIndex: int, sliceTotal: int) -> str:
+        lockPath = self.getSharedLockDirPath()
+        fnBase = f"{sessionId}_{sliceIndex}.{sliceTotal}"
+        return os.path.join(lockPath, fnBase + ".lock")
+
+    def getVersionedPath(self, repoType: str, idCode: str, contentType: str, partNumber: int, contentFormat: str, version: str) -> typing.Optional[str]:
         fTupL = []
         filePath = None
         try:
-            repoPath = self.getRepositoryPath(repoType)
+            repoPath = self.getRepositoryDirPath(repoType)
             fnBase = f"{idCode}_{contentType}_P{partNumber}.{contentFormat}.V"
             filePattern = os.path.join(repoPath, idCode, fnBase)
             if version.isdigit():
@@ -67,7 +93,7 @@ class PathUtils:
             logger.exception("Failing with %s", str(e))
         return filePath
 
-    def getMimeType(self, contentFormat):
+    def getMimeType(self, contentFormat: str) -> str:
         if contentFormat in ["cif"]:
             mt = "chemical/x-mmcif"
         elif contentFormat in ["pdf"]:

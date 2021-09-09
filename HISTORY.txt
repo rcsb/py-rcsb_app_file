@@ -1,2 +1,3 @@
 # RCSB_APP_FILE HISTORY
 27-Aug-2021  - V0.10 Created module
+ 8-Sep-2021  - V0.11 Add sliced upload support

@@ -17,7 +17,8 @@ from fastapi import Depends
 from fastapi import Path
 from fastapi import Query
 from fastapi.responses import FileResponse
-from rcsb.app.file.FileSystemUtils import FileSystemUtils
+from rcsb.app.file.ConfigProvider import ConfigProvider
+from rcsb.app.file.PathUtils import PathUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.utils.io.FileUtil import FileUtil
@@ -40,29 +41,24 @@ class HashType(str, Enum):
 @router.get("/download/{repository}", dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
 async def download(
     idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_00000000"),
-    version: str = Query("1", title="Version string", description="Version number or description", example="1,2,3, latest, previous"),
+    repoType: str = Path(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
     contentType: str = Query(None, title="Content type", description="Content type", example="model, sf, val-report-full"),
     contentFormat: str = Query(None, title="Content format", description="Content format", example="cif, xml, json, txt"),
     partNumber: int = Query(1, title="Content part", description="Content part", example="1,2,3"),
+    version: str = Query("1", title="Version string", description="Version number or description", example="1,2,3, latest, previous"),
     hashType: HashType = Query(None, title="Hash type", description="Hash type", example="SHA256"),
-    repository: str = Path(None, title="Repository", description="Repository (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
 ):
-    fsU = FileSystemUtils()
+    cachePath = os.environ.get("CACHE_PATH", ".")
+    cP = ConfigProvider(cachePath)
+    pathU = PathUtils(cP)
     filePath = fileName = mimeType = hashDigest = None
     success = False
     try:
-        repoPath = fsU.getRepositoryPath(repository)
-        #
-        if isPositiveInteger(version):
-            fileName = f"{idCode}_{contentType}_P{partNumber}.{contentFormat}.V{version}"
-            filePath = os.path.join(repoPath, idCode, fileName)
-        else:
-            filePath = fsU.getVersionedPath(version, repoPath, idCode, contentType, partNumber, contentFormat)
-            fileName = os.path.basename(filePath)
+        filePath = pathU.getVersionedPath(repoType, idCode, contentType, partNumber, contentFormat, version)
         success = FileUtil().exists(filePath)
         if not success:
             logger.error("bad path %r", filePath)
-        mimeType = fsU.getMimeType(contentFormat)
+        mimeType = pathU.getMimeType(contentFormat)
         logger.debug("success %r idCode %r contentType %r format %r version %r fileName %r (%r)", success, idCode, contentType, contentFormat, version, fileName, mimeType)
 
         # Check hash

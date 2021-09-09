@@ -42,7 +42,14 @@ class ConfigProviderTests(unittest.TestCase):
         self.__cachePath = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
         logger.info("Using cache path %r", self.__cachePath)
         cP = ConfigProvider(self.__cachePath)
-        self.__cD = {"JWT_SUBJECT": "aTestSubject", "JWT_ALGORITHM": "HS256", "JWT_SECRET": "aTestSecret"}
+        self.__cD = {
+            "JWT_SUBJECT": "aTestSubject",
+            "JWT_ALGORITHM": "HS256",
+            "JWT_SECRET": "aTestSecret",
+            "SESSION_DIR_PATH": os.path.join(self.__cachePath, "sessions"),
+            "REPOSITORY_DIR_PATH": os.path.join(self.__cachePath, "repository"),
+            "SHARED_LOCK_PATH": os.path.join(self.__cachePath, "shared-locks"),
+        }
         cP.setConfig(configData=self.__cD)
         #
         logger.debug("Running tests on version %s", __version__)

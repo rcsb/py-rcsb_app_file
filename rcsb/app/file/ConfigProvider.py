@@ -18,8 +18,9 @@ __license__ = "Apache 2.0"
 import datetime
 import logging
 import os
-import time
+import typing
 
+from mmcif.api.DataCategoryBase import DataCategoryBase
 from rcsb.utils.io.MarshalUtil import MarshalUtil
 from rcsb.utils.io.SingletonClass import SingletonClass
 
@@ -29,8 +30,7 @@ logger = logging.getLogger(__name__)
 class ConfigProvider(SingletonClass):
     """Accessors for configuration details."""
 
-    def __init__(self, cachePath=None):
-        self.__startTime = time.time()
+    def __init__(self, cachePath: typing.Optional[str] = None):
         # ---
         self.__cachePath = cachePath if cachePath else os.environ.get("CACHE_PATH", os.path.abspath("./CACHE"))
         logger.info("Using CACHE_PATH setting %r", self.__cachePath)
@@ -39,7 +39,7 @@ class ConfigProvider(SingletonClass):
         self.__dataObj = None
         # ---
 
-    def get(self, ky):
+    def get(self, ky: str) -> typing.Optional[str]:
         try:
             if not self.__configD:
                 self.__readConfig()
@@ -48,7 +48,7 @@ class ConfigProvider(SingletonClass):
             pass
         return None
 
-    def getConfig(self):
+    def getConfig(self) -> typing.Dict:
         try:
             if not self.__configD:
                 self.__readConfig()
@@ -56,7 +56,7 @@ class ConfigProvider(SingletonClass):
             logger.exception("Failing with %s", str(e))
         return self.__configD["data"]
 
-    def getData(self):
+    def getData(self) -> typing.Type[DataCategoryBase]:
         try:
             if not self.__dataObj:
                 self.__readData()
@@ -64,14 +64,14 @@ class ConfigProvider(SingletonClass):
             logger.exception("Failing with %s", str(e))
         return self.__dataObj
 
-    def getVersion(self):
+    def getVersion(self) -> typing.Optional[str]:
         try:
             return self.__configD["version"]
         except Exception:
             pass
         return None
 
-    def __readData(self, fileName="example-data.cif"):
+    def __readData(self, fileName: str = "example-data.cif") -> bool:
         """Read example data file ...
 
         Returns:
@@ -99,7 +99,7 @@ class ConfigProvider(SingletonClass):
             ok = False
         return ok
 
-    def __readConfig(self):
+    def __readConfig(self) -> bool:
         """Read example configuration file and set internal configuration dictionary
 
         Returns:
@@ -129,12 +129,12 @@ class ConfigProvider(SingletonClass):
             ok = False
         return ok
 
-    def __getConfigFilePath(self):
+    def __getConfigFilePath(self) -> str:
         fileName = "example-config.json"
         configFilePath = os.path.join(self.__cachePath, "config", fileName)
         return configFilePath
 
-    def setConfig(self, configData=None):
+    def setConfig(self, configData: typing.Optional[typing.Dict] = None) -> bool:
         """Provide bootstrap configuration options.
 
         Args:
@@ -147,7 +147,7 @@ class ConfigProvider(SingletonClass):
         self.__configD = self.__makeBootstrapDepictConfig(configData=configData)
         return len(self.__configD) >= 2
 
-    def __makeBootstrapDepictConfig(self, storeConfig=True, configData=None):
+    def __makeBootstrapDepictConfig(self, storeConfig: typing.Optional[bool] = True, configData: typing.Optional[typing.Dict] = None) -> typing.Dict:
         """Create example configuration bootstrap file"""
         configD = {}
         try:
