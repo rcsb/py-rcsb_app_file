@@ -15,8 +15,10 @@ ARG VERSION
 #
 ARG USER_ID
 ARG GROUP_ID
-RUN addgroup --gid $GROUP_ID ubuntu
-RUN adduser  --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID ubuntu
+#RUN addgroup --gid $GROUP_ID ubuntu
+#RUN addgroup ubuntu
+#RUN adduser  --disabled-password connor --gecos '' --uid $USER_ID --gid $GROUP_ID ubuntu
+RUN adduser ubuntu
 
 # Build-time metadata as defined at http://label-schema.org
 LABEL org.label-schema.build-date=$BUILD_DATE \
@@ -57,13 +59,25 @@ COPY ./deploy/entryPoint.sh /app/entryPoint.sh
 RUN chmod +x /app/entryPoint.sh
 
 COPY ./rcsb/app/tests-file/test-data/config/example-data.cif    /app/CACHE/config/example-data.cif
+
+#Added by Connor
+COPY ./rcsb/app/tests-file/test-data/config/example-config.json /app/CACHE/config/example-config.json
+
+COPY ./myFile.py /app/
+
 RUN chown ubuntu /app/CACHE
+#RUN chown connor /app/CACHE
 
 EXPOSE 80
+#EXPOSE 8000
 USER ubuntu
+#USER connor
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+#Added by Connor
+ENV CACHE_PATH /app/CACHE
+
 
 # Launch the service
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entryPoint.sh"]

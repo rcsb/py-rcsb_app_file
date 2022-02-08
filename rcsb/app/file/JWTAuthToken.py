@@ -42,4 +42,10 @@ class JWTAuthToken:
             expire = now + datetime.timedelta(minutes=15)
         payload.update({"exp": expire, "iat": now, "sub": subject})
         jwtToken = jwt.encode(payload, self.__jwtSecret, algorithm=self.__jwtAlgorithm)
+        #
+        print()
+        print("Token made")
+        print(jwtToken)
+        print()
+        #
         return jwtToken

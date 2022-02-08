@@ -14,8 +14,10 @@ ARG VERSION
 #
 ARG USER_ID
 ARG GROUP_ID
-RUN addgroup --gid $GROUP_ID ubuntu
-RUN adduser  --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID ubuntu
+#RUN addgroup --gid $GROUP_ID ubuntu
+RUN addgroup ubuntu
+#RUN adduser  --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID ubuntu
+RUN adduser connor
 
 #
 LABEL org.label-schema.build-date=$BUILD_DATE \
@@ -51,12 +53,16 @@ COPY ./deploy/launch.sh /app/launch.sh
 RUN chmod +x /app/launch.sh
 
 COPY ./deploy/gunicorn_conf.py /app/gunicorn_conf.py
-#
+#Added by Connor
 COPY ./rcsb/app/tests-file/test-data/config/example-data.cif    /app/CACHE/config/example-data.cif
-RUN chown -R ubuntu /app/CACHE
-RUN chown -R ubuntu /app
+#RUN chown -R ubuntu /app/CACHE
+#RUN chown -R ubuntu /app
+RUN chown -R connor /app/CACHE
+RUN chown -R connor /app
+
 # EXPOSE 8000
-USER ubuntu
+#USER ubuntu
+USER connor
 
 # ENV PYTHONPATH=/rcsb
 ENV PYTHONDONTWRITEBYTECODE 1

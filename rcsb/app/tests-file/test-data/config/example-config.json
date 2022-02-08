@@ -42,5 +42,13 @@
       "maxChunkSize": 10,
       "molLimit": null,
       "logSizes": false
-   }
+   },
+
+
+   "version": 0.2,
+   "data": 1.2,
+
+   "JWT_SUBJECT": "aTestSubject",
+   "JWT_ALGORITHM": "HS256",
+   "JWT_SECRET": "aTestSecret"
 }
