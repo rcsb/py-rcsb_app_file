@@ -63,7 +63,7 @@ COPY ./rcsb/app/tests-file/test-data/config/example-data.cif    /app/CACHE/confi
 #Added by Connor
 COPY ./rcsb/app/tests-file/test-data/config/example-config.json /app/CACHE/config/example-config.json
 
-COPY ./myFile.py /app/
+#COPY ./myFile.py /app/
 
 RUN chown ubuntu /app/CACHE
 #RUN chown connor /app/CACHE

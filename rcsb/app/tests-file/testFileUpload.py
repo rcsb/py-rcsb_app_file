@@ -83,7 +83,9 @@ class FileUploadTests(unittest.TestCase):
         # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
         cP = ConfigProvider(self.__cachePath)
         subject = cP.get("JWT_SUBJECT")
+        
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath).createToken({}, subject)}
+        
         logger.debug("header %r", self.__headerD)
         # clear any previous data
         self.__repositoryPath = cP.get("REPOSITORY_DIR_PATH")

@@ -32,16 +32,6 @@ from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.utils.io.LogUtil import StructFormatter
 
-# sl = logging.StreamHandler()
-# sl.setFormatter(StructFormatter(fmt=None, mask=None))
-logger = logging.getLogger()
-root_handler = logger.handlers[0]
-root_handler.setFormatter(StructFormatter(fmt=None, mask=None))
-# logger.addHandler(sl)
-# logger.propagate = True
-# logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
-logger.setLevel(logging.INFO)
-
 class DockerFileUpload():
     def setUp(self):
         self.__dataPath = os.path.join(HERE, "test-data")
@@ -62,18 +52,25 @@ class DockerFileUpload():
                 ofh.write(ifh.read())
 
         cP = ConfigProvider(self.__cachePath)
+        self.__cD = {
+            "JWT_SUBJECT": "aTestSubject",
+            "JWT_ALGORITHM": "HS256",
+            "JWT_SECRET": "aTestSecret",
+            "SESSION_DIR_PATH": os.path.join(self.__cachePath, "sessions"),
+            "REPOSITORY_DIR_PATH": os.path.join(self.__cachePath, "repository"),
+            "SHARED_LOCK_PATH": os.path.join(self.__cachePath, "shared-locks"),
+        }
+        cP.setConfig(configData=self.__cD)
+        
+        
         subject = cP.get("JWT_SUBJECT")
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath).createToken({}, subject)}
-        logger.debug("header %r", self.__headerD)
         # clear any previous data
         self.__repositoryPath = cP.get("REPOSITORY_DIR_PATH")
         self.__fU.remove(self.__repositoryPath)
         #
         self.__startTime = time.time()
         #
-        logger.debug("Running tests on version %s", __version__)
-        #logger.info("Starting %s at %s", time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
-        print(self.__headerD)
 
     def uploadScript(self):
         hashType = testHash = None
@@ -87,7 +84,7 @@ class DockerFileUpload():
 
         copyMode = "native"
         partNumber = 1
-        allowOverWrite = True
+        allowOverWrite = False
 
         mD = {
             "idCode": "D_00000000",
@@ -109,13 +106,10 @@ class DockerFileUpload():
                             files = {"uploadFile": ifh}
                             response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
                         if response.status_code != responseCode:
-                            logger.info("response %r %r %r", response.status_code, response.reason, response.content)
-                        #self.assertTrue(response.status_code == responseCode)
+                            print()
                         rD = response.json()
-                        logger.info("rD %r", rD.items())
                         if responseCode == 200:
-                        #    self.assertTrue(rD["success"])
-                            print(responseCode)
+                            print()
 
 
         print("Upload Script Complete")
