@@ -2,9 +2,17 @@
 
 import requests
 import os
+
+HERE = os.path.abspath(os.path.dirname(__file__))
+TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
+os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
+from rcsb.utils.io.FileUtil import FileUtil
+from fastapi.testclient import TestClient
+from rcsb.app.file.main import app
 
 
 filePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/test-output/CACHE/sessions/testFile.dat"
@@ -22,7 +30,9 @@ cD = {
 cP.setConfig(configData=cD)
 
 subject = cP.get("JWT_SUBJECT")
-
+repositoryPath = cP.get("REPOSITORY_DIR_PATH")
+fU = FileUtil()
+fU.remove(repositoryPath)
 hashType = "MD5"
 hD = CryptUtils().getFileHash(filePath, hashType=hashType)
 testHash = hD["hashDigest"]
@@ -52,6 +62,9 @@ url = "http://0.0.0.0:80/file-v1/upload"
 with open(filePath, "rb") as ifh:
     files = {"uploadFile": ifh}
     req = requests.post(url, files = files, data = mD, headers = headerD)
-
-
 print(req.text)
+
+# with TestClient(app) as client:
+#     with open(filePath, "rb") as ifh:
+#         files = {"uploadFile": ifh}
+#         response = client.post("/file-v1/upload", files = files, data = mD, headers = headerD)
