@@ -18,7 +18,7 @@ ARG GROUP_ID
 #RUN addgroup --gid $GROUP_ID ubuntu
 #RUN addgroup ubuntu
 #RUN adduser  --disabled-password connor --gecos '' --uid $USER_ID --gid $GROUP_ID ubuntu
-RUN adduser ubuntu
+#RUN adduser ubuntu
 
 # Build-time metadata as defined at http://label-schema.org
 LABEL org.label-schema.build-date=$BUILD_DATE \
@@ -58,18 +58,17 @@ RUN chmod +x /app/launch.sh
 COPY ./deploy/entryPoint.sh /app/entryPoint.sh
 RUN chmod +x /app/entryPoint.sh
 
-COPY ./rcsb/app/tests-file/test-data/config/example-data.cif /app/CACHE/config/example-data.cif
+#COPY ./rcsb/app/tests-file/test-data/config/example-data.cif /app/CACHE/config/example-data.cif
 
 #Added by Connor
-COPY ./rcsb/app/tests-file/test-output/CACHE/config/example-config.json /app/CACHE/config/example-config.json
+COPY ./rcsb/app/tests-file/test-output/CACHE/config/ /app/CACHE/config/
 
-RUN chown ubuntu /app/CACHE
-#RUN chown connor /app/CACHE
+# RUN chown -R ubuntu /app
+# RUN chown -R ubuntu /app/CACHE
 
 EXPOSE 80
-#EXPOSE 8000
-USER ubuntu
-#USER connor
+
+#USER ubuntu
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1

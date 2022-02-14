@@ -4,9 +4,12 @@ import requests
 import os
 
 HERE = os.path.abspath(os.path.dirname(__file__))
+print(HERE)
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
-
+print(TOPDIR)
+os.environ["CACHE_PATH"] = os.path.join(HERE, "test-output", "CACHE")
+cachePath = os.environ.get("CACHE_PATH")
+print(os.environ["CACHE_PATH"])
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -16,9 +19,9 @@ from rcsb.app.file.main import app
 
 
 filePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/test-output/CACHE/sessions/testFile.dat"
-cachePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/test-output/CACHE"
+#cachePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/test-output/CACHE"
 
-cP = ConfigProvider("/Users/cparker/RCSBWork/py-rcsb_app_file/test-output/CACHE")
+cP = ConfigProvider(cachePath)
 cD = {
     "JWT_SUBJECT": "aTestSubject",
     "JWT_ALGORITHM": "HS256",
