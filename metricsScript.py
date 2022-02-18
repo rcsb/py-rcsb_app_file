@@ -183,6 +183,9 @@ hashType = "MD5"
 hD = CryptUtils().getFileHash(filePath, hashType = hashType)
 fullTestHash = hD["hashDigest"]
 
+url = "http://0.0.0.0:80/file-v1/upload-slice"
+awsurl = "http://3.94.78.165:80/file-v1/upload-slice" #change this to match aws public ipv4
+
 cP = ConfigProvider(cachePath)
 ioU = IoUtils(cP)
 sessionId = uuid.uuid4().hex
@@ -214,7 +217,8 @@ with open(manifestPath, "r", encoding = "utf-8") as ifh:
 
         with open(testFilePath, "rb") as ifh:
             files = {"uploadFile": ifh}
-            response = requests.post("http://0.0.0.0:80/file-v1/upload-slice", files = files, data = mD, headers = headerD)
+            response = requests.post(url, files = files, data = mD, headers = headerD)
+            #response = requests.post(awsurl, files = files, data = mD, headers = headerD)
 
         print("Slice", sliceIndex, "in:", str(time.time() - startTime), "seconds")
         sliceTimeList.append(time.time() - startTime)
@@ -245,7 +249,10 @@ mD = {
     "hashDigest": fullTestHash,
 }
 
-with open(testFilePath, "rb") as ifh:
-    response = requests.post("http://0.0.0.0:80/file-v1/join-slice", data = mD, headers = headerD)
+url = "http://0.0.0.0:80/file-v1/join-slice"
+awsurl = "http://3.94.78.165:80/file-v1/join-slice" #change this to match aws public ipv4
 
+with open(testFilePath, "rb") as ifh:
+    response = requests.post(url, data = mD, headers = headerD)
+    #response = requests.post(awsurl, data = mD, header = headerD)
 print("Slices joined in:", str(time.time() - startTime), "seconds\n")
