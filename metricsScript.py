@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import asyncio
-from doctest import testfile
 import uuid
 import requests
 import os
@@ -61,7 +60,7 @@ cachePath = "app/CACHE/"
 
 #create file for download
 #select size of file here (in bytes)
-nB = 25000000
+nB = 100000
 with open(filePath, "wb") as ofh:
     ofh.write(os.urandom(nB))
 
@@ -110,8 +109,8 @@ for version in range(1, 10):
     }
 
     headerD = {"Authorization": "Bearer " + JWTAuthToken(cachePath).createToken({}, subject)}
-    url = "http://0.0.0.0:80/file-v1/upload"
-    awsurl = "http://3.94.78.165:80/file-v1/upload" #change this to match aws public ipv4
+    url = "http://126.6.159.177:80/file-v1/upload"
+    awsurl = "http://34.239.121.66:80/file-v1/upload" #change this to match aws public ipv4
 
     #upload with requests library
     with open(filePath, "rb") as ifh:
@@ -147,7 +146,7 @@ for version in range(1, 10):
     "version": str(version),
     "hashType": hashType,
     }
-
+    #set file download path
     downloadFilePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/test-output/" + downloadDict["idCode"] + "/" + downloadDict["idCode"] + "_" + downloadDict["version"] + ".dat"
     downloadDirPath = "/Users/cparker/RCSBWork/py-rcsb_app_file/test-output/" + downloadDict["idCode"] + "/"
     downloadName = downloadDict["idCode"] + "_" + "v" + downloadDict["version"]
@@ -155,8 +154,8 @@ for version in range(1, 10):
 
 
     headerD = {"Authorization": "Bearer " + JWTAuthToken(cachePath).createToken({}, subject)}
-    url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
-    awsurl = "http://3.94.78.165:80/file-v1/download/onedep-archive" #change this to match aws public ipv4
+    url = "http://126.6.159.177:80/file-v1/download/onedep-archive"
+    awsurl = "http://34.239.121.66:80/file-v1/download/onedep-archive" #change this to match aws public ipv4
 
     #upload with requests library
     #comment out this line to use aws server
@@ -183,8 +182,8 @@ hashType = "MD5"
 hD = CryptUtils().getFileHash(filePath, hashType = hashType)
 fullTestHash = hD["hashDigest"]
 
-url = "http://0.0.0.0:80/file-v1/upload-slice"
-awsurl = "http://3.94.78.165:80/file-v1/upload-slice" #change this to match aws public ipv4
+url = "http://126.6.159.177:80/file-v1/upload-slice"
+awsurl = "http://34.239.121.66:80/file-v1/upload-slice" #change this to match aws public ipv4
 
 cP = ConfigProvider(cachePath)
 ioU = IoUtils(cP)
@@ -222,7 +221,7 @@ with open(manifestPath, "r", encoding = "utf-8") as ifh:
 
         print("Slice", sliceIndex, "in:", str(time.time() - startTime), "seconds")
         sliceTimeList.append(time.time() - startTime)
-
+#time taken for each slice to be uploaded
 sliceSum = sum(sliceTimeList)
 sliceAvg = sliceSum / len(sliceTimeList)
 print("\n" "Average slice upload time", sliceAvg, "seconds", "\n"
@@ -249,10 +248,11 @@ mD = {
     "hashDigest": fullTestHash,
 }
 
-url = "http://0.0.0.0:80/file-v1/join-slice"
-awsurl = "http://3.94.78.165:80/file-v1/join-slice" #change this to match aws public ipv4
+url = "http://126.6.159.177:80/file-v1/join-slice"
+awsurl = "http://34.239.121.66:80/file-v1/join-slice" #change this to match aws public ipv4
 
 with open(testFilePath, "rb") as ifh:
     response = requests.post(url, data = mD, headers = headerD)
-    #response = requests.post(awsurl, data = mD, header = headerD)
+    #response = requests.post(awsurl, data = mD, headers = headerD)
+#time taken to join slices
 print("Slices joined in:", str(time.time() - startTime), "seconds\n")

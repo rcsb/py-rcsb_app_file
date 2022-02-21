@@ -144,7 +144,6 @@ downloadDict = {
                     "partNumber": 1,
                     "version": 1,
                     "hashType": refHashType,
-                    "fileName": "testFile"
 }
 #use this downloadDict for local download test
 # downloadDict = {
