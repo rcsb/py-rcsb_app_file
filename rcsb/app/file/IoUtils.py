@@ -169,7 +169,7 @@ class IoUtils:
                 logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
                 return {"success": False, "statusCode": 405, "statusMessage": "Encountered existing file - overwrite prohibited"}
             ret = await self.store(ifh, outPath, mode="wb", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
-         #
+        #
         ret["fileName"] = os.path.basename(outPath) if ret["success"] else None
         return ret
 
