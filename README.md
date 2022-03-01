@@ -33,3 +33,31 @@ or from the local repository directory:
 
 pip install .
 ```
+
+# Deployment on Local Server
+
+### Build Docker Container
+
+```bash
+
+In directory that contains “Dockerfile.devel”
+
+docker build -t fileapp -f Dockerfile.devel .
+
+```
+
+### Run docker container
+
+```bash
+
+docker run –rm –name fileapp -p 80:8000 fileapp
+
+```
+
+-d runs container in the background, allowing user to 
+
+–rm removes the container after it is stopped
+
+–name allows user to choose a name for the container
+
+-p allows user to choose a port, 80:8000 is used in this case, as the port 8000 is exposed in the current dockerfile
