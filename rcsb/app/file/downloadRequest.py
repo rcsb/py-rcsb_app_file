@@ -9,7 +9,7 @@ __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
 import logging
-import os.path
+import os
 from enum import Enum
 
 from fastapi import APIRouter

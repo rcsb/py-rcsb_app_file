@@ -55,12 +55,12 @@ ctFmtTupL = [
 
 logger = logging.getLogger()
 
-filePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/tests-file/test-data/testFile.dat"
+filePath = "./rcsb/app/tests-file/test-data/testFile.dat"
 cachePath = "app/CACHE/"
 
 #create file for download
 #select size of file here (in bytes)
-nB = 100000
+nB = 1000
 with open(filePath, "wb") as ofh:
     ofh.write(os.urandom(nB))
 
@@ -84,6 +84,8 @@ fU.remove(repositoryPath)
 hashType = "MD5"
 hD = CryptUtils().getFileHash(filePath, hashType=hashType)
 testHash = hD["hashDigest"]
+headerD = {"Authorization": "Bearer " + JWTAuthToken(cachePath).createToken({}, subject)}
+
 
 partNumber = 1
 copyMode = "native"
@@ -108,8 +110,7 @@ for version in range(1, 10):
     "hashDigest": testHash
     }
 
-    headerD = {"Authorization": "Bearer " + JWTAuthToken(cachePath).createToken({}, subject)}
-    url = "http://126.6.159.177:80/file-v1/upload"
+    url = "http://0.0.0.0:80/file-v1/upload"
     awsurl = "http://34.239.121.66:80/file-v1/upload" #change this to match aws public ipv4
 
     #upload with requests library
@@ -147,14 +148,14 @@ for version in range(1, 10):
     "hashType": hashType,
     }
     #set file download path
-    downloadFilePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/test-output/" + downloadDict["idCode"] + "/" + downloadDict["idCode"] + "_" + downloadDict["version"] + ".dat"
-    downloadDirPath = "/Users/cparker/RCSBWork/py-rcsb_app_file/test-output/" + downloadDict["idCode"] + "/"
+    downloadFilePath = "./test-output/" + downloadDict["idCode"] + "/" + downloadDict["idCode"] + "_" + downloadDict["version"] + ".dat"
+    downloadDirPath = "./test-output/" + downloadDict["idCode"] + "/"
     downloadName = downloadDict["idCode"] + "_" + "v" + downloadDict["version"]
     FileUtil().mkdir(downloadDirPath)
 
 
     headerD = {"Authorization": "Bearer " + JWTAuthToken(cachePath).createToken({}, subject)}
-    url = "http://126.6.159.177:80/file-v1/download/onedep-archive"
+    url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
     awsurl = "http://34.239.121.66:80/file-v1/download/onedep-archive" #change this to match aws public ipv4
 
     #upload with requests library
@@ -182,7 +183,7 @@ hashType = "MD5"
 hD = CryptUtils().getFileHash(filePath, hashType = hashType)
 fullTestHash = hD["hashDigest"]
 
-url = "http://126.6.159.177:80/file-v1/upload-slice"
+url = "http://0.0.0.0:80/file-v1/upload-slice"
 awsurl = "http://34.239.121.66:80/file-v1/upload-slice" #change this to match aws public ipv4
 
 cP = ConfigProvider(cachePath)
@@ -248,7 +249,7 @@ mD = {
     "hashDigest": fullTestHash,
 }
 
-url = "http://126.6.159.177:80/file-v1/join-slice"
+url = "http://0.0.0.0:80/file-v1/join-slice"
 awsurl = "http://34.239.121.66:80/file-v1/join-slice" #change this to match aws public ipv4
 
 with open(testFilePath, "rb") as ifh:

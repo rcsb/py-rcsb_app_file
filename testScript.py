@@ -1,10 +1,11 @@
-#!/usr/bin/python
-
+import asyncio
+import uuid
 import requests
 import os
 import random
-import string
-import logging
+import time
+
+from rcsb.app.file.IoUtils import IoUtils
 
 os.environ["CACHE_PATH"] = "app/CACHE/"
 
@@ -15,11 +16,7 @@ from rcsb.utils.io.FileUtil import FileUtil
 from fastapi.testclient import TestClient
 from rcsb.app.file.main import app
 
-filePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/tests-file/test-output/CACHE/sessions/testFile.dat"
-#cachePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/test-output/CACHE"
-
-cachePath = "app/CACHE/"
-
+cachePath = os.environ.get("CACHE_PATH")
 cP = ConfigProvider(cachePath)
 cD = {
     "JWT_SUBJECT": "aTestSubject",
@@ -30,53 +27,6 @@ cD = {
     "SHARED_LOCK_PATH": os.path.join(cachePath, "shared-locks"),
     }
 cP.setConfig(configData=cD)
-
-subject = cP.get("JWT_SUBJECT")
-repositoryPath = cP.get("REPOSITORY_DIR_PATH")
-sessionPath = cP.get("SESSION_DIR_PATH")
-fU = FileUtil()
-fU.remove(repositoryPath)
-hashType = "MD5"
-hD = CryptUtils().getFileHash(filePath, hashType=hashType)
-testHash = hD["hashDigest"]
-
-partNumber = 1
-version = 1
-copyMode = "native"
-allowOverWrite = True
-
-mD = {
-    "idCode": "D_00000000",
-    "repositoryType": "onedep-archive",
-    "contentType": "model",
-    "contentFormat": "cif",
-    "partNumber": partNumber,
-    "version": str(version),
-    "copyMode": copyMode,
-    "allowOverWrite": allowOverWrite,
-    "hashType": hashType,
-    "hashDigest": testHash
-    }
-
-headerD = {"Authorization": "Bearer " + JWTAuthToken(cachePath).createToken({}, subject)}
-url = "http://0.0.0.0:80/file-v1/upload"
-awsurl = "http://3.82.136.82:80/file-v1/upload" #change this to match aws public ipv4
-
-#upload with requests library
-with open(filePath, "rb") as ifh:
-    files = {"uploadFile": ifh}
-    #comment out this line to use aws server
-    req = requests.post(url, files = files, data = mD, headers = headerD)
-    #comment out this line to use local server
-    #req = requests.post(awsurl, files = files, data = mD, headers = headerD)
-print(req.text)
-
-
-# test upload using FastAPI TestClient
-# with TestClient(app) as client:
-#     with open(filePath, "rb") as ifh:
-#         files = {"uploadFile": ifh}
-#         response = client.post("/file-v1/upload", files = files, data = mD, headers = headerD)
 
 ctFmtTupL = [
             ("model", "cif"),
@@ -111,85 +61,137 @@ ctFmtTupL = [
             ("val-report", "pdf"),
         ]
 
+filePath = "./rcsb/app/tests-file/test-data/testFile.dat"
+cachePath = "app/CACHE/"
+
+#create file for download
+#select size of file here (in bytes)
+nB = 10
+with open(filePath, "wb") as ofh:
+    ofh.write(os.urandom(nB))
+
+repositoryPath = cP.get("REPOSITORY_DIR_PATH")
+sessionPath = cP.get("SESSION_DIR_PATH")
+subject = cP.get("JWT_SUBJECT")
 fU = FileUtil()
-fU.mkdir(sessionPath)
+fU.remove(repositoryPath)
+hashType = "MD5"
+hD = CryptUtils().getFileHash(filePath, hashType=hashType)
+testHash = hD["hashDigest"]
+headerD = {"Authorization": "Bearer " + JWTAuthToken(cachePath).createToken({}, subject)}
 
-sessionPath = os.path.join(cachePath, "sessions")
-repoPath = os.path.join(cachePath, "repository", "archive")
-testFilePath = os.path.join(sessionPath, "testFile.dat")
 
-#creates testFile.dat, adds random data
-nB = 2500000
-with open(testFilePath, "w", encoding="utf-8") as ofh:
-    ofh.write("".join(random.choices(string.ascii_uppercase + string.digits, k=nB)))
+partNumber = 1
+copyMode = "native"
+allowOverWrite = True
 
-#creates directory for "D_1000000001", and "D_1000000002", creates files using data from testFile.dat
-for idCode in ["D_1000000001", "D_1000000002"]:
-    dirPath = os.path.join(repoPath, idCode)
-    FileUtil().mkdir(dirPath)
-    for pNo in ["P1", "P2"]:
-        for contentType, fmt in ctFmtTupL[:6]:
-            for vS in ["V1", "V2"]:
-                fn = idCode + "_" + contentType + "_" + pNo + "." + fmt + "." + vS
-                pth = os.path.join(dirPath, fn)
-                FileUtil().put(testFilePath, pth)  
+#uploads the file x times
+for version in range(1, 10):
 
-refHashType = refHashDigest = "MD5"
-
-#use this download dict to test downloading file that was uploaded previously in this script(using requests library)
-downloadDict = {
+    mD = {
     "idCode": "D_00000000",
-                    "contentType": "model",
-                    "contentFormat": "cif",
-                    "partNumber": 1,
-                    "version": 1,
-                    "hashType": refHashType,
+    "repositoryType": "onedep-archive",
+    "contentType": "model",
+    "contentFormat": "cif",
+    "partNumber": partNumber,
+    "version": str(version),
+    "copyMode": copyMode,
+    "allowOverWrite": allowOverWrite,
+    "hashType": hashType,
+    "hashDigest": testHash
+    }
+
+    url = "http://0.0.0.0:80/file-v1/upload"
+
+    #upload with requests library
+    with open(filePath, "rb") as ifh:
+        files = {"uploadFile": ifh}
+        response = requests.post(url, files = files, data = mD, headers = headerD)
+    print(response.text)
+
+for version in range(1, 10):
+    
+    downloadDict = {
+    "idCode": "D_00000000",
+    "repositoryType": "onedep-archive",
+    "contentType": "model",
+    "contentFormat": "cif",
+    "partNumber": partNumber,
+    "version": str(version),
+    "hashType": hashType,
+    }
+    #set file download path
+    downloadFilePath = "./test-output/" + downloadDict["idCode"] + "/" + downloadDict["idCode"] + "_" + downloadDict["version"] + ".dat"
+    downloadDirPath = "./test-output/" + downloadDict["idCode"] + "/"
+    downloadName = downloadDict["idCode"] + "_" + "v" + downloadDict["version"]
+    FileUtil().mkdir(downloadDirPath)
+
+    url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
+
+    #upload with requests library
+    response = requests.get(url, params = downloadDict, headers = headerD)
+
+    with open(downloadFilePath, "wb") as ofh:
+        ofh.write(response.content)
+
+#sliced upload
+hashType = "MD5"
+hD = CryptUtils().getFileHash(filePath, hashType = hashType)
+fullTestHash = hD["hashDigest"]
+
+url = "http://0.0.0.0:80/file-v1/upload-slice"
+
+cP = ConfigProvider(cachePath)
+ioU = IoUtils(cP)
+sessionId = uuid.uuid4().hex
+
+sliceTotal = 4
+loop = asyncio.get_event_loop()
+task = ioU.splitFile(filePath, sliceTotal, "staging" + sessionId)
+sP = loop.run_until_complete(task)
+
+sliceIndex = 0
+manifestPath = os.path.join(sP, "MANIFEST")
+with open(manifestPath, "r", encoding = "utf-8") as ifh:
+    for line in ifh:
+        testFile = line[:-1]
+        testFilePath = os.path.join(sP, testFile)
+        sliceIndex += 1
+        
+        mD = {
+            "sliceIndex": sliceIndex,
+            "sliceTotal": sliceTotal,
+            "sessionId": sessionId,
+            "copyMode": "native",
+            "allowOverWrite": True,
+            "hashType": None,
+            "hashDigest": None,
+        }
+
+        with open(testFilePath, "rb") as ifh:
+            files = {"uploadFile": ifh}
+            response = requests.post(url, files = files, data = mD, headers = headerD)
+
+partNumber = 1
+allowOverWrite = True
+version = 1
+
+mD = {
+    "sessionId": sessionId,
+    "sliceTotal": sliceTotal,
+    "idCode": "D_00000000",
+    "repositoryType": "onedep-archive",
+    "contentType": "model",
+    "contentFormat": "cif",
+    "partNumber": partNumber,
+    "version": str(version),
+    "copyMode": "native",
+    "allowOverWrite": allowOverWrite,
+    "hashType": hashType,
+    "hashDigest": fullTestHash,
 }
-#use this downloadDict for local download test
-# downloadDict = {
-#     "idCode": "D_1000000001",
-#                     "contentType": "model",
-#                     "contentFormat": "cif",
-#                     "partNumber": 1,
-#                     "version": 1,
-#                     "hashType": refHashType,
-#                     "fileName": "testFile"
-# }
 
-#path to download file
-downloadFilePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/test-output/" + downloadDict["idCode"] + ".dat"
-print(downloadFilePath)
-useHash = True
-if useHash:
-    refHashType = "MD5"
-    hD = CryptUtils().getFileHash(testFilePath, hashType = refHashType)
-    refHashDigest = hD["hashDigest"]
+url = "http://0.0.0.0:80/file-v1/join-slice"
 
-url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
-#download with requests library
-response = requests.get(url, params=downloadDict, headers=headerD)
-rspHashType = response.headers["rcsb_hash_type"]
-rspHashDigest = response.headers["rcsb_hexdigest"]
-print(rspHashDigest, refHashDigest)
-with open(downloadFilePath, "wb") as ofh:
-    ofh.write(response.content)
-thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
-if thD["hashDigest"] == rspHashDigest:
-    print("rspHashDigest")
-if thD["hashDigest"] == refHashDigest:
-    print("refHashDigest")
-
-
-#download with FastAPI TestClient
-# with TestClient(app) as client:
-#     response = client.get("/file-v1/download/onedep-archive", params=downloadDict, headers=headerD)
-#     rspHashType = response.headers["rcsb_hash_type"]
-#     rspHashDigest = response.headers["rcsb_hexdigest"]
-#     print(rspHashDigest, refHashDigest)
-#     with open(downloadFilePath, "wb") as ofh:
-#         ofh.write(response.content)
-#     thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
-#     if thD["hashDigest"] == rspHashDigest:
-#         print("rspHashDigest")
-#     if thD["hashDigest"] == refHashDigest:
-#         print("refHashDigest")
+with open(testFilePath, "rb") as ifh:
+    response = requests.post(url, data = mD, headers = headerD)
