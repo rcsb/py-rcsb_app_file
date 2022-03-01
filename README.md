@@ -126,8 +126,8 @@ Use the command
 
 ```
 docker run -p 80:8000 <image name>
-
 ```
+
 -p 80:8000 map port 80 of the instance to port 8000 in docker, and start running the container. 
 
 Adding the -d flag will run the container in the background, so you can continue to use the terminal
