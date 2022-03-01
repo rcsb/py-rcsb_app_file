@@ -42,7 +42,7 @@ pip install .
 
 In directory that contains “Dockerfile.devel”
 
-docker build -t fileapp -f Dockerfile.devel .
+docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fileapp -f Dockerfile.stage .
 
 ```
 
