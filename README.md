@@ -39,7 +39,7 @@ pip install .
 ### Build Docker Container
 
 In directory that contains “Dockerfile.devel”
-```
+```bash
 
 docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fileapp -f Dockerfile.stage .
 
@@ -47,24 +47,24 @@ docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fi
 
 ### Run docker container
 
-```
+```bash
 
 docker run –rm –name fileapp -p 80:8000 fileapp
 
 ```
 
--d runs container in the background, allowing user to 
+`-d` runs container in the background, allowing user to 
 
-–rm removes the container after it is stopped
+`–rm` removes the container after it is stopped
 
-–name allows user to choose a name for the container
+`–name` allows user to choose a name for the container
 
--p allows user to choose a port, 80:8000 is used in this case, as the port 8000 is exposed in the current dockerfile
+`-p` allows user to choose a port, 80:8000 is used in this case, as the port 8000 is exposed in the current dockerfile
 
 # Test upload and download using testClientScript.py
 
 Edit url variables to match server url in testClientScript.py
-```
+```bash
 
 python3 testClientScript.py
 
