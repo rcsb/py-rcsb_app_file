@@ -7,7 +7,7 @@ import time
 
 from rcsb.app.file.IoUtils import IoUtils
 
-os.environ["CACHE_PATH"] = "app/CACHE/"
+os.environ["CACHE_PATH"] = os.path.join("app", "CACHE")
 
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -27,6 +27,10 @@ cD = {
     "SHARED_LOCK_PATH": os.path.join(cachePath, "shared-locks"),
     }
 cP.setConfig(configData=cD)
+
+repositoryPath = cP.get("REPOSITORY_DIR_PATH")
+sessionPath = cP.get("SESSION_DIR_PATH")
+subject = cP.get("JWT_SUBJECT")
 
 ctFmtTupL = [
             ("model", "cif"),
@@ -66,13 +70,10 @@ cachePath = "app/CACHE/"
 
 #create file for download
 #select size of file here (in bytes)
-nB = 10
+nB = 100
 with open(filePath, "wb") as ofh:
     ofh.write(os.urandom(nB))
 
-repositoryPath = cP.get("REPOSITORY_DIR_PATH")
-sessionPath = cP.get("SESSION_DIR_PATH")
-subject = cP.get("JWT_SUBJECT")
 fU = FileUtil()
 fU.remove(repositoryPath)
 hashType = "MD5"
