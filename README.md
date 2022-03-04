@@ -49,15 +49,15 @@ docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fi
 
 ```bash
 
-docker run –rm –name fileapp -p 80:8000 fileapp
+docker run –-rm –-name fileapp -p 80:8000 fileapp
 
 ```
 
 `-d` runs container in the background, allowing user to 
 
-`–rm` removes the container after it is stopped
+`–-rm` removes the container after it is stopped
 
-`–name` allows user to choose a name for the container
+`–-name` allows user to choose a name for the container
 
 `-p` allows user to choose a port, 80:8000 is used in this case, as the port 8000 is exposed in the current dockerfile
 
