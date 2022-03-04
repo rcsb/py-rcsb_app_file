@@ -157,6 +157,7 @@ class IoUtils:
         logger.debug(
             "repoType %r idCode %r contentType %r partNumber %r contentFormat %r version %r copyMode %r", repoType, idCode, contentType, partNumber, contentFormat, version, copyMode
         )
+
         lockPath = self.__pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
         myLock = FileLock(lockPath)
         with myLock:

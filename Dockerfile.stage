@@ -53,13 +53,16 @@ COPY ./deploy/entryPoint.sh /app/entryPoint.sh
 RUN chmod +x /app/entryPoint.sh
 
 COPY ./rcsb/app/tests-file/test-data/config/example-data.cif    /app/CACHE/config/example-data.cif
-RUN chown ubuntu /app/CACHE
+COPY ./rcsb/app/tests-file/test-data/config/example-config.json /app/CACHE/config/example-config.json
+
+RUN chown -R ubuntu /app
 
 EXPOSE 80
 USER ubuntu
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+ENV CACHE_PATH /app/CACHE
 
 # Launch the service
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entryPoint.sh"]
