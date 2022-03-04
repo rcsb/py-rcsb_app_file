@@ -8,7 +8,7 @@ Download the library source software from the project repository:
 
 ```
 
-git clone --recurse-submodules https://github.com/rcsb/py-rcsb_file_chem.git
+git clone --recurse-submodules https://github.com/rcsb/py-rcsb_app_file.git
 
 ```
 
@@ -38,7 +38,7 @@ pip install .
 
 ### Build Docker Container
 
-In directory that contains “Dockerfile.devel”
+In directory that contains `Dockerfile.stage`:
 ```bash
 
 docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fileapp -f Dockerfile.stage .

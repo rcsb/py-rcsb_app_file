@@ -2,8 +2,6 @@ import asyncio
 import uuid
 import os
 import requests
-
-
 from rcsb.app.file.IoUtils import IoUtils
 
 os.environ["CACHE_PATH"] = os.path.join("app", "CACHE")
