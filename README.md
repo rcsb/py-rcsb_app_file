@@ -49,7 +49,7 @@ docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fi
 
 ```
 
-docker run –-rm –-name fileapp -p 80:8000 fileapp
+docker run --rm --name fileapp -p 80:8000 fileapp
 
 ```
 
