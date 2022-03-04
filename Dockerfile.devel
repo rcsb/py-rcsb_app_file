@@ -15,8 +15,8 @@ ARG VERSION
 #
 ARG USER_ID
 ARG GROUP_ID
-RUN addgroup --gid 1000001 ubuntu
-RUN adduser  --disabled-password --gecos '' --uid 101 --gid 1000001 ubuntu
+RUN addgroup --gid $GROUP_ID ubuntu
+RUN adduser  --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID ubuntu
 
 # Build-time metadata as defined at http://label-schema.org
 LABEL org.label-schema.build-date=$BUILD_DATE \
@@ -57,14 +57,11 @@ COPY ./deploy/entryPoint.sh /app/entryPoint.sh
 RUN chmod +x /app/entryPoint.sh
 
 COPY ./rcsb/app/tests-file/test-data/config/example-data.cif /app/CACHE/config/example-data.cif
-
-#Added by Connor, copies config file
 COPY ./rcsb/app/tests-file/test-output/CACHE/config/example-config-2.json /app/CACHE/config/example-config.json
 
 RUN chown -R ubuntu /app
-RUN chown -R ubuntu /app/CACHE
 
-EXPOSE 8000
+EXPOSE 80
 
 USER ubuntu
 

@@ -53,10 +53,9 @@ COPY ./deploy/entryPoint.sh /app/entryPoint.sh
 RUN chmod +x /app/entryPoint.sh
 
 COPY ./rcsb/app/tests-file/test-data/config/example-data.cif    /app/CACHE/config/example-data.cif
-#RUN chown ubuntu /app/CACHE
-RUN chown -R ubuntu /app
-
 COPY ./rcsb/app/tests-file/test-data/config/example-config.json /app/CACHE/config/example-config.json
+
+RUN chown -R ubuntu /app
 
 EXPOSE 80
 USER ubuntu
