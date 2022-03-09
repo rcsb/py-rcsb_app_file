@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class JWTAuthBearer(HTTPBearer):
     def __init__(self, auto_error: bool = True):
         super(JWTAuthBearer, self).__init__(auto_error=auto_error)
-        self.__au = JWTAuthToken(os.environ["CACHE_PATH"])
+        self.__au = JWTAuthToken(os.environ["CACHE_PATH"], os.environ["CONFIG_FILE"])
 
     async def __call__(self, request: Request):
         credentials: HTTPAuthorizationCredentials = await super(JWTAuthBearer, self).__call__(request)

@@ -62,6 +62,7 @@ class FileUploadTests(unittest.TestCase):
 
         self.__dataPath = os.path.join(HERE, "test-data")
         self.__cachePath = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+        self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__sessionPath = os.path.join(self.__cachePath, "sessions")
         self.__fU = FileUtil()
         self.__fU.remove(self.__sessionPath)
@@ -81,11 +82,9 @@ class FileUploadTests(unittest.TestCase):
                 ofh.write(ifh.read())
         #
         # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
-        cP = ConfigProvider(self.__cachePath)
+        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
-        
-        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath).createToken({}, subject)}
-        
+        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
         logger.debug("header %r", self.__headerD)
         # clear any previous data
         self.__repositoryPath = cP.get("REPOSITORY_DIR_PATH")
@@ -125,7 +124,7 @@ class FileUploadTests(unittest.TestCase):
                         "idCode": "D_00000000",
                         "repositoryType": "onedep-archive",
                         "contentType": "model",
-                        "contentFormat": "cif",
+                        "contentFormat": "pdbx",
                         "partNumber": partNumber,
                         "version": str(version),
                         "copyMode": copyMode,
@@ -161,7 +160,7 @@ class FileUploadTests(unittest.TestCase):
             hD = CryptUtils().getFileHash(testFilePath, hashType=hashType)
             testHash = hD["hashDigest"]
 
-        headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath).createToken({}, "badSubject")}
+        headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, "badSubject")}
         for endPoint in ["upload"]:
             startTime = time.time()
             try:
@@ -211,7 +210,7 @@ class FileUploadTests(unittest.TestCase):
         #
         # --
         # - split the test file --
-        cP = ConfigProvider(self.__cachePath)
+        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         ioU = IoUtils(cP)
         sessionId = uuid.uuid4().hex
         # --
@@ -275,7 +274,7 @@ class FileUploadTests(unittest.TestCase):
                 "idCode": "D_00000000",
                 "repositoryType": "onedep-archive",
                 "contentType": "model",
-                "contentFormat": "cif",
+                "contentFormat": "pdbx",
                 "partNumber": partNumber,
                 "version": str(version),
                 "copyMode": "native",

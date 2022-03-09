@@ -21,6 +21,7 @@ import os
 import typing
 
 from mmcif.api.DataCategoryBase import DataCategoryBase
+from rcsb.utils.config.ConfigUtil import ConfigUtil
 from rcsb.utils.io.MarshalUtil import MarshalUtil
 from rcsb.utils.io.SingletonClass import SingletonClass
 
@@ -30,9 +31,10 @@ logger = logging.getLogger(__name__)
 class ConfigProvider(SingletonClass):
     """Accessors for configuration details."""
 
-    def __init__(self, cachePath: typing.Optional[str] = None):
+    def __init__(self, cachePath: typing.Optional[str] = None, configFilePath: typing.Optional[str] = None):
         # ---
         self.__cachePath = cachePath if cachePath else os.environ.get("CACHE_PATH", os.path.abspath("./CACHE"))
+        self.__configFilePath = configFilePath if configFilePath else os.environ.get("CONFIG_FILE")
         logger.info("Using CACHE_PATH setting %r", self.__cachePath)
         self.__mU = MarshalUtil(workPath=self.__cachePath)
         self.__configD = None
@@ -42,7 +44,11 @@ class ConfigProvider(SingletonClass):
     def get(self, ky: str) -> typing.Optional[str]:
         try:
             if not self.__configD:
-                self.__readConfig()
+                if self.__configFilePath:
+                    self.__readConFigFromConFigYmlFile()
+                else:
+                    self.__readConfig()
+                #
             return self.__configD["data"][ky]
         except Exception:
             pass
@@ -51,7 +57,11 @@ class ConfigProvider(SingletonClass):
     def getConfig(self) -> typing.Dict:
         try:
             if not self.__configD:
-                self.__readConfig()
+                if self.__configFilePath:
+                    self.__readConFigFromConFigYmlFile()
+                else:
+                    self.__readConfig()
+                #
         except Exception as e:
             logger.exception("Failing with %s", str(e))
         return self.__configD["data"]
@@ -94,6 +104,18 @@ class ConfigProvider(SingletonClass):
                 ok = True
             #
             self.__dataObj = dataObj
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            ok = False
+        return ok
+
+    def __readConFigFromConFigYmlFile(self) -> bool:
+        """ Read Yml configuration file and set internal configuration dictionary
+        """
+        ok = False
+        try:
+            cfgOb = ConfigUtil(configPath=self.__configFilePath, defaultSectionName="configuration", mockTopPath=None)
+            self.__configD = { "version": 0.30, "created": datetime.datetime.now().isoformat(), "data": cfgOb.exportConfig(sectionName="configuration") }
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             ok = False

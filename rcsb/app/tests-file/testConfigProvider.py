@@ -40,8 +40,9 @@ class ConfigProviderTests(unittest.TestCase):
     def setUp(self):
         self.__startTime = time.time()
         self.__cachePath = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+        self.__configFilePath = os.environ.get("CONFIG_FILE")
         logger.info("Using cache path %r", self.__cachePath)
-        cP = ConfigProvider(self.__cachePath)
+        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         self.__cD = {
             "JWT_SUBJECT": "aTestSubject",
             "JWT_ALGORITHM": "HS256",
@@ -64,12 +65,12 @@ class ConfigProviderTests(unittest.TestCase):
 
     def testConfigAccessors(self):
         """Test -configuration accessors"""
-        cP = ConfigProvider(self.__cachePath)
+        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         for ky, vl in self.__cD.items():
             tv = cP.get(ky)
             self.assertEqual(tv, vl)
 
-        cP = ConfigProvider(self.__cachePath)
+        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         for ky, vl in self.__cD.items():
             tv = cP.get(ky)
             self.assertEqual(tv, vl)

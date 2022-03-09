@@ -26,7 +26,6 @@ import resource
 import time
 import unittest
 
-from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file import __version__
 
@@ -42,6 +41,7 @@ class JTWAuthTokenTests(unittest.TestCase):
     def setUp(self):
         self.__startTime = time.time()
         self.__cachePath = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+        self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__subject = "aTestSubject"
         logger.debug("Running tests on version %s", __version__)
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
@@ -58,7 +58,7 @@ class JTWAuthTokenTests(unittest.TestCase):
         extraD = {"one": "onevalue", "two": 3, "four": 4.0}
         deltaSeconds = 3600
 
-        au = JWTAuthToken(self.__cachePath)
+        au = JWTAuthToken(self.__cachePath, self.__configFilePath)
         delta = datetime.timedelta(seconds=deltaSeconds)
         token = au.createToken(extraD, self.__subject, expiresDelta=delta)
         logger.info("Token %r", token)

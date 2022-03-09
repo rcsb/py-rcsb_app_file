@@ -41,16 +41,17 @@ class HashType(str, Enum):
 
 @router.get("/download/{repositoryType}", dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
 async def download(
-    idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_00000000"),
+    idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Path(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
-    contentType: str = Query(None, title="Content type", description="Content type", example="model, sf, val-report-full"),
-    contentFormat: str = Query(None, title="Content format", description="Content format", example="cif, xml, json, txt"),
+    contentType: str = Query(None, title="Content type", description="Content type", example="model, structure-factors, val-report-full"),
+    contentFormat: str = Query(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
     partNumber: int = Query(1, title="Content part", description="Content part", example="1,2,3"),
     version: str = Query("1", title="Version string", description="Version number or description", example="1,2,3, latest, previous"),
     hashType: HashType = Query(None, title="Hash type", description="Hash type", example="SHA256"),
 ):
     cachePath = os.environ.get("CACHE_PATH", ".")
-    cP = ConfigProvider(cachePath)
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
     pathU = PathUtils(cP)
     filePath = fileName = mimeType = hashDigest = None
     success = False

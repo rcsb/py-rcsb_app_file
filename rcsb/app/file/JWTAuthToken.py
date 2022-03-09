@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 class JWTAuthToken:
-    def __init__(self, cachePath: str):
-        cP = ConfigProvider(cachePath)
+    def __init__(self, cachePath: str, configFilePath: str):
+        cP = ConfigProvider(cachePath, configFilePath)
         self.__jwtSecret = cP.get("JWT_SECRET")
         self.__jwtAlgorithm = cP.get("JWT_ALGORITHM")
         self.__jwtSubject = cP.get("JWT_SUBJECT")
