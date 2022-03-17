@@ -88,7 +88,7 @@ class FileUploadTests(unittest.TestCase):
         logger.debug("header %r", self.__headerD)
         # clear any previous data
         self.__repositoryPath = cP.get("REPOSITORY_DIR_PATH")
-        self.__fU.remove(self.__repositoryPath)
+#       self.__fU.remove(self.__repositoryPath)
         #
         self.__startTime = time.time()
         #

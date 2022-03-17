@@ -43,15 +43,25 @@ class ConfigProviderTests(unittest.TestCase):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         logger.info("Using cache path %r", self.__cachePath)
         cP = ConfigProvider(self.__cachePath, self.__configFilePath)
-        self.__cD = {
-            "JWT_SUBJECT": "aTestSubject",
-            "JWT_ALGORITHM": "HS256",
-            "JWT_SECRET": "aTestSecret",
-            "SESSION_DIR_PATH": os.path.join(self.__cachePath, "sessions"),
-            "REPOSITORY_DIR_PATH": os.path.join(self.__cachePath, "repository"),
-            "SHARED_LOCK_PATH": os.path.join(self.__cachePath, "shared-locks"),
-        }
-        cP.setConfig(configData=self.__cD)
+        #
+        self.__cD = {}
+        if self.__configFilePath:
+            try:
+                self.__cD = cP.getConfig()
+            except:
+                pass
+            #
+        #
+        if not self.__cD:
+            self.__cD = {
+                "JWT_SUBJECT": "aTestSubject",
+                "JWT_ALGORITHM": "HS256",
+                "JWT_SECRET": "aTestSecret",
+                "SESSION_DIR_PATH": os.path.join(self.__cachePath, "sessions"),
+                "REPOSITORY_DIR_PATH": os.path.join(self.__cachePath, "repository"),
+                "SHARED_LOCK_PATH": os.path.join(self.__cachePath, "shared-locks"),
+            }
+            cP.setConfig(configData=self.__cD)
         #
         logger.debug("Running tests on version %s", __version__)
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))

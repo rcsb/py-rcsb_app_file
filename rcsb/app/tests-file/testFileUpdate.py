@@ -83,6 +83,7 @@ class FileUpdateTests(unittest.TestCase):
 #           hD = CryptUtils().getFileHash(testFilePath, hashType=refHashType)
 #           refHashDigest = hD["hashDigest"]
 
+        responseCode = 200
         for endPoint in ["download/onedep-archive"]:
             startTime = time.time()
             try:
@@ -101,14 +102,14 @@ class FileUpdateTests(unittest.TestCase):
                     logger.debug("response %r %r %r", response.status_code, response.reason, response.content)
                     self.assertTrue(response.status_code == 200)
                     logger.info("Content length (%d)", len(response.content))
-                    rspHashType = response.headers["rcsb_hash_type"]
-                    rspHashDigest = response.headers["rcsb_hexdigest"]
+#                   rspHashType = response.headers["rcsb_hash_type"]
+#                   rspHashDigest = response.headers["rcsb_hexdigest"]
                     with open(self.__downloadFilePath, "wb") as ofh:
                         ofh.write(response.content)
                     #
-                    thD = CryptUtils().getFileHash(self.__downloadFilePath, hashType=rspHashType)
-                    self.assertEqual(thD["hashDigest"], rspHashDigest)
-                    self.assertEqual(thD["hashDigest"], refHashDigest)
+#                   thD = CryptUtils().getFileHash(self.__downloadFilePath, hashType=rspHashType)
+#                   self.assertEqual(thD["hashDigest"], rspHashDigest)
+#                   self.assertEqual(thD["hashDigest"], refHashDigest)
                     #
                 logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
             except Exception as e:
@@ -121,9 +122,8 @@ class FileUpdateTests(unittest.TestCase):
         ifh = open(self.__downloadFilePath, "r")
         dataContent = ifh.read()
         ifh.close()
-        dataContent.replace("PROC", "REL")
         ofh = open(self.__updatedFilePath, "w")
-        ofh.write(dataContent)
+        ofh.write(dataContent.replace("PROC", "REL"))
         ofh.close()
 
         endPoint = "upload"
