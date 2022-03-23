@@ -114,14 +114,14 @@ class FileUploadTests(unittest.TestCase):
         for testFilePath, copyMode, partNumber, allowOverWrite, responseCode in [
             (self.__testFilePath, "native", 1, True, 200),
             (self.__testFilePath, "shell", 2, True, 200),
-            (self.__testFilePath, "native", 1, False, 405),
+            (self.__testFilePath, "native", 1, True, 405),
             (self.__testFileGzipPath, "decompress_gzip", 3, True, 200),
         ]:
             for version in range(1, 10):
                 startTime = time.time()
                 try:
                     mD = {
-                        "idCode": "D_00000000",
+                        "idCode": "D_1000000001",
                         "repositoryType": "onedep-archive",
                         "contentType": "model",
                         "contentFormat": "pdbx",
@@ -164,7 +164,7 @@ class FileUploadTests(unittest.TestCase):
         for endPoint in ["upload"]:
             startTime = time.time()
             try:
-                mD = {"idCode": "D_00000000", "hashDigest": testHash, "hashType": hashType}
+                mD = {"idCode": "D_1000000001", "hashDigest": testHash, "hashType": hashType}
                 with TestClient(app) as client:
                     with open(testFilePath, "rb") as ifh:
                         files = {"uploadFile": ifh}
@@ -183,7 +183,7 @@ class FileUploadTests(unittest.TestCase):
         for endPoint in ["upload"]:
             startTime = time.time()
             try:
-                mD = {"idCode": "D_00000000", "hashDigest": testHash, "hashType": hashType}
+                mD = {"idCode": "D_1000000001", "hashDigest": testHash, "hashType": hashType}
                 with TestClient(app) as client:
                     with open(testFilePath, "rb") as ifh:
                         files = {"uploadFile": ifh}
@@ -271,7 +271,7 @@ class FileUploadTests(unittest.TestCase):
             mD = {
                 "sessionId": sessionId,
                 "sliceTotal": sliceTotal,
-                "idCode": "D_00000000",
+                "idCode": "D_1000000001",
                 "repositoryType": "onedep-archive",
                 "contentType": "model",
                 "contentFormat": "pdbx",
