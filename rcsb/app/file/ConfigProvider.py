@@ -115,7 +115,7 @@ class ConfigProvider(SingletonClass):
         ok = False
         try:
             cfgOb = ConfigUtil(configPath=self.__configFilePath, defaultSectionName="configuration", mockTopPath=None)
-            self.__configD = { "version": 0.30, "created": datetime.datetime.now().isoformat(), "data": cfgOb.exportConfig(sectionName="configuration") }
+            self.__configD = {"version": 0.30, "created": datetime.datetime.now().isoformat(), "data": cfgOb.exportConfig(sectionName="configuration")}
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             ok = False

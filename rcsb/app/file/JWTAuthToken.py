@@ -31,7 +31,7 @@ class JWTAuthToken:
             return decodedToken if (decodedToken["exp"] >= time.time()) and (decodedToken["sub"] == self.__jwtSubject) else None
         except Exception as e:
             logger.exception("Failing as %s", str(e))
-            return {}
+            return None
 
     def createToken(self, data: dict, subject: str, expiresDelta: Optional[datetime.timedelta] = None):
         payload = data.copy()

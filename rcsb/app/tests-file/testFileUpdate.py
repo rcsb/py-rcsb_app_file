@@ -21,9 +21,7 @@ __license__ = "Apache 2.0"
 import logging
 import os
 import platform
-import random
 import resource
-import string
 import time
 import unittest
 
@@ -31,7 +29,7 @@ import unittest
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
 
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
@@ -39,7 +37,6 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.main import app
 from rcsb.utils.io.CryptUtils import CryptUtils
-from rcsb.utils.io.FileUtil import FileUtil
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -54,11 +51,11 @@ class FileUpdateTests(unittest.TestCase):
 #       self.__testFilePath = os.path.join(self.__dataPath, "config", "example-data.cif")
         self.__downloadFilePath = os.path.join(self.__cachePath, "downloadFile.cif")
         self.__updatedFilePath = os.path.join(self.__cachePath, "updatedFile.cif")
-        
 
         # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
         cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
+        print(cP.get("JWT_SUBJECT"))
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
         logger.info("header %r", self.__headerD)
         self.__startTime = time.time()
@@ -75,7 +72,8 @@ class FileUpdateTests(unittest.TestCase):
 
     def testSimpleUpdate(self):
         """Test - simple file download/upload"""
-#       testFilePath = self.__testFilePath
+        testFilePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/data/repository/archive/D_8000210008/D_8000210008_model_P1.cif.V1"
+
         refHashType = refHashDigest = None
 #       useHash = True
 #       if useHash:
@@ -118,7 +116,7 @@ class FileUpdateTests(unittest.TestCase):
             #
         #
 
-        #update file content
+        # update file content
         ifh = open(self.__downloadFilePath, "r")
         dataContent = ifh.read()
         ifh.close()
@@ -141,7 +139,7 @@ class FileUpdateTests(unittest.TestCase):
                 "partNumber": 1,
                 "version": "next",
                 "copyMode": "native",
-                "allowOverwrite": True,
+                "allowOverWrite": True,
                 "hashType": hashType,
                 "hashDigest": testHash,
             }
@@ -177,7 +175,7 @@ class FileUpdateTests(unittest.TestCase):
                 "partNumber": 1,
                 "version": "next",
                 "copyMode": "native",
-                "allowOverwrite": True,
+                "allowOverWrite": True,
                 "hashType": hashType,
                 "hashDigest": testHash,
             }
@@ -202,6 +200,7 @@ class FileUpdateTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
         #
+
 
 def updateSimpleTests():
     suiteSelect = unittest.TestSuite()

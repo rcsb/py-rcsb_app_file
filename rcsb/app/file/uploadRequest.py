@@ -62,6 +62,7 @@ async def upload(
     allowOverWrite: bool = Form(False, title="Allow overwrite of existing files", description="Allow overwrite of existing files", example="False"),
 ):
     fn = None
+    ct = None
     try:
         cachePath = os.environ.get("CACHE_PATH", ".")
         configFilePath = os.environ.get("CONFIG_FILE")

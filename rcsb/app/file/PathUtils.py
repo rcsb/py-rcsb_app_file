@@ -22,7 +22,8 @@ import typing
 
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 class PathUtils:
@@ -113,26 +114,33 @@ class PathUtils:
     def checkContentTypeFormat(self, contentType: str = None, contentFormat: str = None) -> typing.Optional[str]:
         try:
             if (not contentType) and (not contentFormat):
-                return "No 'contentType' and 'contentFormat' defined."
+                logger.info("No 'contentType' and 'contentFormat' defined.")
+                return False
             #
             if contentType:
                 if contentType in self.__contentTypeInfoD:
                     if contentFormat:
                         if contentFormat in self.__contentTypeInfoD[contentType][0]:
-                            return "System supports '" + contentType + "' contentType with '" + contentFormat + "' contentFormat."
+                            logger.info("System supports %s contentType with %s contentFormat.", contentType, contentFormat)
+                            return True
                         else:
-                            return "System does not support '" + contentType + "' contentType with '" + contentFormat + "' contentFormat."
+                            logger.info("System does not support %s contentType with %s contentFormat.", contentType, contentFormat)
+                            return False
                     else:
-                        return "System supports '" + contentType + "' contentType."
+                        logger.info("System supports %s contentType.", contentType)
+                        return True
                 else:
-                    return "System does not support '" + contentType + "' contentType."
+                    logger.info("System does not support %s contentType.", contentType)
+                    return False
                 #
             elif contentFormat:
                 if contentFormat in self.__fileFormatExtensionD:
-                    return "System supports '" + contentFormat + "' contentFormat."
+                    logger.info("System supports %s contentFormat.", contentFormat)
+                    return True
                 else:
-                    return "System does not support '" + contentFormat + "' contentFormat."
-                #       
+                    logger.info("System does not support %s contentFormat.", contentFormat)
+                    return False
+                #
             #
         except Exception as e:
             logger.exception("Failing with %s", str(e))

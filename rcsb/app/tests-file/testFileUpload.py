@@ -114,7 +114,7 @@ class FileUploadTests(unittest.TestCase):
         for testFilePath, copyMode, partNumber, allowOverWrite, responseCode in [
             (self.__testFilePath, "native", 1, True, 200),
             (self.__testFilePath, "shell", 2, True, 200),
-            (self.__testFilePath, "native", 1, True, 405),
+            (self.__testFilePath, "native", 1, False, 405),
             (self.__testFileGzipPath, "decompress_gzip", 3, True, 200),
         ]:
             for version in range(1, 10):
@@ -128,7 +128,7 @@ class FileUploadTests(unittest.TestCase):
                         "partNumber": partNumber,
                         "version": str(version),
                         "copyMode": copyMode,
-                        "allowOverwrite": allowOverWrite,
+                        "allowOverWrite": allowOverWrite,
                         "hashType": hashType,
                         "hashDigest": testHash,
                     }
@@ -239,7 +239,7 @@ class FileUploadTests(unittest.TestCase):
                         "sliceTotal": sliceTotal,
                         "sessionId": sessionId,
                         "copyMode": "native",
-                        "allowOverwrite": True,
+                        "allowOverWrite": True,
                         "hashType": None,
                         "hashDigest": None,
                     }
@@ -278,7 +278,7 @@ class FileUploadTests(unittest.TestCase):
                 "partNumber": partNumber,
                 "version": str(version),
                 "copyMode": "native",
-                "allowOverwrite": allowOverWrite,
+                "allowOverWrite": allowOverWrite,
                 "hashType": hashType,
                 "hashDigest": fullTestHash,
             }

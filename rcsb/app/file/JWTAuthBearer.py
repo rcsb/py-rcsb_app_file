@@ -13,6 +13,9 @@ from fastapi.security import HTTPBearer
 
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 
+os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
+os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
+
 logger = logging.getLogger(__name__)
 
 

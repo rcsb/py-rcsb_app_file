@@ -4,7 +4,8 @@ import os
 import requests
 from rcsb.app.file.IoUtils import IoUtils
 
-os.environ["CACHE_PATH"] = os.path.join("app", "CACHE")
+os.environ["CACHE_PATH"] = os.path.join(".", "app", "CACHE")
+os.environ["CONFIG_FILE"] = os.path.join("rcsb", "app", "config", "config.yml")
 
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -12,6 +13,7 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.FileUtil import FileUtil
 
 cachePath = os.environ.get("CACHE_PATH")
+configFilePath = os.environ.get("CONFIG_FILE")
 cP = ConfigProvider(cachePath)
 cD = {
     "JWT_SUBJECT": "aTestSubject",
@@ -21,7 +23,7 @@ cD = {
     "REPOSITORY_DIR_PATH": os.path.join(cachePath, "repository"),
     "SHARED_LOCK_PATH": os.path.join(cachePath, "shared-locks"),
 }
-cP.setConfig(configData=cD)
+cP.getConfig()
 
 repositoryPath = cP.get("REPOSITORY_DIR_PATH")
 sessionPath = cP.get("SESSION_DIR_PATH")
@@ -29,7 +31,7 @@ subject = cP.get("JWT_SUBJECT")
 
 
 filePath = "./rcsb/app/tests-file/test-data/testFile.dat"
-cachePath = "app/CACHE/"
+print(configFilePath + "\n" + cachePath)
 
 # create file for download
 # select size of file here (in bytes)
@@ -42,21 +44,20 @@ fU.remove(repositoryPath)
 hashType = "MD5"
 hD = CryptUtils().getFileHash(filePath, hashType=hashType)
 testHash = hD["hashDigest"]
-headerD = {"Authorization": "Bearer " + JWTAuthToken(cachePath).createToken({}, subject)}
-
+headerD = {"Authorization": "Bearer " + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)}
 
 partNumber = 1
 copyMode = "native"
 allowOverWrite = True
 
 # uploads the file x times
-for version in range(1, 10):
+for version in range(1, 9):
 
     mD = {
         "idCode": "D_00000000",
         "repositoryType": "onedep-archive",
         "contentType": "model",
-        "contentFormat": "cif",
+        "contentFormat": "pdbx",
         "partNumber": partNumber,
         "version": str(version),
         "copyMode": copyMode,
@@ -73,13 +74,13 @@ for version in range(1, 10):
         response = requests.post(url, files=files, data=mD, headers=headerD)
     print(response.text)
 
-for version in range(1, 10):
+for version in range(1, 9):
 
     downloadDict = {
         "idCode": "D_00000000",
         "repositoryType": "onedep-archive",
         "contentType": "model",
-        "contentFormat": "cif",
+        "contentFormat": "pdbx",
         "partNumber": partNumber,
         "version": str(version),
         "hashType": hashType,
@@ -92,11 +93,13 @@ for version in range(1, 10):
 
     url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
 
-    # upload with requests library
+    # download with requests library
     response = requests.get(url, params=downloadDict, headers=headerD)
 
     with open(downloadFilePath, "wb") as ofh:
         ofh.write(response.content)
+
+    print(response.status_code)
 
 # sliced upload
 hashType = "MD5"
@@ -146,7 +149,7 @@ mD = {
     "idCode": "D_00000000",
     "repositoryType": "onedep-archive",
     "contentType": "model",
-    "contentFormat": "cif",
+    "contentFormat": "pdbx",
     "partNumber": partNumber,
     "version": str(version),
     "copyMode": "native",
