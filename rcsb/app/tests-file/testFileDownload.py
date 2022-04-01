@@ -149,6 +149,8 @@ class FileDownloadTests(unittest.TestCase):
         testFilePath = self.__testFilePath
         refHashType = refHashDigest = None
         useHash = True
+
+        # Checks file hash, testFilePath must match file being downloaded, or hashes will not match
         if useHash:
             refHashType = "MD5"
             hD = CryptUtils().getFileHash(testFilePath, hashType=refHashType)
