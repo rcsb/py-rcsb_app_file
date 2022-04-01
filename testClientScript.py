@@ -40,7 +40,6 @@ with open(filePath, "wb") as ofh:
     ofh.write(os.urandom(nB))
 
 fU = FileUtil()
-fU.remove(repositoryPath)
 hashType = "MD5"
 hD = CryptUtils().getFileHash(filePath, hashType=hashType)
 testHash = hD["hashDigest"]
@@ -89,7 +88,7 @@ for version in range(1, 9):
     fileName = downloadDict["idCode"] + "_" + downloadDict["version"] + ".dat"
     downloadFilePath = os.path.join(".", "test-output", downloadDict["idCode"], fileName)
     downloadDirPath = os.path.join(".", "test-output", downloadDict["idCode"])
-    downloadName = os.path.join(downloadDict["idCode"], "_", "v", downloadDict["version"])
+    downloadName = downloadDict["idCode"] + "_" + "v" + downloadDict["version"]
     FileUtil().mkdir(downloadDirPath)
 
     url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
