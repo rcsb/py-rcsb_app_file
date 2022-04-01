@@ -86,7 +86,8 @@ for version in range(1, 9):
         "hashType": hashType,
     }
     # set file download path
-    downloadFilePath = os.path.join(".", "test-output", downloadDict["idCode"], downloadDict["idCode"], "_", downloadDict["version"], ".dat")
+    fileName = downloadDict["idCode"] + "_" + downloadDict["version"] + ".dat"
+    downloadFilePath = os.path.join(".", "test-output", downloadDict["idCode"], fileName)
     downloadDirPath = os.path.join(".", "test-output", downloadDict["idCode"])
     downloadName = os.path.join(downloadDict["idCode"], "_", "v", downloadDict["version"])
     FileUtil().mkdir(downloadDirPath)
