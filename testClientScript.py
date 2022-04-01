@@ -86,9 +86,9 @@ for version in range(1, 9):
         "hashType": hashType,
     }
     # set file download path
-    downloadFilePath = "./test-output/" + downloadDict["idCode"] + "/" + downloadDict["idCode"] + "_" + downloadDict["version"] + ".dat"
-    downloadDirPath = "./test-output/" + downloadDict["idCode"] + "/"
-    downloadName = downloadDict["idCode"] + "_" + "v" + downloadDict["version"]
+    downloadFilePath = os.path.join("./test-output/", downloadDict["idCode"], "/", downloadDict["idCode"], "_", downloadDict["version"], ".dat")
+    downloadDirPath = os.path.join("./test-output/", downloadDict["idCode"], "/")
+    downloadName = os.path.join(downloadDict["idCode"], "_", "v", downloadDict["version"])
     FileUtil().mkdir(downloadDirPath)
 
     url = "http://0.0.0.0:80/file-v1/download/onedep-archive"

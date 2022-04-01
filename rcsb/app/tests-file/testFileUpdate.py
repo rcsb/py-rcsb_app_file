@@ -72,9 +72,8 @@ class FileUpdateTests(unittest.TestCase):
 
     def testSimpleUpdate(self):
         """Test - simple file download/upload"""
-        testFilePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/data/repository/archive/D_8000210008/D_8000210008_model_P1.cif.V1"
 
-        refHashType = refHashDigest = None
+        refHashType = None
 #       useHash = True
 #       if useHash:
 #           refHashType = "MD5"

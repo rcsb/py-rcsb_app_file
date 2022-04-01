@@ -16,9 +16,9 @@ configFilePath = os.environ.get("CONFIG_FILE")
 
 logger = logging.getLogger()
 
-cifFilePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/tests-file/test-data/example-data.cif"
-valReportFilePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/tests-file/test-data/1cbs_validation.pdf"
-EMMapFilePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/tests-file/test-data/emd_32684.map"
+cifFilePath = "./rcsb/app/tests-file/test-data/example-data.cif"
+valReportFilePath = "./rcsb/app/tests-file/test-data/1cbs_validation.pdf"
+EMMapFilePath = "./rcsb/app/tests-file/test-data/emd_32684.map"
 
 cP = ConfigProvider(cachePath)
 headerD = {"Authorization": "Bearer " + JWTAuthToken(cachePath, configFilePath).createToken({}, "aTestSubject")}

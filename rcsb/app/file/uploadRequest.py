@@ -112,6 +112,7 @@ async def uploadSlice(
     hashDigest: str = Form(None, title="Hash digest", description="Hash digest", example="'0394a2ede332c9a13eb82e9b24631604c31df978b4e2f0fbd2c549944f9d79a5'"),
     hashType: HashType = Form(None, title="Hash type", description="Hash type", example="SHA256"),
 ):
+    ct = None
     ret = {}
     try:
         cachePath = os.environ.get("CACHE_PATH", ".")
