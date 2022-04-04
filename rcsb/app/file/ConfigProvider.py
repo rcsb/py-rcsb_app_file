@@ -46,8 +46,8 @@ class ConfigProvider(SingletonClass):
             if not self.__configD:
                 if self.__configFilePath:
                     self.__readConFigFromConFigYmlFile()
-                else:
-                    self.__readConfig()
+                # else:
+                #    self.__readConfig()
                 #
             return self.__configD["data"][ky]
         except Exception:
@@ -59,8 +59,8 @@ class ConfigProvider(SingletonClass):
             if not self.__configD:
                 if self.__configFilePath:
                     self.__readConFigFromConFigYmlFile()
-                else:
-                    self.__readConfig()
+                # else:
+                #    self.__readConfig()
                 #
         except Exception as e:
             logger.exception("Failing with %s", str(e))
@@ -110,80 +110,80 @@ class ConfigProvider(SingletonClass):
         return ok
 
     def __readConFigFromConFigYmlFile(self) -> bool:
-        """ Read Yml configuration file and set internal configuration dictionary
-        """
+        """Read Yml configuration file and set internal configuration dictionary"""
         ok = False
         try:
             cfgOb = ConfigUtil(configPath=self.__configFilePath, defaultSectionName="configuration", mockTopPath=None)
             self.__configD = {"version": 0.30, "created": datetime.datetime.now().isoformat(), "data": cfgOb.exportConfig(sectionName="configuration")}
+            ok = True
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             ok = False
         return ok
 
-    def __readConfig(self) -> bool:
-        """Read example configuration file and set internal configuration dictionary
+    # def __readConfig(self) -> bool:
+    #     """Read example configuration file and set internal configuration dictionary
 
-        Returns:
-            bool: True for success or False otherwise
-        """
-        #
-        ok = False
-        try:
-            configFilePath = self.__getConfigFilePath()
-            configD = {}
-            if self.__mU.exists(configFilePath):
-                configD = self.__mU.doImport(configFilePath, fmt="json")
-            logger.debug("configD: %r", configD)
-            if configD and (len(configD) >= 2) and float(configD["version"]) > 0.1:
-                logger.info("Read version %r sections %r from %s", configD["version"], list(configD.keys()), configFilePath)
-                ok = True
+    #     Returns:
+    #         bool: True for success or False otherwise
+    #     """
+    #     #
+    #     ok = False
+    #     try:
+    #         configFilePath = self.__getConfigFilePath()
+    #         configD = {}
+    #         if self.__mU.exists(configFilePath):
+    #             configD = self.__mU.doImport(configFilePath, fmt="json")
+    #         logger.debug("configD: %r", configD)
+    #         if configD and (len(configD) >= 2) and float(configD["version"]) > 0.1:
+    #             logger.info("Read version %r sections %r from %s", configD["version"], list(configD.keys()), configFilePath)
+    #             ok = True
 
-            else:
-                # Handle missing config for now
-                logger.warning("Reading config file fails from path %r", configFilePath)
-                logger.warning("Using config %r", configD)
-                ok = True
-            #
-            self.__configD = configD
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            ok = False
-        return ok
+    #         else:
+    #             # Handle missing config for now
+    #             logger.warning("Reading config file fails from path %r", configFilePath)
+    #             logger.warning("Using config %r", configD)
+    #             ok = True
+    #         #
+    #         self.__configD = configD
+    #     except Exception as e:
+    #         logger.exception("Failing with %s", str(e))
+    #         ok = False
+    #     return ok
 
-    def __getConfigFilePath(self) -> str:
-        fileName = "example-config.json"
-        configFilePath = os.path.join(self.__cachePath, "config", fileName)
-        return configFilePath
+    # def __getConfigFilePath(self) -> str:
+    #     fileName = "example-config.json"
+    #     configFilePath = os.path.join(self.__cachePath, "config", fileName)
+    #     return configFilePath
 
-    def setConfig(self, configData: typing.Optional[typing.Dict] = None) -> bool:
-        """Provide bootstrap configuration options.
+    # def setConfig(self, configData: typing.Optional[typing.Dict] = None) -> bool:
+    #     """Provide bootstrap configuration options.
 
-        Args:
-            cachePath (str): path to cache data files.
+    #     Args:
+    #         cachePath (str): path to cache data files.
 
-        Returns:
-            bool: True for success or False otherwise
+    #     Returns:
+    #         bool: True for success or False otherwise
 
-        """
-        self.__configD = self.__makeBootstrapDepictConfig(configData=configData)
-        return len(self.__configD) >= 2
+    #     """
+    #     self.__configD = self.__makeBootstrapDepictConfig(configData=configData)
+    #     return len(self.__configD) >= 2
 
-    def __makeBootstrapDepictConfig(self, storeConfig: typing.Optional[bool] = True, configData: typing.Optional[typing.Dict] = None) -> typing.Dict:
-        """Create example configuration bootstrap file"""
-        configD = {}
-        try:
-            cD = configData if configData else {}
-            configFilePath = self.__getConfigFilePath()
-            configDirPath = os.path.dirname(configFilePath)
-            logger.debug("Updating example configuration using %s", configFilePath)
-            logger.info("Updating example configuration using %r", configData)
-            #
-            configD = {"version": 0.30, "created": datetime.datetime.now().isoformat(), "data": cD}
-            if storeConfig:
-                self.__mU.mkdir(configDirPath)
-                self.__mU.doExport(configFilePath, configD, fmt="json", indent=3)
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-        return configD
-        #
+    # def __makeBootstrapDepictConfig(self, storeConfig: typing.Optional[bool] = True, configData: typing.Optional[typing.Dict] = None) -> typing.Dict:
+    #     """Create example configuration bootstrap file"""
+    #     configD = {}
+    #     try:
+    #         cD = configData if configData else {}
+    #         configFilePath = self.__configFilePath
+    #         configDirPath = os.path.dirname(configFilePath)
+    #         logger.debug("Updating example configuration using %s", configFilePath)
+    #         logger.info("Updating example configuration using %r", configData)
+    #         #
+    #         configD = {"version": 0.30, "created": datetime.datetime.now().isoformat(), "data": cD}
+    #         if storeConfig:
+    #             self.__mU.mkdir(configDirPath)
+    #             self.__mU.doExport(configFilePath, configD, fmt="json", indent=3)
+    #     except Exception as e:
+    #         logger.exception("Failing with %s", str(e))
+    #     return configD
+    #     #

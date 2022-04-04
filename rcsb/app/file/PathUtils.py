@@ -111,40 +111,44 @@ class PathUtils:
             logger.exception("Failing with %s", str(e))
         return filePath
 
-    def checkContentTypeFormat(self, contentType: str = None, contentFormat: str = None) -> typing.Optional[str]:
+    def checkContentTypeFormat(self, contentType: str = None, contentFormat: str = None) -> typing.Optional[bool]:
+        ok = False
         try:
             if (not contentType) and (not contentFormat):
                 logger.info("No 'contentType' and 'contentFormat' defined.")
-                return False
+                # return False
             #
             if contentType:
                 if contentType in self.__contentTypeInfoD:
                     if contentFormat:
                         if contentFormat in self.__contentTypeInfoD[contentType][0]:
                             logger.info("System supports %s contentType with %s contentFormat.", contentType, contentFormat)
-                            return True
+                            ok = True
+                            return ok
                         else:
                             logger.info("System does not support %s contentType with %s contentFormat.", contentType, contentFormat)
-                            return False
+                            # return False
                     else:
                         logger.info("System supports %s contentType.", contentType)
-                        return True
+                        ok = True
+                        return ok
                 else:
                     logger.info("System does not support %s contentType.", contentType)
-                    return False
+                    # return False
                 #
             elif contentFormat:
                 if contentFormat in self.__fileFormatExtensionD:
                     logger.info("System supports %s contentFormat.", contentFormat)
-                    return True
+                    ok = True
+                    return ok
                 else:
                     logger.info("System does not support %s contentFormat.", contentFormat)
-                    return False
+                    # return False
                 #
             #
         except Exception as e:
             logger.exception("Failing with %s", str(e))
-            return str(e)
+            ok = False
         #
 
     def getMimeType(self, contentFormat: str) -> str:

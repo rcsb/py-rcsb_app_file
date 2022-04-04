@@ -31,7 +31,7 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CONFIG_FILE"] = "/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/config/config.yml"
+os.environ["CONFIG_FILE"] = os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml")
 os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
@@ -56,18 +56,41 @@ class PathUtilsTests(unittest.TestCase):
         endTime = time.time()
         logger.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
 
-    def testcheckContentTypeFormat(self):
+    def testCheckContentTypeFormat(self):
         """Test checkContentTypeFormat"""
         contentType = None
         contentFormat = None
-        contentType = "model"
-        contentFormat = "pdbx"
-        self.assertEqual(self.PathU.checkContentTypeFormat(contentType, contentFormat), True)
+        contentTypeList = [None, "model", "badType"]
+        contentFormatList = [None, "pdbx", "badFormat"]
+
+        for contentType in contentTypeList:
+            for contentFormat in contentFormatList:
+                self.PathU.checkContentTypeFormat(contentType, contentFormat)
+
+    def testGetMimeType(self):
+        mimeType = None
+        mimeTypeList = ["cif", "pdf", "xml", "json", "txt", "pic", "other"]
+        for mimeType in mimeTypeList:
+            if mimeType == "cif":
+                self.assertEqual(self.PathU.getMimeType(mimeType), "chemical/x-mmcif")
+            if mimeType == "pdf":
+                self.assertEqual(self.PathU.getMimeType(mimeType), "application/pdf")
+            if mimeType == "xml":
+                self.assertEqual(self.PathU.getMimeType(mimeType), "application/xml")
+            if mimeType == "json":
+                self.assertEqual(self.PathU.getMimeType(mimeType), "application/json")
+            if mimeType == "txt":
+                self.assertEqual(self.PathU.getMimeType(mimeType), "text/plain")
+            if mimeType == "pic":
+                self.assertEqual(self.PathU.getMimeType(mimeType), "application/python-pickle")
+            if mimeType == "other":
+                self.assertEqual(self.PathU.getMimeType(mimeType), "text/plain")
 
 
 def ContentFormatTypeSuite():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(PathUtilsTests("testCheckContentFormatType"))
+    suiteSelect.addTest(PathUtilsTests("testGetMimeType"))
     return suiteSelect
 
 

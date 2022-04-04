@@ -63,7 +63,7 @@ class ConfigProviderTests(unittest.TestCase):
                 "REPOSITORY_DIR_PATH": os.path.join(self.__cachePath, "repository"),
                 "SHARED_LOCK_PATH": os.path.join(self.__cachePath, "shared-locks"),
             }
-            cP.setConfig(configData=self.__cD)
+            # cP.setConfig(configData=self.__cD)
         #
         logger.debug("Running tests on version %s", __version__)
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))

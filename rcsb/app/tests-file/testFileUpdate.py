@@ -55,7 +55,6 @@ class FileUpdateTests(unittest.TestCase):
         # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
         cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
-        print(cP.get("JWT_SUBJECT"))
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
         logger.info("header %r", self.__headerD)
         self.__startTime = time.time()
