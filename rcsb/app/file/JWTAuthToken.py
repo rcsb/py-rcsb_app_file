@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 
 class JWTAuthToken:
-    def __init__(self, cachePath: str):
-        cP = ConfigProvider(cachePath)
+    def __init__(self, cachePath: str, configFilePath: str):
+        cP = ConfigProvider(cachePath, configFilePath)
         self.__jwtSecret = cP.get("JWT_SECRET")
         self.__jwtAlgorithm = cP.get("JWT_ALGORITHM")
         self.__jwtSubject = cP.get("JWT_SUBJECT")
@@ -31,7 +31,7 @@ class JWTAuthToken:
             return decodedToken if (decodedToken["exp"] >= time.time()) and (decodedToken["sub"] == self.__jwtSubject) else None
         except Exception as e:
             logger.exception("Failing as %s", str(e))
-            return {}
+            return None
 
     def createToken(self, data: dict, subject: str, expiresDelta: Optional[datetime.timedelta] = None):
         payload = data.copy()

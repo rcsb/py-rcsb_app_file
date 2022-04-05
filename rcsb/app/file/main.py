@@ -42,8 +42,9 @@ app = FastAPI()
 @app.on_event("startup")
 async def startupEvent():
     cachePath = os.environ.get("CACHE_PATH")
+    configFilePath = os.environ.get("CONFIG_FILE")
     logger.debug("Startup - running application startup placeholder method using %r", cachePath)
-    cp = ConfigProvider.ConfigProvider(cachePath)
+    cp = ConfigProvider.ConfigProvider(cachePath, configFilePath)
     _ = cp.getConfig()
     _ = cp.getData()
     #

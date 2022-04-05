@@ -22,7 +22,8 @@ import typing
 
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 class PathUtils:
@@ -33,6 +34,8 @@ class PathUtils:
         self.__repositoryDirPath = self.__cP.get("REPOSITORY_DIR_PATH")
         self.__sessionDirPath = self.__cP.get("SESSION_DIR_PATH")
         self.__sharedLockDirPath = self.__cP.get("SHARED_LOCK_PATH")
+        self.__contentTypeInfoD = self.__cP.get("CONTENT_TYPE")
+        self.__fileFormatExtensionD = self.__cP.get("FILE_FORMAT_EXTENSION")
 
     def getSessionDirPath(self) -> str:
         return self.__sessionDirPath
@@ -49,7 +52,7 @@ class PathUtils:
 
     def getFileLockPath(self, idCode: str, contentType: str, partNumber: int, contentFormat: str) -> str:
         lockPath = self.getSharedLockDirPath()
-        fnBase = f"{idCode}_{contentType}_P{partNumber}.{contentFormat}"
+        fnBase = self.__getBaseFileName(idCode, contentType, partNumber, contentFormat)
         return os.path.join(lockPath, fnBase + ".lock")
 
     def getSliceFilePath(self, sessionId: str, sliceIndex: int, sliceTotal: int) -> str:
@@ -67,7 +70,7 @@ class PathUtils:
         filePath = None
         try:
             repoPath = self.getRepositoryDirPath(repositoryType)
-            fnBase = f"{idCode}_{contentType}_P{partNumber}.{contentFormat}.V"
+            fnBase = self.__getBaseFileName(idCode, contentType, partNumber, contentFormat) + ".V"
             filePattern = os.path.join(repoPath, idCode, fnBase)
             if version.isdigit():
                 filePath = filePattern + str(version)
@@ -77,36 +80,92 @@ class PathUtils:
                     vNo = int(pth.split(".")[-1][1:])
                     fTupL.append((pth, vNo))
                 # - sort in decending version order -
-                fTupL.sort(key=lambda tup: tup[1], reverse=True)
+                if len(fTupL) > 1:
+                    fTupL.sort(key=lambda tup: tup[1], reverse=True)
+                #
                 if version.lower() == "next":
-                    filePath = filePattern + str(fTupL[0][1] + 1)
-                elif version.lower() == ["last", "latest"]:
-                    filePath = fTupL[0][0]
+                    if fTupL:
+                        filePath = filePattern + str(fTupL[0][1] + 1)
+                    else:
+                        filePath = filePattern + str(1)
+                    #
+                elif version.lower() in ["last", "latest"]:
+                    if fTupL:
+                        filePath = fTupL[0][0]
+                    #
                 elif version.lower() in ["prev", "previous"]:
-                    filePath = fTupL[1][0]
+                    if len(fTupL) > 1:
+                        filePath = fTupL[1][0]
+                    #
                 elif version.lower() in ["first"]:
-                    filePath = fTupL[-1][0]
+                    if fTupL:
+                        filePath = fTupL[-1][0]
+                    #
                 elif version.lower() in ["second"]:
-                    filePath = fTupL[-2][0]
+                    if len(fTupL) > 1:
+                        filePath = fTupL[-2][0]
+                    #
+                #
             #
         except Exception as e:
             logger.exception("Failing with %s", str(e))
         return filePath
 
+    def checkContentTypeFormat(self, contentType: str = None, contentFormat: str = None) -> bool:
+        ok = False
+        try:
+            if (not contentType) and (not contentFormat):
+                logger.info("No 'contentType' and 'contentFormat' defined.")
+            #
+            elif contentType:
+                if contentType in self.__contentTypeInfoD:
+                    if contentFormat:
+                        if contentFormat in self.__contentTypeInfoD[contentType][0]:
+                            logger.info("System supports %s contentType with %s contentFormat.", contentType, contentFormat)
+                            ok = True
+                        else:
+                            logger.info("System does not support %s contentType with %s contentFormat.", contentType, contentFormat)
+                    else:
+                        logger.info("System supports %s contentType.", contentType)
+                        ok = True
+                else:
+                    logger.info("System does not support %s contentType.", contentType)
+                #
+            elif contentFormat:
+                if contentFormat in self.__fileFormatExtensionD:
+                    logger.info("System supports %s contentFormat.", contentFormat)
+                    ok = True
+                else:
+                    logger.info("System does not support %s contentFormat.", contentFormat)
+                #
+            #
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            ok = False
+        return ok
+        #
+
     def getMimeType(self, contentFormat: str) -> str:
-        if contentFormat in ["cif"]:
+        cFormat = contentFormat
+        if self.__fileFormatExtensionD and (contentFormat in self.__fileFormatExtensionD) and self.__fileFormatExtensionD[contentFormat]:
+            cFormat = self.__fileFormatExtensionD[contentFormat]
+        #
+        if cFormat in ["cif"]:
             mt = "chemical/x-mmcif"
-        elif contentFormat in ["pdf"]:
+        elif cFormat in ["pdf"]:
             mt = "application/pdf"
-        elif contentFormat in ["xml"]:
+        elif cFormat in ["xml"]:
             mt = "application/xml"
-        elif contentFormat in ["json"]:
+        elif cFormat in ["json"]:
             mt = "application/json"
-        elif contentFormat in ["txt"]:
+        elif cFormat in ["txt"]:
             mt = "text/plain"
-        elif contentFormat in ["pic"]:
+        elif cFormat in ["pic"]:
             mt = "application/python-pickle"
         else:
             mt = "text/plain"
-
+        #
         return mt
+
+    def __getBaseFileName(self, idCode: str, contentType: str, partNumber: int, contentFormat: str) -> str:
+        return f"{idCode}_{self.__contentTypeInfoD[contentType][1]}_P{partNumber}.{self.__fileFormatExtensionD[contentFormat]}"

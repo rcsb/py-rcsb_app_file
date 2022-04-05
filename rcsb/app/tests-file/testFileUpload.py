@@ -62,6 +62,7 @@ class FileUploadTests(unittest.TestCase):
 
         self.__dataPath = os.path.join(HERE, "test-data")
         self.__cachePath = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+        self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__sessionPath = os.path.join(self.__cachePath, "sessions")
         self.__fU = FileUtil()
         self.__fU.remove(self.__sessionPath)
@@ -81,15 +82,10 @@ class FileUploadTests(unittest.TestCase):
                 ofh.write(ifh.read())
         #
         # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
-        cP = ConfigProvider(self.__cachePath)
+        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
-        
-        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath).createToken({}, subject)}
-        
+        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
         logger.debug("header %r", self.__headerD)
-        # clear any previous data
-        self.__repositoryPath = cP.get("REPOSITORY_DIR_PATH")
-        self.__fU.remove(self.__repositoryPath)
         #
         self.__startTime = time.time()
         #
@@ -122,14 +118,14 @@ class FileUploadTests(unittest.TestCase):
                 startTime = time.time()
                 try:
                     mD = {
-                        "idCode": "D_00000000",
+                        "idCode": "D_1000000001",
                         "repositoryType": "onedep-archive",
                         "contentType": "model",
-                        "contentFormat": "cif",
+                        "contentFormat": "pdbx",
                         "partNumber": partNumber,
                         "version": str(version),
                         "copyMode": copyMode,
-                        "allowOverwrite": allowOverWrite,
+                        "allowOverWrite": allowOverWrite,
                         "hashType": hashType,
                         "hashDigest": testHash,
                     }
@@ -161,11 +157,11 @@ class FileUploadTests(unittest.TestCase):
             hD = CryptUtils().getFileHash(testFilePath, hashType=hashType)
             testHash = hD["hashDigest"]
 
-        headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath).createToken({}, "badSubject")}
+        headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, "badSubject")}
         for endPoint in ["upload"]:
             startTime = time.time()
             try:
-                mD = {"idCode": "D_00000000", "hashDigest": testHash, "hashType": hashType}
+                mD = {"idCode": "D_1000000001", "hashDigest": testHash, "hashType": hashType}
                 with TestClient(app) as client:
                     with open(testFilePath, "rb") as ifh:
                         files = {"uploadFile": ifh}
@@ -184,7 +180,7 @@ class FileUploadTests(unittest.TestCase):
         for endPoint in ["upload"]:
             startTime = time.time()
             try:
-                mD = {"idCode": "D_00000000", "hashDigest": testHash, "hashType": hashType}
+                mD = {"idCode": "D_1000000001", "hashDigest": testHash, "hashType": hashType}
                 with TestClient(app) as client:
                     with open(testFilePath, "rb") as ifh:
                         files = {"uploadFile": ifh}
@@ -211,7 +207,7 @@ class FileUploadTests(unittest.TestCase):
         #
         # --
         # - split the test file --
-        cP = ConfigProvider(self.__cachePath)
+        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         ioU = IoUtils(cP)
         sessionId = uuid.uuid4().hex
         # --
@@ -240,7 +236,7 @@ class FileUploadTests(unittest.TestCase):
                         "sliceTotal": sliceTotal,
                         "sessionId": sessionId,
                         "copyMode": "native",
-                        "allowOverwrite": True,
+                        "allowOverWrite": True,
                         "hashType": None,
                         "hashDigest": None,
                     }
@@ -272,14 +268,14 @@ class FileUploadTests(unittest.TestCase):
             mD = {
                 "sessionId": sessionId,
                 "sliceTotal": sliceTotal,
-                "idCode": "D_00000000",
+                "idCode": "D_1000000001",
                 "repositoryType": "onedep-archive",
                 "contentType": "model",
-                "contentFormat": "cif",
+                "contentFormat": "pdbx",
                 "partNumber": partNumber,
                 "version": str(version),
                 "copyMode": "native",
-                "allowOverwrite": allowOverWrite,
+                "allowOverWrite": allowOverWrite,
                 "hashType": hashType,
                 "hashDigest": fullTestHash,
             }

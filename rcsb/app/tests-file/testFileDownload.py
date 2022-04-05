@@ -31,7 +31,8 @@ import unittest
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
+os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
 
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
@@ -115,6 +116,7 @@ class FileDownloadTests(unittest.TestCase):
 
     def setUp(self):
         self.__cachePath = os.environ.get("CACHE_PATH")
+        self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__repoTestPath = os.path.join(self.__cachePath, "repository", "archive")
         self.__dataPath = os.path.join(HERE, "test-data")
         self.__testFilePath = os.path.join(self.__dataPath, "config", "example-data.cif")
@@ -126,9 +128,9 @@ class FileDownloadTests(unittest.TestCase):
             logger.info("Using REPOSITORY_PATH setting from environment %r", os.environ.get("REPOSITORY_PATH"))
 
         # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
-        cP = ConfigProvider(self.__cachePath)
+        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
-        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath).createToken({}, subject)}
+        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
         logger.info("header %r", self.__headerD)
         self.__startTime = time.time()
         #
@@ -147,6 +149,8 @@ class FileDownloadTests(unittest.TestCase):
         testFilePath = self.__testFilePath
         refHashType = refHashDigest = None
         useHash = True
+
+        # Checks file hash, testFilePath must match file being downloaded, or hashes will not match
         if useHash:
             refHashType = "MD5"
             hD = CryptUtils().getFileHash(testFilePath, hashType=refHashType)
@@ -158,7 +162,7 @@ class FileDownloadTests(unittest.TestCase):
                 mD = {
                     "idCode": "D_1000000001",
                     "contentType": "model",
-                    "contentFormat": "cif",
+                    "contentFormat": "pdbx",
                     "partNumber": 1,
                     "version": 1,
                     "hashType": refHashType,
@@ -189,12 +193,12 @@ class FileDownloadTests(unittest.TestCase):
         mD = {
             "idCode": "D_1000000001",
             "contentType": "model",
-            "contentFormat": "cif",
+            "contentFormat": "pdbx",
             "partNumber": 1,
             "version": 1,
             "hashType": "MD5",
         }
-        headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath).createToken({}, "badSubject")}
+        headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, "badSubject")}
         for endPoint in ["download/onedep-archive"]:
             startTime = time.time()
             try:
