@@ -4,8 +4,8 @@ import os
 import requests
 from rcsb.app.file.IoUtils import IoUtils
 
-os.environ["CACHE_PATH"] = os.path.join(".", "app", "CACHE")
-os.environ["CONFIG_FILE"] = os.path.join("rcsb", "app", "config", "config.yml")
+os.environ["CACHE_PATH"] = os.path.join(".", "rcsb", "app", "tests-file", "test-data", "data")
+os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
 
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -31,7 +31,6 @@ subject = cP.get("JWT_SUBJECT")
 
 
 filePath = "./rcsb/app/tests-file/test-data/testFile.dat"
-print(configFilePath + "\n" + cachePath)
 
 # create file for download
 # select size of file here (in bytes)
@@ -99,7 +98,7 @@ for version in range(1, 9):
     with open(downloadFilePath, "wb") as ofh:
         ofh.write(response.content)
 
-    print(response.status_code)
+    print("Upload status code:", response.status_code)
 
 # sliced upload
 hashType = "MD5"

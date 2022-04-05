@@ -124,14 +124,14 @@ class PathUtils:
                         if contentFormat in self.__contentTypeInfoD[contentType][0]:
                             logger.info("System supports %s contentType with %s contentFormat.", contentType, contentFormat)
                             ok = True
-                            return ok
+                            # return ok
                         else:
                             logger.info("System does not support %s contentType with %s contentFormat.", contentType, contentFormat)
                             # return False
                     else:
                         logger.info("System supports %s contentType.", contentType)
                         ok = True
-                        return ok
+                        # return ok
                 else:
                     logger.info("System does not support %s contentType.", contentType)
                     # return False
@@ -140,7 +140,7 @@ class PathUtils:
                 if contentFormat in self.__fileFormatExtensionD:
                     logger.info("System supports %s contentFormat.", contentFormat)
                     ok = True
-                    return ok
+                    # return ok
                 else:
                     logger.info("System does not support %s contentFormat.", contentFormat)
                     # return False
@@ -149,6 +149,7 @@ class PathUtils:
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             ok = False
+        return ok
         #
 
     def getMimeType(self, contentFormat: str) -> str:

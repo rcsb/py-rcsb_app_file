@@ -86,9 +86,6 @@ class FileUploadTests(unittest.TestCase):
         subject = cP.get("JWT_SUBJECT")
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
         logger.debug("header %r", self.__headerD)
-        # clear any previous data
-        self.__repositoryPath = cP.get("REPOSITORY_DIR_PATH")
-#       self.__fU.remove(self.__repositoryPath)
         #
         self.__startTime = time.time()
         #
