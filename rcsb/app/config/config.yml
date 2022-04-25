@@ -6,9 +6,9 @@ configuration:
   JWT_SUBJECT: aTestSubject
   JWT_ALGORITHM: HS256
   JWT_SECRET: aTestSecret
-  SESSION_DIR_PATH: ./rcsb/app/tests-file/test-data/data/sessions
-  REPOSITORY_DIR_PATH: ./rcsb/app/tests-file/test-data/data/repository
-  SHARED_LOCK_PATH: ./rcsb/app/tests-file/test-data/data/shared-locks
+  SESSION_DIR_PATH: /app/CACHE/sessions
+  REPOSITORY_DIR_PATH: /app/CACHE/repository
+  SHARED_LOCK_PATH: /app/CACHE/shared-locks
   CONTENT_TYPE:
     model:
       -

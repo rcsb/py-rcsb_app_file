@@ -23,7 +23,8 @@ import logging
 import os
 import shutil
 import typing
-
+import boto3
+import requests
 import aiofiles
 
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -378,3 +379,26 @@ class IoUtils:
                     #
                     chunk = await ifh.read(sliceSize)
         return sessionDirPath
+
+    async def storeAWSUpload(
+        self,
+        ifh: typing.IO,
+        repoType: str,
+        idCode: str,
+        contentType: str,
+        partNumber: int,
+        contentFormat: str,
+        version: str,
+        allowOverWrite: bool = True,
+        copyMode: str = "native",
+        hashType: str = "MD5",
+        hashDigest: typing.Optional[str] = None,
+    ) -> typing.Dict:
+        print("this is working")
+        s3_client = boto3.client('s3', aws_access_key_id="<access key>", aws_secret_access_key="<secret key>")
+        response = s3_client.generate_presigned_post("rcsb-file-api", "text/textfile", ExpiresIn=10)
+        print(response)
+        files = {"uploadFile": ifh}
+        r = requests.post(response['url'], data=response['fields'], files=files)
+        
+        return {"success": True, "statusCode": 200, "statusMessage": "Bad content type metadata - cannot build a valid path"}

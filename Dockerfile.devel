@@ -45,6 +45,8 @@ RUN set -eux \
     tini \
     && pip install  --no-cache-dir --upgrade pip setuptools wheel \
     && pip install  --no-cache-dir -r /app/requirements.txt \
+    && pip install  --no-cache-dir boto3 \
+    && pip install  --no-cache-dir requests \
     && rm -rf /root/.cache/pip \
     && apt-get remove --auto-remove -y build-essential cmake && apt-get -y autoremove
 
@@ -67,7 +69,7 @@ USER ubuntu
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-ENV CACHE_PATH = ./rcsb/app/tests-file/test-data/data
+ENV CACHE_PATH /app/CACHE/
 
 # Launch the service
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entryPoint.sh"]
