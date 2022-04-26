@@ -385,8 +385,8 @@ class IoUtils:
     async def upload_fileobj(self, fileobject, bucket, key):
         session = get_session()
         async with session.create_client('s3', region_name="us-east-1",
-                                         aws_secret_access_key="Z3AC8sSICGZuorpYu/TPuthnDThNmR53CzyjQFIl",
-                                         aws_access_key_id="AKIAVLGRDFTGMBKVZ2G5") as client:
+                                         aws_secret_access_key="secret access key",
+                                         aws_access_key_id="access key") as client:
             file_upload_response = await client.put_object(ACL="public-read", Bucket=bucket, Key=key, Body=fileobject)
 
             if file_upload_response["ResponseMetadata"]["HTTPStatusCode"] == 200:
