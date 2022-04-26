@@ -50,7 +50,7 @@ partNumber = 1
 copyMode = "native"
 allowOverWrite = True    
 version = 1
-fileName = "/opt/py-rcsb_app_file/rcsb/app/tests-file/test-data/testFile.dat"
+fileName = "/opt/py-rcsb_app_file/testFile.txt"
 
 mD = {
     "idCode": "D_00000000",
@@ -69,20 +69,26 @@ mD = {
 
 s3_client = boto3.client('s3')
 
-response = s3_client.generate_presigned_post("rcsb-file-api", "text/textfile", ExpiresIn=10)
+response = s3_client.generate_presigned_post(Bucket="rcsb-file-api", Key="testFile.txt", ExpiresIn=10)
 
 print(response)
 
-files = {"file": open(fileName, "rb")}
-r = requests.post(response['url'], data=response['fields'], files=files)
-with open(fileName, "rb") as ifh:
-    files = {"uploadFile": ifh}
-    r = requests.post("http://128.6.159.177/file-v1/upload-aws", files=files, data=mD, headers=headerD)
+files = {"file": open("testFile.txt", 'rb')}
+
+filename = "testFile.txt"
+file={"fileobject": ("filename", open(filename, "rb"), "text/txt")}
+r = requests.post("http://128.6.159.177:80/file-v1/upload-aws", files=file, data=mD, headers=headerD)
+#r = requests.post(response['url'], data=response['fields'], files=files)
+
+
+#with open(fileName, "rb") as ifh:
+#    files = {"uploadFile": ifh}
+#   r = requests.post("http://128.6.159.177/file-v1/upload-aws", files=files, data=mD, headers=headerD)
 #files = {"UploadFile": open(fileName, "rb")}
 
-with open(fileName, "rb") as ifh:
-        files = {"uploadFile": ifh}
-        response = requests.post("http://128.6.159.177:80/file-v1/upload", files=files, data=mD, headers=headerD)
+#with open(fileName, "rb") as ifh:
+#        files = {"uploadFile": ifh}
+#        response = requests.post("http://128.6.159.177:80/file-v1/upload", files=files, data=mD, headers=headerD)
 
 #print(response.text)
 

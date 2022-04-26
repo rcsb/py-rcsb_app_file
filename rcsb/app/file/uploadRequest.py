@@ -23,6 +23,11 @@ from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
+import datetime
+from dotenv import load_dotenv
+from fastapi.applications import FastAPI
+from fastapi.param_functions import File, Body
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -183,56 +188,23 @@ async def joinUploadSlice(
     return ret
 
 
-@router.post("/upload-aws", response_model=UploadResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
-async def upload(
-    uploadFile: UploadFile = File(...),
-    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
-    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
-    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
-    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
-    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
-    hashDigest: str = Form(None, title="Hash digest", description="Hash digest", example="'0394a2ede332c9a13eb82e9b24631604c31df978b4e2f0fbd2c549944f9d79a5'"),
-    hashType: HashType = Form(None, title="Hash type", description="Hash type", example="SHA256"),
-    copyMode: str = Form("native", title="Copy mode", description="Copy mode", example="shell|native|gzip_decompress"),
-    allowOverWrite: bool = Form(False, title="Allow overwrite of existing files", description="Allow overwrite of existing files", example="False"),
-):
-    fn = None
-    ct = None
-    try:
-        cachePath = os.environ.get("CACHE_PATH", ".")
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(cachePath, configFilePath)
-        #
-        logger.debug("idCode %r hash %r hashType %r", idCode, hashDigest, hashType)
-        #
-        fn = uploadFile.filename
-        ct = uploadFile.content_type
-        logger.debug("uploadFile %s (%r)", fn, ct)
-        #
-        if fn.endswith(".gz") or ct == "application/gzip":
-            copyMode = "gzip_decompress"
-        #
-        logger.debug("hashType.name %r hashDigest %r", hashType, hashDigest)
-        ioU = IoUtils(cP)
-        ret = await ioU.storeAWSUpload(
-            uploadFile.file,
-            repositoryType,
-            idCode,
-            contentType,
-            partNumber,
-            contentFormat,
-            version,
-            allowOverWrite=allowOverWrite,
-            copyMode=copyMode,
-            hashType=hashType,
-            hashDigest=hashDigest,
-        )
-    except Exception as e:
-        logger.exception("Failing for %r %r with %s", fn, ct, str(e))
-        ret = {"success": False, "statusCode": 400, "statusMessage": "Upload fails with %s" % str(e)}
-    #
-    if not ret["success"]:
-        raise HTTPException(status_code=405, detail=ret["statusMessage"])
-    #
-    return ret
+@router.post("/upload-aws", status_code=200, description="***** Upload png asset to S3 *****")
+async def upload(fileobject: UploadFile = File(...)):
+    print("Got here")
+    cachePath = os.environ.get("CACHE_PATH", ".")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+    ioU = IoUtils(cP)
+    
+    filename = fileobject.filename
+    current_time = datetime.datetime.now()
+    split_file_name = os.path.splitext(filename)   #split the file name into two different path (string + extention)
+    file_name_unique = str(current_time.timestamp()).replace('.','')  #for realtime application you must have genertae unique name for the file
+    file_extension = split_file_name[1]  #file extention
+    data = fileobject.file._file  # Converting tempfile.SpooledTemporaryFile to io.BytesIO
+    uploads3 = await ioU.upload_fileobj(bucket="rcsb-file-api", key="newfile" + file_name_unique+  file_extension, fileobject=data)
+    if uploads3:
+        s3_url = f"https://rcsb-file-api.s3.us-east-1.amazonaws.com/{key}{file_name_unique +  file_extension}"
+        return {"status": "success", "image_url": s3_url}  #response added 
+    else:
+        raise HTTPException(status_code=400, detail="Failed to upload in S3")

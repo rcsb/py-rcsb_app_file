@@ -15,6 +15,7 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
+import aiobotocore
 import asyncio
 import functools
 import gzip
@@ -23,9 +24,9 @@ import logging
 import os
 import shutil
 import typing
-import boto3
 import requests
 import aiofiles
+from aiobotocore.session import get_session
 
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
@@ -380,25 +381,15 @@ class IoUtils:
                     chunk = await ifh.read(sliceSize)
         return sessionDirPath
 
-    async def storeAWSUpload(
-        self,
-        ifh: typing.IO,
-        repoType: str,
-        idCode: str,
-        contentType: str,
-        partNumber: int,
-        contentFormat: str,
-        version: str,
-        allowOverWrite: bool = True,
-        copyMode: str = "native",
-        hashType: str = "MD5",
-        hashDigest: typing.Optional[str] = None,
-    ) -> typing.Dict:
-        print("this is working")
-        s3_client = boto3.client('s3', aws_access_key_id="<access key>", aws_secret_access_key="<secret key>")
-        response = s3_client.generate_presigned_post("rcsb-file-api", "text/textfile", ExpiresIn=10)
-        print(response)
-        files = {"uploadFile": ifh}
-        r = requests.post(response['url'], data=response['fields'], files=files)
-        
-        return {"success": True, "statusCode": 200, "statusMessage": "Bad content type metadata - cannot build a valid path"}
+    
+    async def upload_fileobj(self, fileobject, bucket, key):
+        session = get_session()
+        async with session.create_client('s3', region_name="us-east-1",
+                                         aws_secret_access_key="Z3AC8sSICGZuorpYu/TPuthnDThNmR53CzyjQFIl",
+                                         aws_access_key_id="AKIAVLGRDFTGMBKVZ2G5") as client:
+            file_upload_response = await client.put_object(ACL="public-read", Bucket=bucket, Key=key, Body=fileobject)
+
+            if file_upload_response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+                logger.info(f"File uploaded path : https://{bucket}.s3.{self.region}.amazonaws.com/{key}")
+                return True
+        return False
