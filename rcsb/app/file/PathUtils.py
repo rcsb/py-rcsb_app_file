@@ -111,39 +111,32 @@ class PathUtils:
             logger.exception("Failing with %s", str(e))
         return filePath
 
-    def checkContentTypeFormat(self, contentType: str = None, contentFormat: str = None) -> typing.Optional[bool]:
+    def checkContentTypeFormat(self, contentType: str = None, contentFormat: str = None) -> bool:
         ok = False
         try:
             if (not contentType) and (not contentFormat):
                 logger.info("No 'contentType' and 'contentFormat' defined.")
-                # return False
             #
-            if contentType:
+            elif contentType:
                 if contentType in self.__contentTypeInfoD:
                     if contentFormat:
                         if contentFormat in self.__contentTypeInfoD[contentType][0]:
                             logger.info("System supports %s contentType with %s contentFormat.", contentType, contentFormat)
                             ok = True
-                            # return ok
                         else:
                             logger.info("System does not support %s contentType with %s contentFormat.", contentType, contentFormat)
-                            # return False
                     else:
                         logger.info("System supports %s contentType.", contentType)
                         ok = True
-                        # return ok
                 else:
                     logger.info("System does not support %s contentType.", contentType)
-                    # return False
                 #
             elif contentFormat:
                 if contentFormat in self.__fileFormatExtensionD:
                     logger.info("System supports %s contentFormat.", contentFormat)
                     ok = True
-                    # return ok
                 else:
                     logger.info("System does not support %s contentFormat.", contentFormat)
-                    # return False
                 #
             #
         except Exception as e:
