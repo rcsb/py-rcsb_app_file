@@ -99,7 +99,7 @@ for version in range(1, numFiles + 1):
     }
 
     url = "http://0.0.0.0:80/file-v1/upload"
-    awsurl = "http://34.239.121.66:80/file-v1/upload"  # change this to match aws public ipv4
+    awsurl = "http://X.X.X.X:80/file-v1/upload"  # change this to match aws public ipv4
 
     # upload with requests library
     with open(filePath, "rb") as ifh:
@@ -143,7 +143,7 @@ for version in range(1, numFiles + 1):
 
     headerD = {"Authorization": "Bearer " + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)}
     url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
-    awsurl = "http://34.239.121.66:80/file-v1/download/onedep-archive"  # change this to match aws public ipv4
+    awsurl = "http://X.X.X.X:80/file-v1/download/onedep-archive"  # change this to match aws public ipv4
 
     # upload with requests library
     # comment out this line to use aws server
@@ -171,7 +171,7 @@ hD = CryptUtils().getFileHash(filePath, hashType=hashType)
 fullTestHash = hD["hashDigest"]
 
 url = "http://0.0.0.0:80/file-v1/upload-slice"
-awsurl = "http://34.239.121.66:80/file-v1/upload-slice"  # change this to match aws public ipv4
+awsurl = "http://X.X.X.X:80/file-v1/upload-slice"  # change this to match aws public ipv4
 
 cP = ConfigProvider(cachePath)
 ioU = IoUtils(cP)
@@ -237,7 +237,7 @@ mD = {
 }
 
 url = "http://0.0.0.0:80/file-v1/join-slice"
-awsurl = "http://34.239.121.66:80/file-v1/join-slice"  # change this to match aws public ipv4
+awsurl = "http://X.X.X.X:80/file-v1/join-slice"  # change this to match aws public ipv4
 
 with open(testFilePath, "rb") as ifh:
     response = requests.post(url, data=mD, headers=headerD)
