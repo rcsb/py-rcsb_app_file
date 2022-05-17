@@ -6,13 +6,19 @@ from mmcif.io.PdbxWriter import PdbxWriter
 import gzip
 
 
-pdbIDScript = "6ene"
-filePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/mmcifData/" + pdbIDScript + "_sifts.cif"
-url = "http://0.0.0.0/file-v1/merge"
+# pdbIDScript = "1yy9"
+# filePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/mmcifData/" + pdbIDScript + "_sifts.cif"
+# url = "http://0.0.0.0/file-v1/merge"
 
 # mergeDict = {
 #     "pdbID": "1yy9"
 # }
+
+# sf = gzip.open("/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/tests-file/test-data/mmcif/" + pdbIDScript + "_sifts_only.cif.gz", "rb")
+# siftFile = sf.read()
+# f = open("/Users/cparker/RCSBWork/py-rcsb_app_file/mmcifData/" + pdbIDScript + "_sifts.cif", "wb")
+# f.write(siftFile)
+# f.close()
 
 # ifh = open(filePath, "rb")
 # files = {"siftsFile": ifh}
@@ -36,7 +42,7 @@ class mergeUpload():
         siftsFile: bytes = File(...),
         pdbID: str = None
     ):
-        cachePath = "./mmcifData/"
+        cachePath = "/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/tests-file/test-data/mmcif/"
         pdbIDHash = pdbID[1:3]
 
         cifUrl = "https://ftp.wwpdb.org/pub/pdb/data/structures/divided/mmCIF/" + pdbIDHash + "/" + pdbID + ".cif.gz"
@@ -59,7 +65,7 @@ class mergeUpload():
         siftsRead.read(siftsList)
 
         cifList = []
-        with open("./mmcifData/" + pdbID + ".cif", "r") as ifh:
+        with open(cachePath + pdbID + ".cif", "r") as ifh:
             cifRead = PdbxReader(ifh)
             cifRead.read(cifList)
 
@@ -84,21 +90,23 @@ class mergeUpload():
         #     tempObj = siftsList[0].getObj(i)
         #     cifList[0].append(tempObj)
 
-        with open("./mmcifData/" + pdbID + "_merged.cif", "w") as ofh:
+        with open(cachePath + pdbID + "_merged.cif", "w") as ofh:
             pdbxW = PdbxWriter(ofh)
             pdbxW.write(cifList)
 
+
+pdbIDScript = "1yy9"
 
 mergeDict = {
     "pdbID": pdbIDScript
 }
 
-sf = gzip.open("/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/tests-file/test-data/" + pdbIDScript + "_sifts_only.cif.gz", "rb")
+sf = gzip.open("/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/tests-file/test-data/mmcif/" + pdbIDScript + "_sifts_only.cif.gz", "rb")
 siftFile = sf.read()
-f = open("/Users/cparker/RCSBWork/py-rcsb_app_file/mmcifData/" + pdbIDScript + "_sifts.cif", "wb")
+f = open("/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/tests-file/test-data/mmcif/" + pdbIDScript + "_sifts.cif", "wb")
 f.write(siftFile)
 f.close()
 
-with open("/Users/cparker/RCSBWork/py-rcsb_app_file/mmcifData/" + pdbIDScript + "_sifts.cif", "r") as f:
+with open("/Users/cparker/RCSBWork/py-rcsb_app_file/rcsb/app/tests-file/test-data/mmcif/" + pdbIDScript + "_sifts.cif", "r") as f:
     functionCall = mergeUpload()
-    functionCall.merge(f, "6ene")
+    functionCall.merge(f, pdbIDScript)
