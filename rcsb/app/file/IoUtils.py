@@ -23,8 +23,8 @@ import logging
 import os
 import shutil
 import typing
-
 import aiofiles
+import math
 
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
@@ -357,7 +357,7 @@ class IoUtils:
         await self.__makedirs(sessionDirPath, mode=0o755, exist_ok=True)
 
         numBytes = os.path.getsize(inputFilePath)
-        sliceSize = int(numBytes / numSlices)
+        sliceSize = int(math.ceil(numBytes / numSlices))  # Need ceil to properly split odd-number bytes into expected number of slices
         logger.info("numBytes (%d) numSlices (%d) slice size %r", numBytes, numSlices, sliceSize)
 
         await self.__makedirs(sessionDirPath, mode=0o755, exist_ok=True)
