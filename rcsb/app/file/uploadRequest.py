@@ -8,7 +8,6 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
-import gzip
 import logging
 import os
 from enum import Enum
@@ -27,8 +26,9 @@ from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
-from mmcif.io.PdbxReader import PdbxReader
 from mmcif.io.PdbxWriter import PdbxWriter
+from rcsb.utils.io.MarshalUtil import MarshalUtil
+from rcsb.utils.io.FileUtil import FileUtil
 
 logger = logging.getLogger(__name__)
 
@@ -189,63 +189,65 @@ async def joinUploadSlice(
     return ret
 
 
-@router.post("/merge")
+@router.post("/merge", response_model=UploadResult, dependencies=[Depends(JWTAuthBearer())], tags=["merge"])
 async def merge(
-        siftsFile: UploadFile = File(...),
+        siftsPath: str = Form(None),
         pdbID: str = Form(None)
 ):
-    cachePath = "./rcsb/app/tests-file/test-data/mmcif/"
-    pdbIDHash = pdbID[1:3]
+    ret = {}
+    try:
+        cachePath = "./rcsb/app/tests-file/test-data/mmcif/"
+        pdbIDHash = pdbID[1:3]
 
-    cifUrl = "https://ftp.wwpdb.org/pub/pdb/data/structures/divided/mmCIF/" + pdbIDHash + "/" + pdbID + ".cif.gz"
-    cifPath = cachePath + pdbID + ".cif"
-    cifTempPath = cachePath + pdbID + "_temp.cif.gz"
+        fU = FileUtil(workPath=cachePath)
+        if not fU.exists(cachePath):
+            fU.mkdir(cachePath)
 
-    ofh = open(cifTempPath, "wb")
-    response = requests.get(cifUrl)
-    ofh.write(response.content)
-    ofh.close()
+        mU = MarshalUtil(workDir=cachePath)
 
-    ifh = gzip.open(cifTempPath, "rb")
-    unzipMMCIF = ifh.read()
-    ofh = open(cifPath, "wb")
-    ofh.write(unzipMMCIF)
-    ofh.close()
+        cifUrl = "https://ftp.wwpdb.org/pub/pdb/data/structures/divided/mmCIF/" + pdbIDHash + "/" + pdbID + ".cif.gz"
+        cifPath = cachePath + pdbID + ".cif.gz"
 
-    siftsList = []
-    siftFile = await siftsFile.read()
-    siftsRead = PdbxReader(siftFile)
-    siftsRead.read(siftsList)
+        ofh = open(cifPath, "wb")
+        response = requests.get(cifUrl)
+        ofh.write(response.content)
+        ofh.close()
 
-    cifList = []
-    with open("./mmcifData/" + pdbID + ".cif", "r", encoding="utf8") as ifh:
-        cifRead = PdbxReader(ifh)
-        cifRead.read(cifList)
+        cifList = mU.doImport(cifPath, fmt="mmcif")
+        siftsList = mU.doImport(siftsPath, fmt="mmcif")
 
-    siftsCatNames = siftsList[0].getObjNameList()
+        siftsCatNames = siftsList[0].getObjNameList()
 
-    siftsAtomSite = siftsList[0].getObj("atom_site")
-    siftsCatNames.pop(0)
+        siftsAtomSite = siftsList[0].getObj("atom_site")
+        siftsCatNames.pop(0)
 
-    siftsAttributes = siftsAtomSite.getAttributeList()
+        siftsAttributes = siftsAtomSite.getAttributeList()
 
-    for i in siftsAttributes:
-        cifList[0].getObj("atom_site").appendAttributeExtendRows(i)
+        for i in siftsAttributes:
+            cifList[0].getObj("atom_site").appendAttributeExtendRows(i)
 
-    for i in siftsList[0].getObj("atom_site").getAttributeList():
-        j = 0
-        while j < len(siftsList[0].getObj("atom_site").getAttributeValueList(i)):
-            cifList[0].getObj("atom_site").setValue(siftsList[0].getObj("atom_site").getAttributeValueList(i)[j], i, j)
-            # print(i, ":", siftsList[0].getObj("atom_site").getAttributeValueList(i)[j])
-            j += 1
+        for i in siftsList[0].getObj("atom_site").getAttributeList():
+            j = 0
+            attrValList = siftsList[0].getObj("atom_site").getAttributeValueList(i)
+            while j < len(attrValList):
+                cifList[0].getObj("atom_site").setValue(attrValList[j], i, j)
+                j += 1
 
-    # for i in siftsCatNames:
-    #     tempObj = siftsList[0].getObj(i)
-    #     cifList[0].append(tempObj)
+        for i in siftsCatNames:
+            tempObj = siftsList[0].getObj(i)
+            cifList[0].append(tempObj)
 
-    with open("./mmcifData/" + pdbID + "_merged.cif", "w", encoding="utf8") as ofh:
-        pdbxW = PdbxWriter(ofh)
-        pdbxW.write(cifList)
+        with open(cachePath + pdbID + "_merged.cif", "w", encoding="utf-8") as ofh:
+            pdbxW = PdbxWriter(ofh)
+            pdbxW.write(cifList)
+
+        ret = {"success": True, "statusCode": 200, "statusMessage": "Merge Successful"}
+
+    except Exception as e:
+        logger.exception("Failing for %s, and %s", siftsPath, pdbID)
+        ret = {"success": False, "statusCode": 400, "statusMessage": "mmCIF and SIFTS data merge fails with: %s" % str(e)}
+
+    return ret
 
 
 @router.post("/upload-aws", status_code=200, description="***** Upload png asset to S3 *****")
