@@ -18,13 +18,11 @@ logger = logging.getLogger(__name__)
 
 class JWTAuthBearer(HTTPBearer):
     def __init__(self, auto_error: bool = True):
-        # print("IN JWTAUTHBEARER __INIT__")
         super(JWTAuthBearer, self).__init__(auto_error=auto_error)
         self.__au = JWTAuthToken(os.environ["CACHE_PATH"], os.environ["CONFIG_FILE"])
 
     async def __call__(self, request: Request):
         credentials: HTTPAuthorizationCredentials = await super(JWTAuthBearer, self).__call__(request)
-        # print("credentials", credentials)
         if credentials:
             if not credentials.scheme == "Bearer":
                 raise HTTPException(status_code=403, detail="Missing Bearer details")
