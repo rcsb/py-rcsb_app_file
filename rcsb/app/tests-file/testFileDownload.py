@@ -31,8 +31,8 @@ import unittest
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
-os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
+os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
@@ -58,15 +58,15 @@ class FileDownloadTests(unittest.TestCase):
 
         fU = FileUtil()
         fU.mkdir(sessionPath)
-        for fn in ["example-data.cif"]:
-            fU.put(os.path.join(dataPath, "config", fn), os.path.join(cachePath, "config", fn))
+        for fn in ["example-data.cif"]:  # Only needed for ConfigProvider init
+            fU.put(os.path.join(dataPath, fn), os.path.join(cachePath, fn))
         #
         nB = 2500000
         testFilePath = os.path.join(sessionPath, "testFile.dat")
         with open(testFilePath, "w", encoding="utf-8") as ofh:
             ofh.write("".join(random.choices(string.ascii_uppercase + string.digits, k=nB)))
         #
-        testFilePath = os.path.join(dataPath, "config", "example-data.cif")
+        testFilePath = os.path.join(dataPath, "example-data.cif")
         FileDownloadTests.__repoFixture(repoTestPath, testFilePath)
 
     @classmethod
@@ -119,7 +119,7 @@ class FileDownloadTests(unittest.TestCase):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__repoTestPath = os.path.join(self.__cachePath, "repository", "archive")
         self.__dataPath = os.path.join(HERE, "test-data")
-        self.__testFilePath = os.path.join(self.__dataPath, "config", "example-data.cif")
+        self.__testFilePath = os.path.join(self.__dataPath, "example-data.cif")
         self.__downloadFilePath = os.path.join(self.__cachePath, "downloadFile.dat")
 
         if not os.environ.get("REPOSITORY_PATH", None):
@@ -147,6 +147,8 @@ class FileDownloadTests(unittest.TestCase):
     def testSimpleDownload(self):
         """Test - simple file download"""
         testFilePath = self.__testFilePath
+        # print("testFilePath", testFilePath)
+        # print("self.__downloadFilePath", self.__downloadFilePath)
         refHashType = refHashDigest = None
         useHash = True
 

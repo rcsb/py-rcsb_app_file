@@ -11,6 +11,9 @@ __license__ = "Apache 2.0"
 import logging
 import os
 from enum import Enum
+# import requests
+# from rcsb.utils.io.MarshalUtil import MarshalUtil
+
 
 from fastapi import APIRouter
 from fastapi import Depends
@@ -23,10 +26,11 @@ from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
+# from rcsb.utils.io.FileUtil import FileUtil
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
 
 
 class HashType(str, Enum):
@@ -47,7 +51,8 @@ class UploadSliceResult(BaseModel):
     success: bool = Field(None, title="Success status", description="Success status", example="True")
 
 
-@router.post("/upload", response_model=UploadResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+# @router.post("/upload", response_model=UploadResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+@router.post("/upload", response_model=UploadResult)
 async def upload(
     uploadFile: UploadFile = File(...),
     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
@@ -64,7 +69,7 @@ async def upload(
     fn = None
     ct = None
     try:
-        cachePath = os.environ.get("CACHE_PATH", ".")
+        cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(cachePath, configFilePath)
         #
@@ -102,7 +107,8 @@ async def upload(
     return ret
 
 
-@router.post("/upload-slice", response_model=UploadSliceResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+# @router.post("/upload-slice", response_model=UploadSliceResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+@router.post("/upload-slice", response_model=UploadSliceResult)
 async def uploadSlice(
     uploadFile: UploadFile = File(...),
     sliceIndex: int = Form(1, title="Index of the current chunk", description="Index of the current chunk", example="1"),
@@ -115,11 +121,16 @@ async def uploadSlice(
     ct = None
     ret = {}
     try:
-        cachePath = os.environ.get("CACHE_PATH", ".")
+        # This is pretty inefficient, to have to re-read the cache file in again for every slice [LOW PRIORITY, not going to be uploading tons of files yet]
+        # Can this be done at a higher level?
+        cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(cachePath, configFilePath)
         #
         fn = uploadFile.filename
+        # logger.info("STARTING POST upload-slice %s", fn)
+        # print("POST upload-slice", fn)
+
         ct = uploadFile.content_type
         logger.debug("sliceIndex %d sliceTotal %d fn %r", sliceIndex, sliceTotal, fn)
         ioU = IoUtils(cP)
@@ -135,7 +146,8 @@ async def uploadSlice(
     return ret
 
 
-@router.post("/join-slice", response_model=UploadResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+# @router.post("/join-slice", response_model=UploadResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+@router.post("/join-slice", response_model=UploadResult)
 async def joinUploadSlice(
     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
@@ -152,7 +164,7 @@ async def joinUploadSlice(
 ):
     ret = {}
     try:
-        cachePath = os.environ.get("CACHE_PATH", ".")
+        cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(cachePath, configFilePath)
         #

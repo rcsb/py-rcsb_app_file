@@ -7,6 +7,9 @@
 # Update:
 #
 #
+# Notes:
+# If running manually with API running with gunicorn (outside of docker), run from ~/rcsb/py-rcsb_app_file:
+#   python ./rcsb/app/tests-file/testFileUpload.py
 ##
 """
 Tests for file upload API.
@@ -33,7 +36,7 @@ import uuid
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
-
+os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
@@ -61,31 +64,38 @@ class FileUploadTests(unittest.TestCase):
     def setUp(self):
 
         self.__dataPath = os.path.join(HERE, "test-data")
-        self.__cachePath = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+        self.__cachePath = os.environ.get("CACHE_PATH")
         self.__configFilePath = os.environ.get("CONFIG_FILE")
+        logger.info("self.__dataPath %s", self.__dataPath)
+        logger.info("self.__cachePath %s", self.__cachePath)
+        logger.info("self.__configFilePath %s", self.__configFilePath)
         self.__sessionPath = os.path.join(self.__cachePath, "sessions")
         self.__fU = FileUtil()
         self.__fU.remove(self.__sessionPath)
         self.__fU.mkdir(self.__sessionPath)
         #
-        for fn in ["example-data.cif"]:
-            self.__fU.put(os.path.join(self.__dataPath, "config", fn), os.path.join(self.__cachePath, "config", fn))
+        for fn in ["example-data.cif"]:  # Only needed for ConfigProvider init
+            self.__fU.put(os.path.join(self.__dataPath, fn), os.path.join(self.__cachePath, fn))
         #
+        # Generate testFile.dat and gzipped version of file for testing gzip upload (must retain unzipped file for hash-comparison purposes) 
         nB = 25000000
-        self.__testFilePath = os.path.join(self.__sessionPath, "testFile.dat")
-        with open(self.__testFilePath, "wb") as ofh:
+        self.__testFileDatPath = os.path.join(self.__sessionPath, "testFile.dat")
+        with open(self.__testFileDatPath, "wb") as ofh:
             ofh.write(os.urandom(nB))  # generate random content file
         #
         self.__testFileGzipPath = os.path.join(self.__sessionPath, "testFile.dat.gz")
-        with gzip.open(self.__testFileGzipPath, "wb") as ofh:
-            with open(self.__testFilePath, "rb") as ifh:
-                ofh.write(ifh.read())
+        self.__fU.compress(self.__testFileDatPath, self.__testFileGzipPath)
+        #
+        # self.__testFilePath = "/Users/dennis/Desktop/emd_13856.map.gz"
+        #
+        self.__testFilePath = os.path.join(self.__dataPath, "example-data.cif")  # This is needed to prepare input for testFileDownlaod to work
         #
         # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
         cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
-        logger.debug("header %r", self.__headerD)
+        # self.__headerD['Authorization'] = 'Bearer eyJ0fXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE2NTI5Njc5OTYsImlhdCI6MTY1Mjk2NzA5Niwic3ViIjoiYVRlc3RTdWJqZWN0In0.gWllKHP-2YkTHUnTNQRTMPmKTxhICLjJRdK5ChZmNCU'
+        logger.info("header %r", self.__headerD)
         #
         self.__startTime = time.time()
         #
@@ -104,9 +114,6 @@ class FileUploadTests(unittest.TestCase):
         hashType = testHash = None
         endPoint = "upload"
         hashType = "MD5"
-        #  Using the uncompressed hash
-        hD = CryptUtils().getFileHash(self.__testFilePath, hashType=hashType)
-        testHash = hD["hashDigest"]
         #
         for testFilePath, copyMode, partNumber, allowOverWrite, responseCode in [
             (self.__testFilePath, "native", 1, True, 200),
@@ -114,6 +121,13 @@ class FileUploadTests(unittest.TestCase):
             (self.__testFilePath, "native", 1, False, 405),
             (self.__testFileGzipPath, "decompress_gzip", 3, True, 200),
         ]:
+            #  Using the uncompressed hash
+            if copyMode == "decompress_gzip":
+                hD = CryptUtils().getFileHash(testFilePath.split(".gz")[0], hashType=hashType)
+            else:
+                hD = CryptUtils().getFileHash(testFilePath, hashType=hashType)
+            testHash = hD["hashDigest"]
+            print("testHash", testHash)
             for version in range(1, 10):
                 startTime = time.time()
                 try:
@@ -136,6 +150,7 @@ class FileUploadTests(unittest.TestCase):
                             response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
                         if response.status_code != responseCode:
                             logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                            print("\n RESPONSE:", response.status_code, response.reason, response.content)
                         self.assertTrue(response.status_code == responseCode)
                         rD = response.json()
                         logger.info("rD %r", rD.items())
@@ -144,7 +159,7 @@ class FileUploadTests(unittest.TestCase):
                     #
                     logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
                 except Exception as e:
-                    logger.exception("Failing with %s", str(e))
+                    logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
                     self.fail()
 
     def testUploadAccessTokens(self):
@@ -164,15 +179,24 @@ class FileUploadTests(unittest.TestCase):
                 mD = {"idCode": "D_1000000001", "hashDigest": testHash, "hashType": hashType}
                 with TestClient(app) as client:
                     with open(testFilePath, "rb") as ifh:
+                        # t1=time.time()
+                        # print("opening file for handling")
                         files = {"uploadFile": ifh}
+                        # print("done opening file for handling", time.time()-t1)
                         response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=headerD)
+                        # print("response type", type(response))
+                        # print("received response", time.time()-t1)
+                        # print("\tresponse.content:", response.content)
                     if response.status_code != 403:
                         logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                     self.assertTrue(response.status_code == 403)
+                    # print("dir(response)", dir(response))
+                    # print("raw response", response.text)  # Should be:  {"detail":"Invalid or expired token"}
+                    # print("response conent", response.content)
                     rD = response.json()
                     logger.info("rD %r", rD.items())
                     self.assertTrue(rD["detail"] == "Invalid or expired token")
-                logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+                logger.info("Completed fail test for %s (%.4f seconds)", endPoint, time.time() - startTime)
             except Exception as e:
                 logger.exception("Failing with %s", str(e))
                 self.fail()
@@ -180,11 +204,16 @@ class FileUploadTests(unittest.TestCase):
         for endPoint in ["upload"]:
             startTime = time.time()
             try:
+                # print("\nON SECOND TEST")
                 mD = {"idCode": "D_1000000001", "hashDigest": testHash, "hashType": hashType}
                 with TestClient(app) as client:
                     with open(testFilePath, "rb") as ifh:
                         files = {"uploadFile": ifh}
+                        # print("HERE IN SECOND")
                         response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=headerD)
+                        # print("\n RESPONSE:", response.status_code, response.reason, response.content)
+                        # print("raw response", response.text)  # Should be:  {"detail":"Invalid or expired token"}
+                        # print("response conent", response.content)
                     if response.status_code != 403:
                         logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                     self.assertTrue(response.status_code == 403)
@@ -213,17 +242,24 @@ class FileUploadTests(unittest.TestCase):
         # --
         sliceTotal = 4
         loop = asyncio.get_event_loop()
+
+        # First, split the file into 4 slices in a new "sessions" directory (prefixed with "staging", e.g., "stagingX1Y2Z...");
+        # this also creates a "MANIFEST" file containing the names of the file slices.
         task = ioU.splitFile(self.__testFilePath, sliceTotal, "staging" + sessionId, hashType="md5")
+
         sP = loop.run_until_complete(task)
         # loop.close()
         # --
-        logger.debug("Session path %r", sP)
+        logger.info("Session path %r", sP)
         #
         # --
         #
         sliceIndex = 0
         responseCode = 200
         manifestPath = os.path.join(sP, "MANIFEST")
+
+        # Second, read the MANIFEST file to determine what slices there are, and upload each slice using endpoint "upload-slice" to a non-staging "sessions" directory
+        # (e.g., if file was split into directory "sessions/stagingX1Y2Z...", the upload will be placed in adjacent directory "sessions/X1Y2Z...")
         with open(manifestPath, "r", encoding="utf-8") as ifh:
             for line in ifh:
                 testFile = line[:-1]
@@ -242,11 +278,12 @@ class FileUploadTests(unittest.TestCase):
                     }
                     #
                     with TestClient(app) as client:
-                        with open(testFilePath, "rb") as ifh:
-                            files = {"uploadFile": ifh}
+                        with open(testFilePath, "rb") as itfh:
+                            files = {"uploadFile": itfh}
                             response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
                         if response.status_code != responseCode:
                             logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                            # print("\n RESPONSE:", response.status_code, response.reason, response.content)
                         self.assertTrue(response.status_code == responseCode)
                         rD = response.json()
                         logger.debug("rD %r", rD.items())
@@ -258,6 +295,7 @@ class FileUploadTests(unittest.TestCase):
                     logger.exception("Failing with %s", str(e))
                     self.fail()
         #
+        # Last, join the slices in the sessions directory together into a single file in the "repository/archive/<idCode>" directory
         endPoint = "join-slice"
         startTime = time.time()
         partNumber = 1
@@ -300,7 +338,8 @@ class FileUploadTests(unittest.TestCase):
 def uploadSimpleTests():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(FileUploadTests("testSimpleUpload"))
-    suiteSelect.addTest(FileUploadTests("testUploadAccessTokens"))
+    # suiteSelect.addTest(FileUploadTests("testSlicedUpload"))
+    # suiteSelect.addTest(FileUploadTests("testUploadAccessTokens"))
     return suiteSelect
 
 
