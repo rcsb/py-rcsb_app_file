@@ -49,10 +49,7 @@ async def download(
     version: str = Query("1", title="Version string", description="Version number or description", example="1,2,3, latest, previous"),
     hashType: HashType = Query(None, title="Hash type", description="Hash type", example="SHA256"),
 ):
-    print("HERE downloadRequest 1")
-    # cachePath = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
     cachePath = os.environ.get("CACHE_PATH")
-    print("  cachePath", cachePath)
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
     pathU = PathUtils(cP)

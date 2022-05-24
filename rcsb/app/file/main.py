@@ -25,6 +25,7 @@ from . import LogFilterUtils
 from . import downloadRequest  # This triggers JWTAuthBearer
 from . import serverStatus
 from . import uploadRequest
+from . import fileStatus
 from .JWTAuthBearer import JWTAuthBearer
 
 logger = logging.getLogger()
@@ -72,11 +73,20 @@ app.include_router(
     prefix="/file-v1",
 )
 
-
 app.include_router(
     downloadRequest.router,
     prefix="/file-v1",
 )
+
+app.include_router(
+    fileStatus.router,
+    prefix="/file-v1",
+)
+
+app.include_router(
+    serverStatus.router
+)
+
 
 @app.middleware("http")
 async def check_token(request: Request, call_next):
@@ -84,7 +94,6 @@ async def check_token(request: Request, call_next):
     if not authorization:
         return Response(status_code=403, content=b'{"detail":"Not authenticated"}', headers={"content-type": "application/json"})
     scheme, credentials = get_authorization_scheme_param(authorization)
-    # print("credentials:", credentials)
     valid = JWTAuthBearer().validateToken(credentials)
     if not valid:
         return Response(status_code=403, content=b'{"detail":"Invalid or expired token"}', headers={"content-type": "application/json"})
@@ -93,6 +102,3 @@ async def check_token(request: Request, call_next):
     else:
         response = await call_next(request)
         return response
-
-# Example entry point
-app.include_router(serverStatus.router)

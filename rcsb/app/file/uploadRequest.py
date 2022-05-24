@@ -11,9 +11,6 @@ __license__ = "Apache 2.0"
 import logging
 import os
 from enum import Enum
-# import requests
-# from rcsb.utils.io.MarshalUtil import MarshalUtil
-
 
 from fastapi import APIRouter
 from fastapi import Depends
@@ -26,7 +23,6 @@ from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
-# from rcsb.utils.io.FileUtil import FileUtil
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +52,8 @@ class UploadSliceResult(BaseModel):
 async def upload(
     uploadFile: UploadFile = File(...),
     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
+    # repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
     contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
     partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
     contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
