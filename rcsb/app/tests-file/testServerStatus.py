@@ -35,6 +35,9 @@ os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
 from rcsb.app.file.main import app
+from rcsb.app.file.ConfigProvider import ConfigProvider
+from rcsb.app.file.JWTAuthToken import JWTAuthToken
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -44,9 +47,14 @@ logger.setLevel(logging.INFO)
 class ServerStatusTests(unittest.TestCase):
     def setUp(self):
         self.__startTime = time.time()
+        self.__cachePath = os.environ.get("CACHE_PATH")
+        self.__configFilePath = os.environ.get("CONFIG_FILE")
         #
         logger.debug("Running tests on version %s", __version__)
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
+        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
+        subject = cP.get("JWT_SUBJECT")
+        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
 
     def tearDown(self):
         unitS = "MB" if platform.system() == "Darwin" else "GB"
@@ -59,7 +67,7 @@ class ServerStatusTests(unittest.TestCase):
         """Get root status ()."""
         try:
             with TestClient(app) as client:
-                response = client.get("/")
+                response = client.get("/", headers=self.__headerD)
                 logger.info("Status %r response %r", response.status_code, response.json())
                 self.assertTrue(response.status_code == 200)
                 self.assertTrue(response.json() == {"msg": "Service is up!"})
@@ -71,7 +79,7 @@ class ServerStatusTests(unittest.TestCase):
         """Get process status ()."""
         try:
             with TestClient(app) as client:
-                response = client.get("/status")
+                response = client.get("/status", headers=self.__headerD)
                 logger.debug("Status %r response %r", response.status_code, response.json())
                 self.assertTrue(response.status_code == 200)
                 rD = response.json()
@@ -86,7 +94,7 @@ class ServerStatusTests(unittest.TestCase):
         """Get health check."""
         try:
             with TestClient(app) as client:
-                response = client.get("/healthcheck")
+                response = client.get("/healthcheck", headers=self.__headerD)
                 logger.info("Status %r response %r", response.status_code, response)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Text %r", response.text.strip('"'))

@@ -36,11 +36,8 @@ class ConfigProvider(SingletonClass):
         print("HERE AT CONFIG")
         self.__cachePath = cachePath if cachePath else os.environ.get("CACHE_PATH", os.path.abspath("./CACHE"))
         self.__configFilePath = configFilePath if configFilePath else os.environ.get("CONFIG_FILE")
-        # self.__configFilePath = "/Users/dennis/rcsb/py-rcsb_app_file/rcsb/app/config/config.yml"
-        logger.info("CONFIG Using CACHE_PATH setting %r", self.__cachePath)
-        logger.info("CONFIG Using CONFIG_FILE path %r", self.__configFilePath)
-        print("PRINT CONFIG Using CACHE_PATH setting", self.__cachePath)
-        print("PRINT CONFIG Using CONFIG_FILE path", self.__configFilePath)
+        # logger.info("CONFIG Using CACHE_PATH setting %r", self.__cachePath)
+        # logger.info("CONFIG Using CONFIG_FILE path %r", self.__configFilePath)
         self.__mU = MarshalUtil(workPath=self.__cachePath)
         self.__configD = None
         self.__dataObj = None

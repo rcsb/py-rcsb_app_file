@@ -38,6 +38,7 @@ class HashType(str, Enum):
     SHA1 = "SHA1"
     SHA256 = "SHA256"
 
+
 @router.get("/download/{repositoryType}", dependencies=[Depends(JWTAuthBearer())], tags=["download"])
 async def download(
     idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),

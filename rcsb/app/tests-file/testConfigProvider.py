@@ -52,8 +52,8 @@ class ConfigProviderTests(unittest.TestCase):
         if self.__configFilePath:
             try:
                 self.__cD = cP.getConfig()
-            except:
-                pass
+            except Exception as e:
+                logger.info("Unable to getConfig with exception %s", str(e))
             #
         #
         if not self.__cD:

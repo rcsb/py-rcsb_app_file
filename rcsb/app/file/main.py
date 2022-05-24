@@ -12,28 +12,17 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
-import time
 from fastapi import FastAPI, Request, Response
 from fastapi.security.utils import get_authorization_scheme_param
-# from fastapi.security import HTTPAuthorizationCredentials
-# from fastapi import Depends
-# from fastapi import HTTPException
-
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
-# print("MAIN - CACHE_PATH", os.environ.get("CACHE_PATH"))
-# print("MAIN - CONFIG_FILE", os.environ.get("CONFIG_FILE"))
 
-
-# print("MAIN HERE 1")
 from . import ConfigProvider
-# print("MAIN HERE 2")
 from . import LogFilterUtils
 from . import downloadRequest  # This triggers JWTAuthBearer
-# print("MAIN HERE 3")
 from . import serverStatus
 from . import uploadRequest
 from .JWTAuthBearer import JWTAuthBearer
@@ -61,19 +50,15 @@ async def startupEvent():
     # Note that this will run every time a test is performed via, "with TestClient(app) as...",
     # but in production will only run once at startup
     #
-    # print("HERE AT STARTUP")
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
-    # cachePath = "/Users/dennis/rcsb/py-rcsb_app_file/rcsb/app/tests-file/test-output/CACHE_NEW"
-    # configFilePath = "/Users/dennis/rcsb/py-rcsb_app_file/rcsb/app/config/config.yml"
     #
     logger.debug("Startup - running application startup placeholder method using %r", cachePath)
-    logger.info("HERE startupEvent cachePath %s ", cachePath)
-    logger.info("HERE startupEvent configFilePath %s ", configFilePath)
+    # logger.info("HERE startupEvent cachePath %s ", cachePath)
+    # logger.info("HERE startupEvent configFilePath %s ", configFilePath)
     cp = ConfigProvider.ConfigProvider(cachePath, configFilePath)
     _ = cp.getConfig()
     _ = cp.getData()
-    # print("STARTUP EVENT HERE")
     #
 
 

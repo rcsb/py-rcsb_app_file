@@ -90,7 +90,7 @@ class PathUtilsTests(unittest.TestCase):
 
 def ContentFormatTypeSuite():
     suiteSelect = unittest.TestSuite()
-    suiteSelect.addTest(PathUtilsTests("testCheckContentFormatType"))
+    suiteSelect.addTest(PathUtilsTests("testCheckContentTypeFormat"))
     suiteSelect.addTest(PathUtilsTests("testGetMimeType"))
     return suiteSelect
 

@@ -22,7 +22,7 @@ __email__ = "jwest@rcsb.rutgers.edu"
 __license__ = "Apache 2.0"
 
 import asyncio
-import gzip
+# import gzip
 import logging
 import os
 import platform
@@ -77,7 +77,7 @@ class FileUploadTests(unittest.TestCase):
         for fn in ["example-data.cif"]:  # Only needed for ConfigProvider init
             self.__fU.put(os.path.join(self.__dataPath, fn), os.path.join(self.__cachePath, fn))
         #
-        # Generate testFile.dat and gzipped version of file for testing gzip upload (must retain unzipped file for hash-comparison purposes) 
+        # Generate testFile.dat and gzipped version of file for testing gzip upload (must retain unzipped file for hash-comparison purposes)
         nB = 25000000
         self.__testFileDatPath = os.path.join(self.__sessionPath, "testFile.dat")
         with open(self.__testFileDatPath, "wb") as ofh:
@@ -94,8 +94,7 @@ class FileUploadTests(unittest.TestCase):
         cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
-        # self.__headerD['Authorization'] = 'Bearer eyJ0fXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE2NTI5Njc5OTYsImlhdCI6MTY1Mjk2NzA5Niwic3ViIjoiYVRlc3RTdWJqZWN0In0.gWllKHP-2YkTHUnTNQRTMPmKTxhICLjJRdK5ChZmNCU'
-        logger.info("header %r", self.__headerD)
+        logger.debug("header %r", self.__headerD)
         #
         self.__startTime = time.time()
         #

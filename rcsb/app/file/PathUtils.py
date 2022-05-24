@@ -80,9 +80,6 @@ class PathUtils:
                     vNo = int(pth.split(".")[-1][1:])
                     fTupL.append((pth, vNo))
                 # - sort in decending version order -
-                # print("\nfTupL", fTupL)
-                # Example:  fTupL:  [('./rcsb/app/tests-file/test-data/data/repository/archive/D_8000210008/D_8000210008_model_P1.cif.V2', 2), ('./rcsb/app/tests-file/test-data/data/repository/archive/D_8000210008/D_8000210008_model_P1.cif.V1', 1)]
-                #
                 if len(fTupL) > 1:
                     fTupL.sort(key=lambda tup: tup[1], reverse=True)
                 #
