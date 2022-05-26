@@ -33,7 +33,6 @@ class ConfigProvider(SingletonClass):
 
     def __init__(self, cachePath: typing.Optional[str] = None, configFilePath: typing.Optional[str] = None):
         # ---
-        # print("HERE AT CONFIG")
         self.__cachePath = cachePath if cachePath else os.environ.get("CACHE_PATH", os.path.abspath("./CACHE"))
         self.__configFilePath = configFilePath if configFilePath else os.environ.get("CONFIG_FILE")
         # logger.info("CONFIG Using CACHE_PATH setting %r", self.__cachePath)
@@ -105,7 +104,7 @@ class ConfigProvider(SingletonClass):
                     dataObj = dataObjL[0]
             else:
                 # Handle missing config for now
-                logger.warning("Reading TEST DATA data file fails from path %r", dataFilePath)
+                logger.warning("Reading data file fails from path %r", dataFilePath)
                 ok = True
             #
             self.__dataObj = dataObj

@@ -15,6 +15,8 @@ import os
 from fastapi import FastAPI, Request, Response
 from fastapi.security.utils import get_authorization_scheme_param
 
+# pylint: disable=wrong-import-position
+# This environment must be set before JWTAuthBearer is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
@@ -55,8 +57,8 @@ async def startupEvent():
     configFilePath = os.environ.get("CONFIG_FILE")
     #
     logger.debug("Startup - running application startup placeholder method using %r", cachePath)
-    # logger.info("HERE startupEvent cachePath %s ", cachePath)
-    # logger.info("HERE startupEvent configFilePath %s ", configFilePath)
+    # logger.info("cachePath %s ", cachePath)
+    # logger.info("configFilePath %s ", configFilePath)
     cp = ConfigProvider.ConfigProvider(cachePath, configFilePath)
     _ = cp.getConfig()
     _ = cp.getData()
