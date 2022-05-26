@@ -15,18 +15,13 @@ from enum import Enum
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import Query
-# from fastapi import File
-# from fastapi import Form
-# from fastapi import Response
 from fastapi import HTTPException
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
-# from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.utils.io.FileUtil import FileUtil
-# from rcsb.utils.io.MarshalUtil import MarshalUtil
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +57,7 @@ class PathResult(BaseModel):
 # - dirExists  (use for checking if directory exists provided the ID and repoType--client focused)
 # - getFileHash
 
+
 @router.post("/file-exists", response_model=FileResult)
 async def fileExists(
     idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
@@ -82,10 +78,7 @@ async def fileExists(
         cP = ConfigProvider(cachePath, configFilePath)
         pathU = PathUtils(cP)
         #
-        logger.info(
-            "repositoryType %r idCode %r contentType %r format %r version %r",
-            repositoryType, idCode, contentType, contentFormat, version
-        )
+        logger.info("repositoryType %r idCode %r contentType %r format %r version %r", repositoryType, idCode, contentType, contentFormat, version)
         #
         filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
         fileName = fU.getFileName(filePath)
@@ -158,7 +151,10 @@ async def latestFileVersion(
         #
         logger.info(
             "Getting latest file version for repositoryType %r idCode %r contentType %r format %r",
-            repositoryType, idCode, contentType, contentFormat,
+            repositoryType,
+            idCode,
+            contentType,
+            contentFormat,
         )
         #
         filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)

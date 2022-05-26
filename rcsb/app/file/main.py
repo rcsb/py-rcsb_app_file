@@ -83,9 +83,7 @@ app.include_router(
     prefix="/file-v1",
 )
 
-app.include_router(
-    serverStatus.router
-)
+app.include_router(serverStatus.router)
 
 
 @app.middleware("http")
