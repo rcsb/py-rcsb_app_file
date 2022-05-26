@@ -15,18 +15,18 @@ from enum import Enum
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import Query
-from fastapi import File
-from fastapi import Form
-from fastapi import Response
+# from fastapi import File
+# from fastapi import Form
+# from fastapi import Response
 from fastapi import HTTPException
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
-from rcsb.app.file.IoUtils import IoUtils
+# from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.utils.io.FileUtil import FileUtil
-from rcsb.utils.io.MarshalUtil import MarshalUtil
+# from rcsb.utils.io.MarshalUtil import MarshalUtil
 
 logger = logging.getLogger(__name__)
 
@@ -54,11 +54,11 @@ class PathResult(BaseModel):
     statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
 
 
-# Add functions:
+# Add Endpoints:
 # - fileExists (use for checking if file exists provided ID, repoType, contentType, etc.--client focused)
 # - pathExists (use for checking if file or directory exists provided an absolute path--general purpose)
 # - getLatestFileVersion
-# - getUploadStatus
+# - Move files between directories
 # - dirExists  (use for checking if directory exists provided the ID and repoType--client focused)
 # - getFileHash
 

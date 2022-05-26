@@ -89,7 +89,7 @@ app.include_router(
 
 
 @app.middleware("http")
-async def check_token(request: Request, call_next):
+async def checkToken(request: Request, callNext):
     authorization: str = request.headers.get("Authorization", None)
     if not authorization:
         return Response(status_code=403, content=b'{"detail":"Not authenticated"}', headers={"content-type": "application/json"})
@@ -100,5 +100,5 @@ async def check_token(request: Request, call_next):
         # logger.info("HTTPException %r ",  HTTPException(status_code=403, detail="Invalid or expired token"))  # How to get this to log in the main app output?
         # return HTTPException(status_code=403, detail="Invalid or expired token")
     else:
-        response = await call_next(request)
+        response = await callNext(request)
         return response

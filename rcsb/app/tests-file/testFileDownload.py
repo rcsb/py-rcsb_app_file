@@ -147,8 +147,6 @@ class FileDownloadTests(unittest.TestCase):
     def testSimpleDownload(self):
         """Test - simple file download"""
         testFilePath = self.__testFilePath
-        # print("testFilePath", testFilePath)
-        # print("self.__downloadFilePath", self.__downloadFilePath)
         refHashType = refHashDigest = None
         useHash = True
 
@@ -236,10 +234,10 @@ class FileDownloadTests(unittest.TestCase):
 def downloadSimpleTests():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(FileDownloadTests("testSimpleDownload"))
+    suiteSelect.addTest(FileDownloadTests("testDownloadTokens"))
     return suiteSelect
 
 
 if __name__ == "__main__":
-
     mySuite = downloadSimpleTests()
     unittest.TextTestRunner(verbosity=2).run(mySuite)

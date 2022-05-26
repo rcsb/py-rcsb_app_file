@@ -22,7 +22,6 @@ __email__ = "jwest@rcsb.rutgers.edu"
 __license__ = "Apache 2.0"
 
 import asyncio
-# import gzip
 import logging
 import os
 import platform
@@ -51,12 +50,12 @@ from rcsb.utils.io.LogUtil import StructFormatter
 
 # sl = logging.StreamHandler()
 # sl.setFormatter(StructFormatter(fmt=None, mask=None))
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
 root_handler = logger.handlers[0]
 root_handler.setFormatter(StructFormatter(fmt=None, mask=None))
 # logger.addHandler(sl)
 # logger.propagate = True
-# logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger.setLevel(logging.INFO)
 
 
@@ -78,7 +77,7 @@ class FileUploadTests(unittest.TestCase):
             self.__fU.put(os.path.join(self.__dataPath, fn), os.path.join(self.__cachePath, fn))
         #
         # Generate testFile.dat and gzipped version of file for testing gzip upload (must retain unzipped file for hash-comparison purposes)
-        nB = 25000000
+        nB = 2500000
         self.__testFileDatPath = os.path.join(self.__sessionPath, "testFile.dat")
         with open(self.__testFileDatPath, "wb") as ofh:
             ofh.write(os.urandom(nB))  # generate random content file
@@ -86,7 +85,7 @@ class FileUploadTests(unittest.TestCase):
         self.__testFileGzipPath = os.path.join(self.__sessionPath, "testFile.dat.gz")
         self.__fU.compress(self.__testFileDatPath, self.__testFileGzipPath)
         #
-        # self.__testFilePath = "/Users/dennis/Desktop/emd_13856.map.gz"
+        # self.__testFilePath = "emd_13856.map.gz"  # 52GB file test
         #
         self.__testFilePath = os.path.join(self.__dataPath, "example-data.cif")  # This is needed to prepare input for testFileDownlaod to work
         #
@@ -149,7 +148,6 @@ class FileUploadTests(unittest.TestCase):
                             response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
                         if response.status_code != responseCode:
                             logger.info("response %r %r %r", response.status_code, response.reason, response.content)
-                            print("\n RESPONSE:", response.status_code, response.reason, response.content)
                         self.assertTrue(response.status_code == responseCode)
                         rD = response.json()
                         logger.info("rD %r", rD.items())
@@ -178,20 +176,11 @@ class FileUploadTests(unittest.TestCase):
                 mD = {"idCode": "D_1000000001", "hashDigest": testHash, "hashType": hashType}
                 with TestClient(app) as client:
                     with open(testFilePath, "rb") as ifh:
-                        # t1=time.time()
-                        # print("opening file for handling")
                         files = {"uploadFile": ifh}
-                        # print("done opening file for handling", time.time()-t1)
                         response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=headerD)
-                        # print("response type", type(response))
-                        # print("received response", time.time()-t1)
-                        # print("\tresponse.content:", response.content)
                     if response.status_code != 403:
                         logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                     self.assertTrue(response.status_code == 403)
-                    # print("dir(response)", dir(response))
-                    # print("raw response", response.text)  # Should be:  {"detail":"Invalid or expired token"}
-                    # print("response conent", response.content)
                     rD = response.json()
                     logger.info("rD %r", rD.items())
                     self.assertTrue(rD["detail"] == "Invalid or expired token")
@@ -203,16 +192,11 @@ class FileUploadTests(unittest.TestCase):
         for endPoint in ["upload"]:
             startTime = time.time()
             try:
-                # print("\nON SECOND TEST")
                 mD = {"idCode": "D_1000000001", "hashDigest": testHash, "hashType": hashType}
                 with TestClient(app) as client:
                     with open(testFilePath, "rb") as ifh:
                         files = {"uploadFile": ifh}
-                        # print("HERE IN SECOND")
                         response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=headerD)
-                        # print("\n RESPONSE:", response.status_code, response.reason, response.content)
-                        # print("raw response", response.text)  # Should be:  {"detail":"Invalid or expired token"}
-                        # print("response conent", response.content)
                     if response.status_code != 403:
                         logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                     self.assertTrue(response.status_code == 403)
@@ -233,25 +217,20 @@ class FileUploadTests(unittest.TestCase):
         hD = CryptUtils().getFileHash(self.__testFilePath, hashType=hashType)
         fullTestHash = hD["hashDigest"]
         #
-        # --
-        # - split the test file --
         cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         ioU = IoUtils(cP)
         sessionId = uuid.uuid4().hex
-        # --
-        sliceTotal = 4
-        loop = asyncio.get_event_loop()
-
+        #
+        # - split the test file --
         # First, split the file into 4 slices in a new "sessions" directory (prefixed with "staging", e.g., "stagingX1Y2Z...");
         # this also creates a "MANIFEST" file containing the names of the file slices.
+        sliceTotal = 4
         task = ioU.splitFile(self.__testFilePath, sliceTotal, "staging" + sessionId, hashType="md5")
-
+        loop = asyncio.get_event_loop()
         sP = loop.run_until_complete(task)
         # loop.close()
         # --
         logger.info("Session path %r", sP)
-        #
-        # --
         #
         sliceIndex = 0
         responseCode = 200
@@ -282,7 +261,6 @@ class FileUploadTests(unittest.TestCase):
                             response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
                         if response.status_code != responseCode:
                             logger.info("response %r %r %r", response.status_code, response.reason, response.content)
-                            # print("\n RESPONSE:", response.status_code, response.reason, response.content)
                         self.assertTrue(response.status_code == responseCode)
                         rD = response.json()
                         logger.debug("rD %r", rD.items())
@@ -337,12 +315,11 @@ class FileUploadTests(unittest.TestCase):
 def uploadSimpleTests():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(FileUploadTests("testSimpleUpload"))
-    # suiteSelect.addTest(FileUploadTests("testSlicedUpload"))
-    # suiteSelect.addTest(FileUploadTests("testUploadAccessTokens"))
+    suiteSelect.addTest(FileUploadTests("testSlicedUpload"))
+    suiteSelect.addTest(FileUploadTests("testUploadAccessTokens"))
     return suiteSelect
 
 
 if __name__ == "__main__":
-
     mySuite = uploadSimpleTests()
     unittest.TextTestRunner(verbosity=2).run(mySuite)

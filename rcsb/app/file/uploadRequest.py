@@ -47,13 +47,22 @@ class UploadSliceResult(BaseModel):
     success: bool = Field(None, title="Success status", description="Success status", example="True")
 
 
-# @router.post("/upload", response_model=UploadResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+class UploadStatusResult(BaseModel):
+    fileName: str = Field(None, title="Stored file name", description="Stored file name", example="D_0000000001_model_P1.cif.V3")
+    sliceCount: str = Field(None, title="Slice count", description="Number of slices currently uploaded (if applicable)", example="2")
+    success: bool = Field(None, title="Success status", description="Success status", example="True")
+    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
+    statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
+
+
+# Add Endpoints:
+# - getUploadStatus
+
 @router.post("/upload", response_model=UploadResult)
 async def upload(
     uploadFile: UploadFile = File(...),
     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
-    # repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
     contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
     partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
     contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
@@ -104,7 +113,6 @@ async def upload(
     return ret
 
 
-# @router.post("/upload-slice", response_model=UploadSliceResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
 @router.post("/upload-slice", response_model=UploadSliceResult)
 async def uploadSlice(
     uploadFile: UploadFile = File(...),
@@ -118,16 +126,13 @@ async def uploadSlice(
     ct = None
     ret = {}
     try:
-        # This is pretty inefficient, to have to re-read the cache file in again for every slice [LOW PRIORITY, not going to be uploading tons of files yet]
-        # Can this be done at a higher level?
+        # This part is pretty inefficient, to have to re-read the cache file in again for every slice
+        # Can this be done at a higher level? [LOW PRIORITY, not going to be uploading tons of files yet]
         cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(cachePath, configFilePath)
         #
         fn = uploadFile.filename
-        # logger.info("STARTING POST upload-slice %s", fn)
-        # print("POST upload-slice", fn)
-
         ct = uploadFile.content_type
         logger.debug("sliceIndex %d sliceTotal %d fn %r", sliceIndex, sliceTotal, fn)
         ioU = IoUtils(cP)
@@ -143,11 +148,10 @@ async def uploadSlice(
     return ret
 
 
-# @router.post("/join-slice", response_model=UploadResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
 @router.post("/join-slice", response_model=UploadResult)
 async def joinUploadSlice(
     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
     contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
     partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
     contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
@@ -186,6 +190,60 @@ async def joinUploadSlice(
         logger.exception("Failing for %r %r with %s", idCode, sliceTotal, str(e))
         ret = {"success": False, "statusCode": 400, "statusMessage": "Slice upload fails with %s" % str(e)}
 
+    if not ret["success"]:
+        raise HTTPException(status_code=405, detail=ret["statusMessage"])
+    #
+    return ret
+
+
+@router.post("/upload-status", response_model=UploadStatusResult)
+async def uploadStatus(
+    uploadFile: UploadFile = File(...),
+    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
+    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
+    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
+    hashDigest: str = Form(None, title="Hash digest", description="Hash digest", example="'0394a2ede332c9a13eb82e9b24631604c31df978b4e2f0fbd2c549944f9d79a5'"),
+    hashType: HashType = Form(None, title="Hash type", description="Hash type", example="SHA256"),
+    copyMode: str = Form("native", title="Copy mode", description="Copy mode", example="shell|native|gzip_decompress"),
+):
+    fn = None
+    ct = None
+    try:
+        cachePath = os.environ.get("CACHE_PATH")
+        configFilePath = os.environ.get("CONFIG_FILE")
+        cP = ConfigProvider(cachePath, configFilePath)
+        #
+        logger.debug("idCode %r hash %r hashType %r", idCode, hashDigest, hashType)
+        #
+        fn = uploadFile.filename
+        ct = uploadFile.content_type
+        logger.debug("uploadFile %s (%r)", fn, ct)
+        #
+        if fn.endswith(".gz") or ct == "application/gzip":
+            copyMode = "gzip_decompress"
+        #
+        logger.debug("hashType.name %r hashDigest %r", hashType, hashDigest)
+        ioU = IoUtils(cP)
+        ret = await ioU.storeUpload(
+            uploadFile.file,
+            repositoryType,
+            idCode,
+            contentType,
+            partNumber,
+            contentFormat,
+            version,
+            allowOverWrite=allowOverWrite,
+            copyMode=copyMode,
+            hashType=hashType,
+            hashDigest=hashDigest,
+        )
+    except Exception as e:
+        logger.exception("Failing for %r %r with %s", fn, ct, str(e))
+        ret = {"success": False, "statusCode": 400, "statusMessage": "Upload fails with %s" % str(e)}
+    #
     if not ret["success"]:
         raise HTTPException(status_code=405, detail=ret["statusMessage"])
     #
