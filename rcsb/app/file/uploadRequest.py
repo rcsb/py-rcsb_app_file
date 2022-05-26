@@ -26,7 +26,7 @@ from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
 
 
 class HashType(str, Enum):
@@ -47,11 +47,23 @@ class UploadSliceResult(BaseModel):
     success: bool = Field(None, title="Success status", description="Success status", example="True")
 
 
-@router.post("/upload", response_model=UploadResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+class UploadStatusResult(BaseModel):
+    fileName: str = Field(None, title="Stored file name", description="Stored file name", example="D_0000000001_model_P1.cif.V3")
+    sliceCount: str = Field(None, title="Slice count", description="Number of slices currently uploaded (if applicable)", example="2")
+    success: bool = Field(None, title="Success status", description="Success status", example="True")
+    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
+    statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
+
+
+# Add Endpoints:
+# - getUploadStatus
+
+
+@router.post("/upload", response_model=UploadResult)
 async def upload(
     uploadFile: UploadFile = File(...),
     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
     contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
     partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
     contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
@@ -64,7 +76,7 @@ async def upload(
     fn = None
     ct = None
     try:
-        cachePath = os.environ.get("CACHE_PATH", ".")
+        cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(cachePath, configFilePath)
         #
@@ -102,7 +114,7 @@ async def upload(
     return ret
 
 
-@router.post("/upload-slice", response_model=UploadSliceResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+@router.post("/upload-slice", response_model=UploadSliceResult)
 async def uploadSlice(
     uploadFile: UploadFile = File(...),
     sliceIndex: int = Form(1, title="Index of the current chunk", description="Index of the current chunk", example="1"),
@@ -115,7 +127,9 @@ async def uploadSlice(
     ct = None
     ret = {}
     try:
-        cachePath = os.environ.get("CACHE_PATH", ".")
+        # This part is pretty inefficient, to have to re-read the cache file in again for every slice
+        # Can this be done at a higher level? [LOW PRIORITY, not going to be uploading tons of files yet]
+        cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(cachePath, configFilePath)
         #
@@ -135,10 +149,10 @@ async def uploadSlice(
     return ret
 
 
-@router.post("/join-slice", response_model=UploadResult, dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+@router.post("/join-slice", response_model=UploadResult)
 async def joinUploadSlice(
     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
     contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
     partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
     contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
@@ -152,7 +166,7 @@ async def joinUploadSlice(
 ):
     ret = {}
     try:
-        cachePath = os.environ.get("CACHE_PATH", ".")
+        cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(cachePath, configFilePath)
         #
@@ -181,3 +195,19 @@ async def joinUploadSlice(
         raise HTTPException(status_code=405, detail=ret["statusMessage"])
     #
     return ret
+
+
+# @router.post("/upload-status", response_model=UploadStatusResult)
+# async def uploadStatus(
+#     uploadFile: UploadFile = File(...),
+#     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+#     repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
+#     contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+#     partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
+#     contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
+#     version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
+#     hashDigest: str = Form(None, title="Hash digest", description="Hash digest", example="'0394a2ede332c9a13eb82e9b24631604c31df978b4e2f0fbd2c549944f9d79a5'"),
+#     hashType: HashType = Form(None, title="Hash type", description="Hash type", example="SHA256"),
+#     copyMode: str = Form("native", title="Copy mode", description="Copy mode", example="shell|native|gzip_decompress"),
+# ):
+#     return

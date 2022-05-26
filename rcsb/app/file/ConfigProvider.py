@@ -35,7 +35,8 @@ class ConfigProvider(SingletonClass):
         # ---
         self.__cachePath = cachePath if cachePath else os.environ.get("CACHE_PATH", os.path.abspath("./CACHE"))
         self.__configFilePath = configFilePath if configFilePath else os.environ.get("CONFIG_FILE")
-        logger.info("Using CACHE_PATH setting %r", self.__cachePath)
+        # logger.info("CONFIG Using CACHE_PATH setting %r", self.__cachePath)
+        # logger.info("CONFIG Using CONFIG_FILE path %r", self.__configFilePath)
         self.__mU = MarshalUtil(workPath=self.__cachePath)
         self.__configD = None
         self.__dataObj = None
@@ -82,14 +83,17 @@ class ConfigProvider(SingletonClass):
         return None
 
     def __readData(self, fileName: str = "example-data.cif") -> bool:
-        """Read example data file ...
+        """Read example data file ... this is used for testing the startup of the application,
+        to make sure it can find and read a data file.
+
+        Data file should be in pre-configured location.
 
         Returns:
             bool: True for success or False otherwise
         """
         ok = False
         try:
-            dataFilePath = os.path.join(self.__cachePath, "config", fileName)
+            dataFilePath = os.path.join(self.__cachePath, fileName)
             dataObj = None
             if self.__mU.exists(dataFilePath):
                 dataObjL = self.__mU.doImport(dataFilePath, fmt="mmcif")

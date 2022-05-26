@@ -39,7 +39,7 @@ class HashType(str, Enum):
     SHA256 = "SHA256"
 
 
-@router.get("/download/{repositoryType}", dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+@router.get("/download/{repositoryType}", dependencies=[Depends(JWTAuthBearer())], tags=["download"])
 async def download(
     idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Path(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
@@ -49,7 +49,7 @@ async def download(
     version: str = Query("1", title="Version string", description="Version number or description", example="1,2,3, latest, previous"),
     hashType: HashType = Query(None, title="Hash type", description="Hash type", example="SHA256"),
 ):
-    cachePath = os.environ.get("CACHE_PATH", ".")
+    cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
     pathU = PathUtils(cP)

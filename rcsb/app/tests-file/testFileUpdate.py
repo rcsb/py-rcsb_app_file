@@ -9,7 +9,7 @@
 #
 ##
 """
-Tests for file download and upload APIs.
+Tests for file update APIs.
 
 """
 
@@ -29,7 +29,9 @@ import unittest
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data", "data"))
+# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data", "data"))
+os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
@@ -88,7 +90,7 @@ class FileUpdateTests(unittest.TestCase):
                     "contentType": "model",
                     "contentFormat": "pdbx",
                     "partNumber": 1,
-                    "version": "latest",
+                    "version": "latest",  # Download latest
                     "hashType": refHashType,
                 }
                 #
@@ -114,13 +116,12 @@ class FileUpdateTests(unittest.TestCase):
             #
         #
 
-        # update file content
-        ifh = open(self.__downloadFilePath, "r")
-        dataContent = ifh.read()
-        ifh.close()
-        ofh = open(self.__updatedFilePath, "w")
-        ofh.write(dataContent.replace("PROC", "REL"))
-        ofh.close()
+        # Update file content
+        # TO DO: apply a more substantial of a change/update to the file
+        with open(self.__downloadFilePath, "r", encoding="utf-8") as ifh:
+            dataContent = ifh.read()
+        with open(self.__updatedFilePath, "w", encoding="utf-8") as ofh:
+            ofh.write(dataContent.replace("PROC", "REL"))
 
         endPoint = "upload"
         hashType = "MD5"
@@ -131,11 +132,11 @@ class FileUpdateTests(unittest.TestCase):
         try:
             mD = {
                 "idCode": "D_8000210008",
-                "repositoryType": "onedep-archive",
+                "repositoryType": "onedep-archive",  # First upload into "onedep-archive"
                 "contentType": "model",
                 "contentFormat": "pdbx",
                 "partNumber": 1,
-                "version": "next",
+                "version": "next",  # Upload "next"
                 "copyMode": "native",
                 "allowOverWrite": True,
                 "hashType": hashType,
@@ -167,11 +168,11 @@ class FileUpdateTests(unittest.TestCase):
         try:
             mD = {
                 "idCode": "D_8000210008",
-                "repositoryType": "onedep-deposit",
+                "repositoryType": "onedep-deposit",  # Second upload into "onedep-deposit"
                 "contentType": "model",
                 "contentFormat": "pdbx",
                 "partNumber": 1,
-                "version": "next",
+                "version": "next",  # Upload "next"
                 "copyMode": "native",
                 "allowOverWrite": True,
                 "hashType": hashType,

@@ -31,8 +31,9 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CONFIG_FILE"] = os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml")
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
+# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
+os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -89,7 +90,7 @@ class PathUtilsTests(unittest.TestCase):
 
 def ContentFormatTypeSuite():
     suiteSelect = unittest.TestSuite()
-    suiteSelect.addTest(PathUtilsTests("testCheckContentFormatType"))
+    suiteSelect.addTest(PathUtilsTests("testCheckContentTypeFormat"))
     suiteSelect.addTest(PathUtilsTests("testGetMimeType"))
     return suiteSelect
 

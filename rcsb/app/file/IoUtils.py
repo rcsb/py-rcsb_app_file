@@ -23,7 +23,7 @@ import logging
 import os
 import shutil
 import typing
-
+import math
 import aiofiles
 
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -157,6 +157,9 @@ class IoUtils:
         logger.debug(
             "repoType %r idCode %r contentType %r partNumber %r contentFormat %r version %r copyMode %r", repoType, idCode, contentType, partNumber, contentFormat, version, copyMode
         )
+
+        if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
+            return {"success": False, "statusCode": 405, "statusMessage": "Bad content type and/or format - upload rejected"}
 
         lockPath = self.__pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
         myLock = FileLock(lockPath)
@@ -357,8 +360,9 @@ class IoUtils:
         await self.__makedirs(sessionDirPath, mode=0o755, exist_ok=True)
 
         numBytes = os.path.getsize(inputFilePath)
-        sliceSize = int(numBytes / numSlices)
+        sliceSize = int(math.ceil(numBytes / numSlices))  # Need ceil to properly split odd-number bytes into expected number of slices
         logger.info("numBytes (%d) numSlices (%d) slice size %r", numBytes, numSlices, sliceSize)
+        print("numBytes (%d) numSlices (%d) slice size %r", numBytes, numSlices, sliceSize)
 
         await self.__makedirs(sessionDirPath, mode=0o755, exist_ok=True)
 
