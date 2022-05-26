@@ -94,6 +94,8 @@ async def checkToken(request: Request, callNext):
     if not authorization:
         return Response(status_code=403, content=b'{"detail":"Not authenticated"}', headers={"content-type": "application/json"})
     scheme, credentials = get_authorization_scheme_param(authorization)
+    if scheme != "Bearer":
+        return Response(status_code=403, content=b'{"detail":"Missing Bearer details"}', headers={"content-type": "application/json"})
     valid = JWTAuthBearer().validateToken(credentials)
     if not valid:
         return Response(status_code=403, content=b'{"detail":"Invalid or expired token"}', headers={"content-type": "application/json"})
