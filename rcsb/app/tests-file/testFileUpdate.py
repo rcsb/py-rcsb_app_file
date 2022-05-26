@@ -116,14 +116,12 @@ class FileUpdateTests(unittest.TestCase):
             #
         #
 
-        # update file content
-        # TODO: adjust how this is performed and do something more complicated of a change
-        ifh = open(self.__downloadFilePath, "r")
-        dataContent = ifh.read()
-        ifh.close()
-        ofh = open(self.__updatedFilePath, "w")
-        ofh.write(dataContent.replace("PROC", "REL"))
-        ofh.close()
+        # Update file content
+        # TO DO: apply a more substantial of a change/update to the file
+        with open(self.__downloadFilePath, "r", encoding="utf-8") as ifh:
+            dataContent = ifh.read()
+        with open(self.__updatedFilePath, "w", encoding="utf-8") as ofh:
+            ofh.write(dataContent.replace("PROC", "REL"))
 
         endPoint = "upload"
         hashType = "MD5"

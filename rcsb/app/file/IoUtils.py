@@ -23,8 +23,8 @@ import logging
 import os
 import shutil
 import typing
-import aiofiles
 import math
+import aiofiles
 
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
