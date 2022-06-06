@@ -10,9 +10,10 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
-from enum import Enum
-import requests
 import datetime
+import math
+from filechunkio import FileChunkIO
+from enum import Enum
 from aiobotocore.session import get_session
 
 from fastapi import APIRouter
@@ -23,12 +24,11 @@ from fastapi import HTTPException
 from fastapi import UploadFile
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
+from rcsb.app.file.awsUtils import awsUtils
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
-from mmcif.io.PdbxWriter import PdbxWriter
-from rcsb.utils.io.MarshalUtil import MarshalUtil
-from rcsb.utils.io.FileUtil import FileUtil
+from rcsb.app.file.PathUtils import PathUtils
 
 logger = logging.getLogger(__name__)
 
@@ -189,109 +189,96 @@ async def joinUploadSlice(
     return ret
 
 
-@router.post("/merge", response_model=UploadResult, dependencies=[Depends(JWTAuthBearer())], tags=["merge"])
-async def merge(
-        siftsPath: str = Form(None),
-        pdbID: str = Form(None)
-):
-    ret = {}
-    try:
-        cachePath = "./rcsb/app/tests-file/test-data/mmcif/"
-        pdbIDHash = pdbID[1:3]
-
-        fU = FileUtil(workPath=cachePath)
-        if not fU.exists(cachePath):
-            fU.mkdir(cachePath)
-
-        mU = MarshalUtil(workDir=cachePath)
-
-        cifUrl = "https://ftp.wwpdb.org/pub/pdb/data/structures/divided/mmCIF/" + pdbIDHash + "/" + pdbID + ".cif.gz"
-        cifPath = cachePath + pdbID + ".cif.gz"
-
-        ofh = open(cifPath, "wb")
-        response = requests.get(cifUrl)
-        ofh.write(response.content)
-        ofh.close()
-
-        cifList = mU.doImport(cifPath, fmt="mmcif")
-        siftsList = mU.doImport(siftsPath, fmt="mmcif")
-
-        siftsCatNames = siftsList[0].getObjNameList()
-
-        siftsAtomSite = siftsList[0].getObj("atom_site")
-        siftsCatNames.pop(0)
-
-        siftsAttributes = siftsAtomSite.getAttributeList()
-
-        for i in siftsAttributes:
-            cifList[0].getObj("atom_site").appendAttributeExtendRows(i)
-
-        for i in siftsList[0].getObj("atom_site").getAttributeList():
-            j = 0
-            attrValList = siftsList[0].getObj("atom_site").getAttributeValueList(i)
-            while j < len(attrValList):
-                cifList[0].getObj("atom_site").setValue(attrValList[j], i, j)
-                j += 1
-
-        for i in siftsCatNames:
-            tempObj = siftsList[0].getObj(i)
-            cifList[0].append(tempObj)
-
-        with open(cachePath + pdbID + "_merged.cif", "w", encoding="utf-8") as ofh:
-            pdbxW = PdbxWriter(ofh)
-            pdbxW.write(cifList)
-
-        ret = {"success": True, "statusCode": 200, "statusMessage": "Merge Successful"}
-
-    except Exception as e:
-        logger.exception("Failing for %s, and %s", siftsPath, pdbID)
-        ret = {"success": False, "statusCode": 400, "statusMessage": "mmCIF and SIFTS data merge fails with: %s" % str(e)}
-
-    return ret
-
-
 @router.post("/upload-aws", status_code=200, description="***** Upload png asset to S3 *****")
 async def send_request(
-    uploadFile: UploadFile = File(...)
+    uploadFile: UploadFile = File(...),
+    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
+    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
 ):
-    AWS_ACCESS_KEY_ID = ""  # os.environ.get("AWS_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY = ""  # os.environ.get("AWS_SECRET_ACCESS_KEY")
-    AWS_REGION = "us-east-1"  # os.environ.get("AWS_REGION")
-    S3_Bucket = "rcsb-file-api"  # os.environ.get("S3_Bucket")
-    S3_Key = "dockertest"  # os.environ.get("S3_Key")
 
-    # s3_client = boto3.client('s3')
-    s3_client = S3_SERVICE(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)
+    cachePath = os.environ.get("CACHE_PATH", ".")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
 
-    filename = 'testFile9.dat'
-    current_time = datetime.datetime.now()
-    split_file_name = os.path.splitext(filename)   # split the file name into two different path (string + extention)
-    file_name_unique = str(current_time.timestamp()).replace('.', '')  # for realtime application you must have genertae unique name for the file
-    file_extension = split_file_name[1]  # file extention
+    awsU = awsUtils(cP)
+    pathU = PathUtils(cP)
+    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
     file = await uploadFile.read()
-    with open(filename, 'wb') as f:
-        f.write(file)
-    uploads3 = await s3_client.upload_fileobj(bucket=S3_Bucket, key=S3_Key + file_name_unique + file_extension, fileobject=file)
+    # with open(filename, 'wb') as f:
+    #     f.write(file)
+    uploads3 = await awsU.upload_fileobj(key=filename, fileobject=file)
     if uploads3:
-        s3_url = f"https://{S3_Bucket}.s3.{AWS_REGION}.amazonaws.com/{S3_Key}{file_name_unique +  file_extension}"
-        return {"status": "success", "image_url": s3_url}  # response added
+        # s3_url = f"https://{S3_Bucket}.s3.{AWS_REGION}.amazonaws.com/{filename}"
+        return {"status": "success", "image_url": filename}  # response added
     else:
         raise HTTPException(status_code=400, detail="Failed to upload in S3")
 
 
-class S3_SERVICE(object):
-    def __init__(self, aws_access_key_id, aws_secret_access_key, region):
-        self.aws_access_key_id = aws_access_key_id
-        self.aws_secret_access_key = aws_secret_access_key
-        self.region = region
+@router.post("/upload-Multipart-aws", status_code=200)
+async def multiPart(
+    uploadFile: UploadFile = File(...),
+    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
+    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
+):
+    cachePath = os.environ.get("CACHE_PATH", ".")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
 
-    async def upload_fileobj(self, fileobject, bucket, key):
-        session = get_session()
-        async with session.create_client('s3', region_name=self.region,
-                                         aws_secret_access_key=self.aws_secret_access_key,
-                                         aws_access_key_id=self.aws_access_key_id) as client:
-            file_upload_response = await client.put_object(Bucket=bucket, Key=key, Body=fileobject)
-            if file_upload_response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-                logger.info("File uploaded path : https://%s.s3.%s.amazonaws.com/%s", bucket, self.region, key)
-                return True
-        return False
+    awsU = awsUtils(cP)
+    pathU = PathUtils(cP)
+    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    bucket = "rcsb-file-api"
+
+    await awsU.upload_multipart(uploadFile, bucket, filename)
+
+
+@router.post("/upload-boto3", status_code=200)
+async def boto3multiPart(
+    uploadFile: UploadFile = File(...),
+    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
+    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
+):
+    cachePath = os.environ.get("CACHE_PATH", ".")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+
+    awsU = awsUtils(cP)
+    pathU = PathUtils(cP)
+    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    bucket = "rcsb-file-api"
+
+    awsU.boto3multipart(uploadFile, bucket, filename)
+
+
+@router.post("/upload-aioboto3", status_code=200)
+async def aioboto3multiPart(
+    uploadFile: UploadFile = File(...),
+    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
+    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
+):
+    cachePath = os.environ.get("CACHE_PATH", ".")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+
+    awsU = awsUtils(cP)
+    pathU = PathUtils(cP)
+    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    bucket = "rcsb-file-api"
+
+    await awsU.aioboto3upload(uploadFile, bucket, filename)
