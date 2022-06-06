@@ -60,32 +60,32 @@ fileName = "./testFile.txt"
 
 # print("Average time for download:", avgTime)
 
-bucket = "rcsb-file-api"
-key = "testFile"
+# bucket = "rcsb-file-api"
+# key = "testFile"
 
-AWS_ACCESS_KEY_ID = ""  # os.environ.get("AWS_ACCESS_KEY_ID")
-AWS_SECRET_ACCESS_KEY = ""  # os.environ.get("AWS_SECRET_ACCESS_KEY")
-AWS_REGION = "us-east-1"  # os.environ.get("AWS_REGION")
-
-
-def endMultipart():
-    client = boto3.client('s3', region_name=AWS_REGION, aws_secret_access_key=AWS_SECRET_ACCESS_KEY, aws_access_key_id=AWS_ACCESS_KEY_ID)
-
-    uploadIdList = ["8jId2VLJ3St1CRSMOo__tnWEpto0H.w98PnwQQS5EsFqp1O67xvVZj9Bl89g3UBYLv3DW1dYDW0UTS3kQZXnvwqqfOzOkFpVd2sjZ_ebZtecDmfatTAEOdwLqZ7fnVhk",
-    "JR8HIFC3P73WnwhX9OWcTRfDKllzAgT1jpvS3TYb6.yGs5Ej1.JZIVlz0fE7vbwiuP_IjHFlYw1bMHEeG2r_dYpdmG.QoeXQ.eDyZa6XXlAmWpAtecIYF5_Zb5Dg326_",
-    "baHnvVlSqLf2LiYHIl62yXURr7IVsbjd3wMSAITw8FAywuoScytMy.gy_.KT0HKeKXbi7fquiRxZ._I_RLn_6Hv.hw1VvRwplmdOLuu_eK80tVgBOYVAvDxOo5oPS83e",
-    "6cbk9.5sJ7ha8xezrkLhUSJrOMEyF5WiEf7zOH4bDxpcRiLXiq1hXVmIySpzSWN0vTzeDZLhF4Sfbw.sit8u64l7HgGnANabDJt3.QUBkDuAKSBQZsiXe9LSTyXUySK.",]
-
-    for uploadId in uploadIdList:
-        print(uploadId)
-        client.abort_multipart_upload(
-            Bucket=bucket,
-            Key="newTestFile",
-            UploadId=uploadId
-        )
+# AWS_ACCESS_KEY_ID = ""  # os.environ.get("AWS_ACCESS_KEY_ID")
+# AWS_SECRET_ACCESS_KEY = ""  # os.environ.get("AWS_SECRET_ACCESS_KEY")
+# AWS_REGION = "us-east-1"  # os.environ.get("AWS_REGION")
 
 
-endMultipart()
+# def endMultipart():
+#     client = boto3.client('s3', region_name=AWS_REGION, aws_secret_access_key=AWS_SECRET_ACCESS_KEY, aws_access_key_id=AWS_ACCESS_KEY_ID)
+
+#     uploadIdList = ["8jId2VLJ3St1CRSMOo__tnWEpto0H.w98PnwQQS5EsFqp1O67xvVZj9Bl89g3UBYLv3DW1dYDW0UTS3kQZXnvwqqfOzOkFpVd2sjZ_ebZtecDmfatTAEOdwLqZ7fnVhk",
+#     "JR8HIFC3P73WnwhX9OWcTRfDKllzAgT1jpvS3TYb6.yGs5Ej1.JZIVlz0fE7vbwiuP_IjHFlYw1bMHEeG2r_dYpdmG.QoeXQ.eDyZa6XXlAmWpAtecIYF5_Zb5Dg326_",
+#     "baHnvVlSqLf2LiYHIl62yXURr7IVsbjd3wMSAITw8FAywuoScytMy.gy_.KT0HKeKXbi7fquiRxZ._I_RLn_6Hv.hw1VvRwplmdOLuu_eK80tVgBOYVAvDxOo5oPS83e",
+#     "6cbk9.5sJ7ha8xezrkLhUSJrOMEyF5WiEf7zOH4bDxpcRiLXiq1hXVmIySpzSWN0vTzeDZLhF4Sfbw.sit8u64l7HgGnANabDJt3.QUBkDuAKSBQZsiXe9LSTyXUySK.",]
+
+#     for uploadId in uploadIdList:
+#         print(uploadId)
+#         client.abort_multipart_upload(
+#             Bucket=bucket,
+#             Key="newTestFile",
+#             UploadId=uploadId
+#         )
+
+
+# endMultipart()
 
 # multiD = {
 #     "idCode": "D_00000002",
@@ -131,12 +131,12 @@ endMultipart()
 #     "version": 1
 # }
 
-# nB = 5000000000
+# nB = 5000
 # with open(fileName, "wb") as ofh:
 #     ofh.write(os.urandom(nB))
 # print("file written")
 
 # with open(fileName, "rb") as f:
 #     files = {"uploadFile": f}
-#     r = requests.post("http://0.0.0.0:80/file-v1/upload-aioboto3", files=files, data=multiD)
+#     r = requests.post("http://128.6.159.177:8000/file-v1/upload-aioboto3", files=files, data=multiD)
 #     print(r.status_code)

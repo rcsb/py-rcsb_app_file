@@ -23,6 +23,14 @@ class awsUtils:
         self.region = cP.get("AWS_REGION")
         self.bucket = cP.get("AWS_BUCKET")
 
+    async def aioboto3upload(self, filename, bucket, key):
+        session = aioboto3.Session()
+        async with session.client('s3', region_name=self.region, aws_secret_access_key=self.aws_secret, aws_access_key_id=self.aws_key) as client:
+
+            config = TransferConfig()
+
+            await client.upload_file(filename, bucket, key, Config=config)
+
     async def upload_fileobj(self, fileobject, key):
         session = get_session()
         async with session.create_client('s3', region_name=self.region,
@@ -34,15 +42,15 @@ class awsUtils:
                 return True
         return False
 
-    async def download_fileobj(self, bucket, key):
+    async def download_fileobj(self, key):
         session = get_session()
         async with session.create_client('s3', region_name=self.region,
                                          aws_secret_access_key=self.aws_secret,
                                          aws_access_key_id=self.aws_key) as client:
-            file_download_response = await client.get_object(Bucket=bucket, Key=key)
+            file_download_response = await client.get_object(Bucket=self.bucket, Key=key)
             content = (await file_download_response['Body'].read())
             if file_download_response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-                logger.info("File downloaded path : https://%s.s3.%s.amazonaws.com/%s", bucket, self.region, key)
+                logger.info("File downloaded path : https://%s.s3.%s.amazonaws.com/%s", self.bucket, self.region, key)
                 return content
         return False
 
@@ -60,9 +68,6 @@ class awsUtils:
 
             with open("./tempfile", "wb") as ofh:
                 ofh.write(await fileobject.read())
-
-
-            # await fileobject.seek(0)
 
             source_size = os.stat("./tempfile").st_size
 
@@ -99,19 +104,6 @@ class awsUtils:
                 MultipartUpload=part_info
             )
             print(response)
-
-    async def aioboto3upload(self, fileobject, bucket, key):
-        session = aioboto3.Session()
-        async with session.client('s3', region_name=self.region, aws_secret_access_key=self.aws_secret, aws_access_key_id=self.aws_key) as client:
-
-            config = TransferConfig(multipart_chunksize=8388608)
-
-            # with open("./tempfile", "wb") as ofh:
-            #     ofh.write(fileobject)
-
-            uploadFile = fileobject.file
-
-            await client.upload_file("testFile.txt", bucket, key, Config=config)
 
     def boto3multipart(self, fileobject, bucket, key):
         client = boto3.resource('s3', region_name=self.region, aws_secret_access_key=self.aws_secret, aws_access_key_id=self.aws_key)

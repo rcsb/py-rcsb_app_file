@@ -10,11 +10,7 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
-import datetime
-import math
-from filechunkio import FileChunkIO
 from enum import Enum
-from aiobotocore.session import get_session
 
 from fastapi import APIRouter
 from fastapi import Depends
@@ -189,7 +185,29 @@ async def joinUploadSlice(
     return ret
 
 
-@router.post("/upload-aws", status_code=200, description="***** Upload png asset to S3 *****")
+@router.post("/upload-aws", status_code=200)
+async def aioboto3multiPart(
+    uploadFile: UploadFile = File(...),
+    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
+    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
+):
+    cachePath = os.environ.get("CACHE_PATH", ".")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+
+    awsU = awsUtils(cP)
+    pathU = PathUtils(cP)
+    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    bucket = "rcsb-file-api"
+
+    await awsU.aioboto3upload(uploadFile, bucket, filename)
+
+
+@router.post("/upload-fileobj", status_code=200, description="***** Upload png asset to S3 *****")
 async def send_request(
     uploadFile: UploadFile = File(...),
     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
@@ -260,25 +278,3 @@ async def boto3multiPart(
     bucket = "rcsb-file-api"
 
     awsU.boto3multipart(uploadFile, bucket, filename)
-
-
-@router.post("/upload-aioboto3", status_code=200)
-async def aioboto3multiPart(
-    uploadFile: UploadFile = File(...),
-    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
-    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
-    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
-    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
-    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
-):
-    cachePath = os.environ.get("CACHE_PATH", ".")
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
-
-    awsU = awsUtils(cP)
-    pathU = PathUtils(cP)
-    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
-    bucket = "rcsb-file-api"
-
-    await awsU.aioboto3upload(uploadFile, bucket, filename)

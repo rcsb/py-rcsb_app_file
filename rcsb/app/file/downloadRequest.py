@@ -11,7 +11,6 @@ __license__ = "Apache 2.0"
 import logging
 import os
 from enum import Enum
-from aiobotocore.session import get_session
 
 from fastapi import APIRouter
 from fastapi import Depends
@@ -102,7 +101,6 @@ def isPositiveInteger(tS):
 
 @router.get("/download-aws", status_code=200, description="Download from AWS S3")
 async def get_request(
-    key: str = Query(None),
     idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Query(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
     contentType: str = Query(None, title="Content type", description="Content type", example="model, structure-factors, val-report-full"),
@@ -111,11 +109,6 @@ async def get_request(
     version: str = Query("1", title="Version string", description="Version number or description", example="1,2,3, latest, previous"),
     hashType: HashType = Query(None, title="Hash type", description="Hash type", example="SHA256")
 ):
-    AWS_ACCESS_KEY_ID = ""  # os.environ.get("AWS_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY = ""  # os.environ.get("AWS_SECRET_ACCESS_KEY")
-    AWS_REGION = "us-east-1"  # os.environ.get("AWS_REGION")
-    S3_Bucket = "rcsb-file-api"  # os.environ.get("S3_Bucket")
-    S3_Key = key  # os.environ.get("S3_Key")
 
     cachePath = os.environ.get("CACHE_PATH", ".")
     configFilePath = os.environ.get("CONFIG_FILE")
@@ -125,25 +118,6 @@ async def get_request(
     awsU = awsUtils(cP)
     filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
 
-    downloads3 = await awsU.download_fileobj(bucket=S3_Bucket, key=filename)
+    downloads3 = await awsU.download_fileobj(key=filename)
 
     return Response(downloads3)
-
-
-class S3_SERVICE(object):
-    def __init__(self, aws_access_key_id, aws_secret_access_key, region):
-        self.aws_access_key_id = aws_access_key_id
-        self.aws_secret_access_key = aws_secret_access_key
-        self.region = region
-
-    async def download_fileobj(self, bucket, key):
-        session = get_session()
-        async with session.create_client('s3', region_name=self.region,
-                                         aws_secret_access_key=self.aws_secret_access_key,
-                                         aws_access_key_id=self.aws_access_key_id) as client:
-            file_download_response = await client.get_object(Bucket=bucket, Key=key)
-            content = (await file_download_response['Body'].read())
-            if file_download_response["ResponseMetadata"]["HTTPStatusCode"] == 200:
-                logger.info("File downloaded path : https://%s.s3.%s.amazonaws.com/%s", bucket, self.region, key)
-                return content
-        return False

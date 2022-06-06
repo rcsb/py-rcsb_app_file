@@ -1,5 +1,5 @@
 ##
-# File:    testMerge.py
+# File:    testAWSUpload.py
 # Author:  Connor Parker
 # Date:    27-May-2022
 # Version: 0.001
@@ -9,7 +9,7 @@
 #
 ##
 """
-Tests for merging SIFTS data
+Tests for uploading to AWS Bucket
 
 """
 
@@ -32,13 +32,14 @@ from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file import __version__
 
 os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data", "data"))
+os.environ["CONFIG_PATH"] = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-class SIFTSMergeTests(unittest.TestCase):
+class AWSUploadTests(unittest.TestCase):
     def setUp(self):
         self.__cachePath = os.environ.get("CACHE_PATH")
         self.__configFilePath = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
@@ -59,26 +60,35 @@ class SIFTSMergeTests(unittest.TestCase):
         endTime = time.time()
         logger.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
 
-    def testSIFTSMerge(self):
-        """Test - merge with example SIFTS data"""
+    def testAWSUpload(self):
+        """Test - Upload file to AWS S3 Bucket"""
 
-        responseCode = 200
-        pdbID = "1yy9"
-        siftsFilePath = os.path.join(self.__cachePath, "mmcif", pdbID + "_sifts_only.cif.gz")
+        testFileName = os.path.join(self.__cachePath, "testFile.dat")
 
-        mergeDict = {
-            "siftsPath": siftsFilePath,
-            "pdbID": pdbID
+        multiD = {
+            "idCode": "D_000",
+            "repositoryType": "onedep-archive",
+            "contentType": "model",
+            "contentFormat": "pdbx",
+            "partNumber": 1,
+            "version": 1
         }
 
+        nB = 1000000
+        with open(testFileName, "wb") as ofh:
+            ofh.write(os.urandom(nB))
+        print("file written")
+
         with TestClient(app) as client:
-            r = client.post("/file-v1/merge", data=mergeDict, headers=self.__headerD)
-            self.assertTrue(r.status_code == responseCode)
+            with open(testFileName, "rb") as f:
+                files = {"uploadFile": f}
+                r = client.post("http://128.6.159.177:8000/file-v1/upload-aioboto3", files=files, data=multiD)
+        print(r.status_code)
 
 
 def updateSimpleTests():
     suiteSelect = unittest.TestSuite()
-    suiteSelect.addTest(SIFTSMergeTests("testSIFTSMerge"))
+    suiteSelect.addTest(AWSUploadTests("testAWSUpload"))
     return suiteSelect
 
 
