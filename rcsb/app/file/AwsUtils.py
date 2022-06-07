@@ -2,7 +2,7 @@ import logging
 import typing
 import aioboto3
 from boto3.s3.transfer import TransferConfig
-from aiobotocore.session import get_session
+# from aiobotocore.session import get_session
 
 from rcsb.app.file.ConfigProvider import ConfigProvider
 

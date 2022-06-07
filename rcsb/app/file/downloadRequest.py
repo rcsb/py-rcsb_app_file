@@ -109,9 +109,16 @@ async def downloadAws(
 
     pathU = PathUtils(cP)
     awsU = AwsUtils(cP)
-    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
 
-    downloads3 = await awsU.download(key=filename)
+    downloads3 = await awsU.download(key=filePath)
+
+    # Check hash
+    if hashType:  # and success:
+        hD = CryptUtils().getFileHash(filePath, hashType.name)
+        hashDigest = hD["hashDigest"]
+        tD = {"rcsb_hash_type": hashType.name, "rcsb_hexdigest": hashDigest}
+        logger.info("Hash digest %r", tD)
 
     return Response(downloads3)
 
