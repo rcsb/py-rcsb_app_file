@@ -31,10 +31,10 @@ class AwsUtils:
         return ret
 
     async def download(self, key):
-        session = get_session()
-        async with session.create_client('s3', region_name=self.region,
-                                         aws_secret_access_key=self.aws_secret,
-                                         aws_access_key_id=self.aws_key) as client:
+        session = aioboto3.Session()
+        async with session.client('s3', region_name=self.region,
+                                  aws_secret_access_key=self.aws_secret,
+                                  aws_access_key_id=self.aws_key) as client:
             file_download_response = await client.get_object(Bucket=self.bucket, Key=key)
             content = (await file_download_response['Body'].read())
             if file_download_response["ResponseMetadata"]["HTTPStatusCode"] == 200:
