@@ -86,13 +86,12 @@ class AWSUploadTests(unittest.TestCase):
         logger.info(response.status_code)
 
 
-def updateSimpleTests():
+def awsUploadTests():
     suiteSelect = unittest.TestSuite()
-    suiteSelect.addTest(AWSUploadTests("testAWSUpload"))
+    # suiteSelect.addTest(AWSUploadTests("testAWSUpload"))
     return suiteSelect
 
 
 if __name__ == "__main__":
-
-    mySuite = updateSimpleTests()
+    mySuite = awsUploadTests()
     unittest.TextTestRunner(verbosity=2).run(mySuite)
