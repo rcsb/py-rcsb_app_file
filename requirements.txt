@@ -13,3 +13,6 @@ rcsb.utils.io >= 1.22
 #
 mmcif >=0.71
 #
+filechunkio >= 1.8
+aioboto3 >= 9.6
+boto3 >= 1.21.21

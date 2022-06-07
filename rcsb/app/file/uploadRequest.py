@@ -23,6 +23,8 @@ from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
+from rcsb.app.file.awsUtils import awsUtils
+from rcsb.app.file.PathUtils import PathUtils
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +197,101 @@ async def joinUploadSlice(
         raise HTTPException(status_code=405, detail=ret["statusMessage"])
     #
     return ret
+
+
+@router.post("/upload-aws", status_code=200)
+async def aioboto3multiPart(
+    uploadFile: UploadFile = File(...),
+    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
+    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
+):
+    cachePath = os.environ.get("CACHE_PATH", ".")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+
+    awsU = awsUtils(cP)
+    pathU = PathUtils(cP)
+    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    bucket = "rcsb-file-api"
+
+    await awsU.aioboto3upload(uploadFile, bucket, filename)
+
+
+@router.post("/upload-fileobj", status_code=200, description="***** Upload png asset to S3 *****")
+async def send_request(
+    uploadFile: UploadFile = File(...),
+    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
+    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
+):
+
+    cachePath = os.environ.get("CACHE_PATH", ".")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+
+    awsU = awsUtils(cP)
+    pathU = PathUtils(cP)
+    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    file = await uploadFile.read()
+    # with open(filename, 'wb') as f:
+    #     f.write(file)
+    uploads3 = await awsU.upload_fileobj(key=filename, fileobject=file)
+    if uploads3:
+        # s3_url = f"https://{S3_Bucket}.s3.{AWS_REGION}.amazonaws.com/{filename}"
+        return {"status": "success", "image_url": filename}  # response added
+    else:
+        raise HTTPException(status_code=400, detail="Failed to upload in S3")
+
+
+@router.post("/upload-Multipart-aws", status_code=200)
+async def multiPart(
+    uploadFile: UploadFile = File(...),
+    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
+    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
+):
+    cachePath = os.environ.get("CACHE_PATH", ".")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+
+    awsU = awsUtils(cP)
+    pathU = PathUtils(cP)
+    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    bucket = "rcsb-file-api"
+
+    await awsU.upload_multipart(uploadFile, bucket, filename)
+
+
+@router.post("/upload-boto3", status_code=200)
+async def boto3multiPart(
+    uploadFile: UploadFile = File(...),
+    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
+    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
+):
+    cachePath = os.environ.get("CACHE_PATH", ".")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+
+    awsU = awsUtils(cP)
+    pathU = PathUtils(cP)
+    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    bucket = "rcsb-file-api"
+
+    awsU.boto3multipart(uploadFile, bucket, filename)
 
 
 # @router.post("/upload-status", response_model=UploadStatusResult)
