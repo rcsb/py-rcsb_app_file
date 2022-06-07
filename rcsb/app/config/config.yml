@@ -9,10 +9,10 @@ configuration:
   SESSION_DIR_PATH: ./rcsb/app/tests-file/test-data/data/sessions
   REPOSITORY_DIR_PATH: ./rcsb/app/tests-file/test-data/data/repository
   SHARED_LOCK_PATH: ./rcsb/app/tests-file/test-data/data/shared-locks
-  ACCESS_KEY: none
-  SECRET_KEY: none
-  AWS_REGION: us-east-1
-  AWS_BUCKET: rcsb-file-api
+  ACCESS_KEY: awsKey
+  SECRET_KEY: awsSecret
+  AWS_REGION: awsRegion
+  AWS_BUCKET: awsBucket
   CONTENT_TYPE:
     model:
       -

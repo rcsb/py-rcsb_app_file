@@ -23,7 +23,7 @@ from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
-from rcsb.app.file.awsUtils import awsUtils
+from rcsb.app.file.AwsUtils import AwsUtils
 from rcsb.app.file.PathUtils import PathUtils
 
 logger = logging.getLogger(__name__)
@@ -200,7 +200,7 @@ async def joinUploadSlice(
 
 
 @router.post("/upload-aws", status_code=200)
-async def aioboto3multiPart(
+async def aioboto3Upload(
     uploadFile: UploadFile = File(...),
     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
@@ -213,15 +213,15 @@ async def aioboto3multiPart(
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
 
-    awsU = awsUtils(cP)
+    AwsU = AwsUtils(cP)
     pathU = PathUtils(cP)
     filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
     bucket = "rcsb-file-api"
 
-    await awsU.aioboto3upload(uploadFile, bucket, filename)
+    await AwsU.upload(uploadFile, bucket, filename)
 
 
-@router.post("/upload-fileobj", status_code=200, description="***** Upload png asset to S3 *****")
+@router.post("/upload-fileobj", status_code=200, description="Upload asset to S3")
 async def send_request(
     uploadFile: UploadFile = File(...),
     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
@@ -236,13 +236,13 @@ async def send_request(
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
 
-    awsU = awsUtils(cP)
+    AwsU = AwsUtils(cP)
     pathU = PathUtils(cP)
     filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
     file = await uploadFile.read()
     # with open(filename, 'wb') as f:
     #     f.write(file)
-    uploads3 = await awsU.upload_fileobj(key=filename, fileobject=file)
+    uploads3 = await AwsU.upload_fileobj(key=filename, fileobject=file)
     if uploads3:
         # s3_url = f"https://{S3_Bucket}.s3.{AWS_REGION}.amazonaws.com/{filename}"
         return {"status": "success", "image_url": filename}  # response added
@@ -264,12 +264,12 @@ async def multiPart(
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
 
-    awsU = awsUtils(cP)
+    AwsU = AwsUtils(cP)
     pathU = PathUtils(cP)
     filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
     bucket = "rcsb-file-api"
 
-    await awsU.upload_multipart(uploadFile, bucket, filename)
+    await AwsU.upload_multipart(uploadFile, bucket, filename)
 
 
 @router.post("/upload-boto3", status_code=200)
@@ -286,12 +286,12 @@ async def boto3multiPart(
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
 
-    awsU = awsUtils(cP)
+    AwsU = AwsUtils(cP)
     pathU = PathUtils(cP)
     filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
     bucket = "rcsb-file-api"
 
-    awsU.boto3multipart(uploadFile, bucket, filename)
+    AwsU.boto3multipart(uploadFile, bucket, filename)
 
 
 # @router.post("/upload-status", response_model=UploadStatusResult)

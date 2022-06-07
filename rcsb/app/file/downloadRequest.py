@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse
 from fastapi.responses import Response
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
-from rcsb.app.file.awsUtils import awsUtils
+from rcsb.app.file.AwsUtils import AwsUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.utils.io.FileUtil import FileUtil
@@ -108,10 +108,10 @@ async def get_request(
     cP = ConfigProvider(cachePath, configFilePath)
 
     pathU = PathUtils(cP)
-    awsU = awsUtils(cP)
+    AwsU = AwsUtils(cP)
     filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
 
-    downloads3 = await awsU.download_fileobj(key=filename)
+    downloads3 = await AwsU.download_fileobj(key=filename)
 
     return Response(downloads3)
 

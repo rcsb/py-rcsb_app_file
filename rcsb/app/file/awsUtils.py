@@ -14,7 +14,7 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 logger = logging.getLogger(__name__)
 
 
-class awsUtils:
+class AwsUtils:
 
     def __init__(self, cP: typing.Type[ConfigProvider]):
         self.__cP = cP
@@ -23,12 +23,11 @@ class awsUtils:
         self.region = cP.get("AWS_REGION")
         self.bucket = cP.get("AWS_BUCKET")
 
-    async def aioboto3upload(self, filename, bucket, key):
+    async def upload(self, filename, bucket, key):
+        """Asynchronous upload with aioboto3. Defaults to multipart if file size exceeds threshold set by TransferConfig."""
         session = aioboto3.Session()
         async with session.client('s3', region_name=self.region, aws_secret_access_key=self.aws_secret, aws_access_key_id=self.aws_key) as client:
-
             config = TransferConfig()
-
             await client.upload_file(filename, bucket, key, Config=config)
 
     async def upload_fileobj(self, fileobject, key):
@@ -59,26 +58,25 @@ class awsUtils:
         async with session.create_client('s3', region_name=self.region, aws_secret_access_key=self.aws_secret, aws_access_key_id=self.aws_key) as client:
             multiPartResponse = await client.create_multipart_upload(Bucket=bucket, Key=key, Expires=datetime.datetime.utcnow() + datetime.timedelta(minutes=5))
             uploadID = multiPartResponse['UploadId']
-            print(uploadID)
+            logger.info("Upload ID %s", uploadID)
             part_number = 1
-
+            #
             part_info = {
                 'Parts': []
             }
-
+            #
             with open("./tempfile", "wb") as ofh:
                 ofh.write(await fileobject.read())
-
+            #
             source_size = os.stat("./tempfile").st_size
-
+            #
             chunk_size = 50000000
             chunk_count = int(math.ceil(source_size / float(chunk_size)))
-
+            #
             for i in range(chunk_count):
                 offset = chunk_size * i
                 fileBytes = min(chunk_size, source_size - offset)
                 with FileChunkIO("./tempfile", 'r', offset=offset, bytes=fileBytes) as fp:
-
                     response = await client.upload_part(
                         Bucket=bucket,
                         Body=fp,
@@ -86,7 +84,7 @@ class awsUtils:
                         PartNumber=part_number,
                         Key=key
                     )
-                    print(response)
+                    logger.debug("Part upload response %r", response)
                 part_info['Parts'].append(
                     {
                         'PartNumber': part_number,
@@ -94,24 +92,22 @@ class awsUtils:
                     }
                 )
                 part_number += 1
-
-            print(part_info)
-
+            #
+            logger.info("Part info %r", part_info)
+            #
             response = await client.complete_multipart_upload(
                 Bucket=bucket,
                 Key=key,
                 UploadId=uploadID,
                 MultipartUpload=part_info
             )
-            print(response)
+            logger.debug("Complete multipart upload response %r", response)
 
     def boto3multipart(self, fileobject, bucket, key):
+        """Synchronous upload with boto3"""
         client = boto3.resource('s3', region_name=self.region, aws_secret_access_key=self.aws_secret, aws_access_key_id=self.aws_key)
-
         MB = 1024 ** 2
         config = TransferConfig(multipart_threshold=5 * MB)
-
         with open("./tempfile", "wb") as ofh:
             ofh.write(fileobject.file.read())
-
         client.meta.client.upload_file("./tempfile", bucket, key, Config=config)
