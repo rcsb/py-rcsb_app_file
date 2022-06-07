@@ -1,7 +1,8 @@
 import logging
+import os
 from pydantic import Field
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
-from fastapi import Form
+from fastapi import Form, Query
 from fastapi import Depends
 from fastapi import APIRouter
 from rcsb.utils.io.MarshalUtil import MarshalUtil
@@ -11,7 +12,7 @@ from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["merge"])
 
 
 class MergeResult(BaseModel):
@@ -21,15 +22,16 @@ class MergeResult(BaseModel):
     statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
 
 
-@router.post("/merge", response_model=MergeResult, dependencies=[Depends(JWTAuthBearer())], tags=["merge"])
+@router.post("/merge", response_model=MergeResult, tags=["merge"])
 async def merge(
-        siftsPath: str = Form(None),
-        pdbID: str = Form(None)
+        siftsPath: str = Query(None),
+        pdbID: str = Query(None)
 ):
     ret = {}
     try:
-        cachePath = "./rcsb/app/tests-file/test-data/mmcif/"
-        pdbIDHash = pdbID[1:3]
+        print("hi")
+        cachePath = "rcsb/app/tests-file/test-data/mmcif/"
+        # pdbIDHash = pdbID[1:3]
 
         fU = FileUtil(workPath=cachePath)
         if not fU.exists(cachePath):
@@ -37,7 +39,10 @@ async def merge(
 
         mU = MarshalUtil(workDir=cachePath)
 
-        cifList = mU.doImport("https://ftp.wwpdb.org/pub/pdb/data/structures/divided/mmCIF/" + pdbIDHash + "/" + pdbID + ".cif.gz", fmt="mmcif")
+        print(os.path.join(cachePath, pdbID + ".cif.gz"))
+        print(siftsPath)
+
+        cifList = mU.doImport(os.path.join(cachePath, pdbID + ".cif.gz"), fmt="mmcif")
         siftsList = mU.doImport(siftsPath, fmt="mmcif")
 
         siftsCatNames = siftsList[0].getObjNameList()

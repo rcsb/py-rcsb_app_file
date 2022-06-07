@@ -25,14 +25,17 @@ import logging
 import unittest
 import platform
 import resource
+
+os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data", "data"))
+os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
+
 from fastapi.testclient import TestClient
 from rcsb.app.file.main import app
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file import __version__
 
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data", "data"))
-
+# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data", "data"))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -65,6 +68,7 @@ class SIFTSMergeTests(unittest.TestCase):
         responseCode = 200
         pdbID = "1yy9"
         siftsFilePath = os.path.join(self.__cachePath, "mmcif", pdbID + "_sifts_only.cif.gz")
+        print(siftsFilePath)
 
         mergeDict = {
             "siftsPath": siftsFilePath,
@@ -73,6 +77,8 @@ class SIFTSMergeTests(unittest.TestCase):
 
         with TestClient(app) as client:
             r = client.post("/file-v1/merge", data=mergeDict, headers=self.__headerD)
+            print(r.status_code)
+            print(r.text)
             self.assertTrue(r.status_code == responseCode)
 
 

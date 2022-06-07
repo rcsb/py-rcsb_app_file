@@ -92,8 +92,8 @@ async def download(
     return FileResponse(path=filePath, media_type=mimeType, filename=os.path.basename(filePath), headers=tD)
 
 
-@router.get("/download-aws", status_code=200, description="Download from AWS S3")
-async def get_request(
+@router.get("/download-aws", tags=["download"])
+async def downloadAws(
     idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Query(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
     contentType: str = Query(None, title="Content type", description="Content type", example="model, structure-factors, val-report-full"),
