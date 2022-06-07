@@ -45,7 +45,7 @@ class PathUtilsTests(unittest.TestCase):
         cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         self.cP = ConfigProvider(cachePath, configFilePath)
-        self.PathU = PathUtils(self.cP)
+        self.pathU = PathUtils(self.cP)
         self.__startTime = time.time()
         logger.debug("Running tests on version %s", __version__)
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
@@ -66,29 +66,29 @@ class PathUtilsTests(unittest.TestCase):
 
         for contentType in contentTypeList:
             for contentFormat in contentFormatList:
-                self.PathU.checkContentTypeFormat(contentType, contentFormat)
+                self.pathU.checkContentTypeFormat(contentType, contentFormat)
 
     def testGetMimeType(self):
         mimeType = None
         mimeTypeList = ["cif", "pdf", "xml", "json", "txt", "pic", "other"]
         for mimeType in mimeTypeList:
             if mimeType == "cif":
-                self.assertEqual(self.PathU.getMimeType(mimeType), "chemical/x-mmcif")
+                self.assertEqual(self.pathU.getMimeType(mimeType), "chemical/x-mmcif")
             if mimeType == "pdf":
-                self.assertEqual(self.PathU.getMimeType(mimeType), "application/pdf")
+                self.assertEqual(self.pathU.getMimeType(mimeType), "application/pdf")
             if mimeType == "xml":
-                self.assertEqual(self.PathU.getMimeType(mimeType), "application/xml")
+                self.assertEqual(self.pathU.getMimeType(mimeType), "application/xml")
             if mimeType == "json":
-                self.assertEqual(self.PathU.getMimeType(mimeType), "application/json")
+                self.assertEqual(self.pathU.getMimeType(mimeType), "application/json")
             if mimeType == "txt":
-                self.assertEqual(self.PathU.getMimeType(mimeType), "text/plain")
+                self.assertEqual(self.pathU.getMimeType(mimeType), "text/plain")
             if mimeType == "pic":
-                self.assertEqual(self.PathU.getMimeType(mimeType), "application/python-pickle")
+                self.assertEqual(self.pathU.getMimeType(mimeType), "application/python-pickle")
             if mimeType == "other":
-                self.assertEqual(self.PathU.getMimeType(mimeType), "text/plain")
+                self.assertEqual(self.pathU.getMimeType(mimeType), "text/plain")
 
 
-def ContentFormatTypeSuite():
+def contentFormatTypeSuite():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(PathUtilsTests("testCheckContentTypeFormat"))
     suiteSelect.addTest(PathUtilsTests("testGetMimeType"))
@@ -97,5 +97,5 @@ def ContentFormatTypeSuite():
 
 if __name__ == "__main__":
 
-    mySuite = ContentFormatTypeSuite()
+    mySuite = contentFormatTypeSuite()
     unittest.TextTestRunner(verbosity=2).run(mySuite)

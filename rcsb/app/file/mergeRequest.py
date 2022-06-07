@@ -2,7 +2,7 @@ import logging
 import os
 from pydantic import Field
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
-from fastapi import Form, Query
+from fastapi import Form
 from fastapi import Depends
 from fastapi import APIRouter
 from rcsb.utils.io.MarshalUtil import MarshalUtil

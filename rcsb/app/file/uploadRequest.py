@@ -220,11 +220,11 @@ async def aioboto3Upload(
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
 
-    AwsU = AwsUtils(cP)
+    awsU = AwsUtils(cP)
     pathU = PathUtils(cP)
     filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
 
-    ret = await AwsU.upload(uploadFile, filename)
+    ret = await awsU.upload(uploadFile, filename)
 
     if not ret["success"]:
         raise HTTPException(status_code=405, detail=ret["statusMessage"])

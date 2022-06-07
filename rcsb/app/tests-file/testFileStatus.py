@@ -21,9 +21,9 @@ __license__ = "Apache 2.0"
 import logging
 import os
 import platform
-import random
+# import random
 import resource
-import string
+# import string
 import time
 import unittest
 
@@ -39,7 +39,7 @@ from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.main import app
-from rcsb.utils.io.CryptUtils import CryptUtils
+# from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.utils.io.FileUtil import FileUtil
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")

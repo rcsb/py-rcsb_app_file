@@ -68,18 +68,18 @@ class SIFTSMergeTests(unittest.TestCase):
         responseCode = 200
         pdbID = "1yy9"
         siftsFilePath = os.path.join(self.__cachePath, "mmcif", pdbID + "_sifts_only.cif.gz")
-        print(siftsFilePath)
+        logger.info("siftsFilePath %r", siftsFilePath)
 
         mergeDict = {
             "siftsPath": siftsFilePath,
-            "pdbID": pdbID
+            "pdbID": pdbID,
         }
 
         with TestClient(app) as client:
-            r = client.post("/file-v1/merge", data=mergeDict, headers=self.__headerD)
-            print(r.status_code)
-            print(r.text)
-            self.assertTrue(r.status_code == responseCode)
+            response = client.post("/file-v1/merge", data=mergeDict, headers=self.__headerD)
+            print(response.status_code)
+            print(response.text)
+            self.assertTrue(response.status_code == responseCode)
 
 
 def updateSimpleTests():

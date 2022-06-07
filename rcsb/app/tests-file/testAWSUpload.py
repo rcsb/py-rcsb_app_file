@@ -77,13 +77,13 @@ class AWSUploadTests(unittest.TestCase):
         nB = 1000000
         with open(testFileName, "wb") as ofh:
             ofh.write(os.urandom(nB))
-        print("file written")
+        logger.info("file written")
 
         with TestClient(app) as client:
-            with open(testFileName, "rb") as f:
-                files = {"uploadFile": f}
-                r = client.post("http://128.6.159.177:8000/file-v1/upload-aioboto3", files=files, data=multiD)
-        print(r.status_code)
+            with open(testFileName, "rb") as ofh:
+                files = {"uploadFile": ofh}
+                response = client.post("http://128.6.159.177:8000/file-v1/upload-aioboto3", files=files, data=multiD)
+        logger.info(response.status_code)
 
 
 def updateSimpleTests():

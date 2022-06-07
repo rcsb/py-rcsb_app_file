@@ -32,7 +32,7 @@ from rcsb.utils.io.FileUtil import FileUtil
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["download"])
 
 
 class HashType(str, Enum):
@@ -41,7 +41,7 @@ class HashType(str, Enum):
     SHA256 = "SHA256"
 
 
-@router.get("/download/{repositoryType}", dependencies=[Depends(JWTAuthBearer())], tags=["download"])
+@router.get("/download/{repositoryType}")
 async def download(
     idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Path(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
@@ -92,7 +92,7 @@ async def download(
     return FileResponse(path=filePath, media_type=mimeType, filename=os.path.basename(filePath), headers=tD)
 
 
-@router.get("/download-aws", tags=["download"])
+@router.get("/download-aws")
 async def downloadAws(
     idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Query(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
@@ -108,10 +108,10 @@ async def downloadAws(
     cP = ConfigProvider(cachePath, configFilePath)
 
     pathU = PathUtils(cP)
-    AwsU = AwsUtils(cP)
+    awsU = AwsUtils(cP)
     filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
 
-    downloads3 = await AwsU.download(key=filename)
+    downloads3 = await awsU.download(key=filename)
 
     return Response(downloads3)
 
