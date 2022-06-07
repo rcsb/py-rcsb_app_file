@@ -24,14 +24,12 @@ class MergeResult(BaseModel):
 
 @router.post("/merge", response_model=MergeResult, tags=["merge"])
 async def merge(
-        siftsPath: str = Query(None),
-        pdbID: str = Query(None)
+        siftsPath: str = Form(None),
+        pdbID: str = Form(None)
 ):
     ret = {}
     try:
-        print("hi")
-        cachePath = "rcsb/app/tests-file/test-data/mmcif/"
-        # pdbIDHash = pdbID[1:3]
+        cachePath = "rcsb/app/tests-file/test-data/data/mmcif/"
 
         fU = FileUtil(workPath=cachePath)
         if not fU.exists(cachePath):
@@ -39,8 +37,7 @@ async def merge(
 
         mU = MarshalUtil(workDir=cachePath)
 
-        print(os.path.join(cachePath, pdbID + ".cif.gz"))
-        print(siftsPath)
+        logger.info("Merging PDBx file %r with sifts file %r", os.path.join(cachePath, pdbID + ".cif.gz"), siftsPath)
 
         cifList = mU.doImport(os.path.join(cachePath, pdbID + ".cif.gz"), fmt="mmcif")
         siftsList = mU.doImport(siftsPath, fmt="mmcif")
@@ -48,7 +45,7 @@ async def merge(
         siftsCatNames = siftsList[0].getObjNameList()
 
         siftsAtomSite = siftsList[0].getObj("atom_site")
-        siftsCatNames.pop(0)
+        siftsCatNames = [c for c in siftsCatNames if c != "atom_site"]
 
         siftsAttributes = siftsAtomSite.getAttributeList()
 
