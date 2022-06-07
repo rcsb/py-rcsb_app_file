@@ -7,6 +7,7 @@ from fastapi import Depends
 from fastapi import APIRouter
 from rcsb.utils.io.MarshalUtil import MarshalUtil
 from rcsb.utils.io.FileUtil import FileUtil
+from rcsb.app.file.ConfigProvider import ConfigProvider
 from mmcif.io.PdbxWriter import PdbxWriter
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 
@@ -27,9 +28,13 @@ async def merge(
         siftsPath: str = Form(None),
         pdbID: str = Form(None)
 ):
+    cachePath = os.environ.get("CACHE_PATH")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+
     ret = {}
     try:
-        cachePath = "rcsb/app/tests-file/test-data/data/mmcif/"
+        cachePath = cP.get("PDBX_REPOSITORY")
 
         fU = FileUtil(workPath=cachePath)
         if not fU.exists(cachePath):
