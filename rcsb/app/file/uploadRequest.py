@@ -44,6 +44,13 @@ class UploadResult(BaseModel):
     statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
 
 
+class UploadResultAws(BaseModel):
+    fileName: str = Field(None, title="Stored file name", description="Stored file name", example="D_0000000001_model_P1.cif.V3")
+    success: bool = Field(None, title="Success status", description="Success status", example="True")
+    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
+    statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
+
+
 class UploadSliceResult(BaseModel):
     sliceCount: str = Field(None, title="Slice count", description="Slice count", example="2")
     success: bool = Field(None, title="Success status", description="Success status", example="True")
@@ -199,9 +206,9 @@ async def joinUploadSlice(
     return ret
 
 
-@router.post("/upload-aws", status_code=200)
+@router.post("/upload-aws", response_model=UploadResultAws)
 async def aioboto3Upload(
-    uploadFile: UploadFile = File(...),
+    uploadFile: str = Form(None, title="File Path", description="Path of file to be uploaded", example="./testFile.txt"),
     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
     contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
@@ -216,82 +223,13 @@ async def aioboto3Upload(
     AwsU = AwsUtils(cP)
     pathU = PathUtils(cP)
     filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
-    bucket = "rcsb-file-api"
 
-    await AwsU.upload(uploadFile, bucket, filename)
+    ret = await AwsU.upload(uploadFile, filename)
 
+    if not ret["success"]:
+        raise HTTPException(status_code=405, detail=ret["statusMessage"])
 
-@router.post("/upload-fileobj", status_code=200, description="Upload asset to S3")
-async def send_request(
-    uploadFile: UploadFile = File(...),
-    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
-    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
-    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
-    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
-    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
-):
-
-    cachePath = os.environ.get("CACHE_PATH", ".")
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
-
-    AwsU = AwsUtils(cP)
-    pathU = PathUtils(cP)
-    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
-    file = await uploadFile.read()
-    # with open(filename, 'wb') as f:
-    #     f.write(file)
-    uploads3 = await AwsU.upload_fileobj(key=filename, fileobject=file)
-    if uploads3:
-        # s3_url = f"https://{S3_Bucket}.s3.{AWS_REGION}.amazonaws.com/{filename}"
-        return {"status": "success", "image_url": filename}  # response added
-    else:
-        raise HTTPException(status_code=400, detail="Failed to upload in S3")
-
-
-@router.post("/upload-Multipart-aws", status_code=200)
-async def multiPart(
-    uploadFile: UploadFile = File(...),
-    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
-    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
-    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
-    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
-    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
-):
-    cachePath = os.environ.get("CACHE_PATH", ".")
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
-
-    AwsU = AwsUtils(cP)
-    pathU = PathUtils(cP)
-    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
-    bucket = "rcsb-file-api"
-
-    await AwsU.upload_multipart(uploadFile, bucket, filename)
-
-
-@router.post("/upload-boto3", status_code=200)
-async def boto3multiPart(
-    uploadFile: UploadFile = File(...),
-    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
-    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
-    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
-    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
-    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
-):
-    cachePath = os.environ.get("CACHE_PATH", ".")
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
-
-    AwsU = AwsUtils(cP)
-    pathU = PathUtils(cP)
-    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
-    bucket = "rcsb-file-api"
-
-    AwsU.boto3multipart(uploadFile, bucket, filename)
+    return ret
 
 
 # @router.post("/upload-status", response_model=UploadStatusResult)

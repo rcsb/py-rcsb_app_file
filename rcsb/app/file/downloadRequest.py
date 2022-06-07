@@ -111,7 +111,7 @@ async def get_request(
     AwsU = AwsUtils(cP)
     filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
 
-    downloads3 = await AwsU.download_fileobj(key=filename)
+    downloads3 = await AwsU.download(key=filename)
 
     return Response(downloads3)
 
