@@ -28,6 +28,15 @@ async def merge(
         siftsPath: str = Form(None),
         pdbID: str = Form(None)
 ):
+    """Asynchronous upload with aioboto3. Defaults to multipart if file size exceeds threshold set by TransferConfig.
+
+    Args:
+        siftsPath (str): Path of file containing SIFTS data
+        pdbID (str): pdbID of file to merge SIFTS data into
+
+    Returns:
+        (dict): {"success": True|False, "statusMessage": <text>}
+    """
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
