@@ -28,6 +28,14 @@ async def merge(
         siftsPath: str = Form(None),
         pdbID: str = Form(None)
 ):
+    """Merge SIFTS data with CIF file of provided PDB ID (must exist in PDBX_REPOSITORY path).
+
+    Args:
+        siftsPath (str): Path of file containing SIFTS data
+        pdbID (str): pdbID of file to merge SIFTS data into
+    Returns:
+        (dict): {"success": True|False, "statusMessage": <text>}
+    """
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)

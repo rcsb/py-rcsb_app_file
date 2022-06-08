@@ -102,25 +102,40 @@ async def downloadAws(
     version: str = Query("1", title="Version string", description="Version number or description", example="1,2,3, latest, previous"),
     hashType: HashType = Query(None, title="Hash type", description="Hash type", example="SHA256")
 ):
-
+    """Asynchronous download with aioboto3.
+    Args:
+        key (str): name of file to be retrieved from s3 bucket
+    Returns:
+        (dict): {"content": Downloaded Data, "status_code": 200|403}
+    """
     cachePath = os.environ.get("CACHE_PATH", ".")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
 
     pathU = PathUtils(cP)
     awsU = AwsUtils(cP)
-    filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    try:
+        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+        fileExists = await awsU.checkExists(key=filePath)
+        if fileExists:
+            downloads3 = await awsU.download(key=filePath)
 
-    downloads3 = await awsU.download(key=filePath)
+    except Exception as e:
+        logger.exception("Failing with %s", str(e))
+
+    if not fileExists:
+        raise HTTPException(status_code=403, detail="Download from S3 failed - File does not exist.")
 
     # Check hash
+    # Will need to add checking to upload when supported by aioboto3
+    # https://github.com/terrycain/aioboto3/issues/265
     if hashType:  # and success:
         hD = CryptUtils().getFileHash(filePath, hashType.name)
         hashDigest = hD["hashDigest"]
         tD = {"rcsb_hash_type": hashType.name, "rcsb_hexdigest": hashDigest}
         logger.info("Hash digest %r", tD)
 
-    return Response(downloads3)
+    return Response(content=downloads3, status_code=200)
 
 
 def isPositiveInteger(tS):

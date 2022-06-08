@@ -215,6 +215,7 @@ async def uploadAws(
     partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
     contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
     version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
+    allowOverWrite: bool = Form(False, title="Allow overwrite of existing files", description="Allow overwrite of existing files", example="False"),
 ):
     cachePath = os.environ.get("CACHE_PATH", ".")
     configFilePath = os.environ.get("CONFIG_FILE")
@@ -222,9 +223,15 @@ async def uploadAws(
 
     awsU = AwsUtils(cP)
     pathU = PathUtils(cP)
-    filename = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
 
-    ret = await awsU.upload(uploadFile, filename)
+    fileExists = await awsU.checkExists(filePath)
+    if fileExists:
+        if not allowOverWrite:
+            ret = {"success": False, "statusCode": 400, "statusMessage": "File overwrite not allowed"}
+            raise HTTPException(status_code=ret["statusCode"], detail=ret["statusMessage"])
+
+    ret = await awsU.upload(uploadFile, filePath)
 
     if not ret["success"]:
         raise HTTPException(status_code=405, detail=ret["statusMessage"])
