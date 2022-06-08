@@ -207,7 +207,7 @@ async def joinUploadSlice(
 
 
 @router.post("/upload-aws", response_model=UploadResultAws)
-async def aioboto3Upload(
+async def uploadAws(
     uploadFile: str = Form(None, title="File Path", description="Path of file to be uploaded", example="./testFile.txt"),
     idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
