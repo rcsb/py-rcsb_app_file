@@ -23,6 +23,8 @@ from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
+from rcsb.app.file.AwsUtils import AwsUtils
+from rcsb.app.file.PathUtils import PathUtils
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,13 @@ class HashType(str, Enum):
 
 
 class UploadResult(BaseModel):
+    fileName: str = Field(None, title="Stored file name", description="Stored file name", example="D_0000000001_model_P1.cif.V3")
+    success: bool = Field(None, title="Success status", description="Success status", example="True")
+    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
+    statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
+
+
+class UploadResultAws(BaseModel):
     fileName: str = Field(None, title="Stored file name", description="Stored file name", example="D_0000000001_model_P1.cif.V3")
     success: bool = Field(None, title="Success status", description="Success status", example="True")
     statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
@@ -194,6 +203,39 @@ async def joinUploadSlice(
     if not ret["success"]:
         raise HTTPException(status_code=405, detail=ret["statusMessage"])
     #
+    return ret
+
+
+@router.post("/upload-aws", response_model=UploadResultAws)
+async def uploadAws(
+    uploadFile: str = Form(None, title="File Path", description="Path of file to be uploaded", example="./testFile.txt"),
+    idCode: str = Form(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Form(None, title="Repository Type", description="OneDep repository type", example="deposit, archive"),
+    contentType: str = Form(None, title="Content Type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    partNumber: int = Form(None, title="Part Number", description="OneDep part number", example="1"),
+    contentFormat: str = Form(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, title="Version", description="OneDep version number of descriptor", example="1, 2, latest, next"),
+    allowOverWrite: bool = Form(False, title="Allow overwrite of existing files", description="Allow overwrite of existing files", example="False"),
+):
+    cachePath = os.environ.get("CACHE_PATH", ".")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+
+    awsU = AwsUtils(cP)
+    pathU = PathUtils(cP)
+    filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+
+    fileExists = await awsU.checkExists(filePath)
+    if fileExists:
+        if not allowOverWrite:
+            ret = {"success": False, "statusCode": 400, "statusMessage": "File overwrite not allowed"}
+            raise HTTPException(status_code=ret["statusCode"], detail=ret["statusMessage"])
+
+    ret = await awsU.upload(uploadFile, filePath)
+
+    if not ret["success"]:
+        raise HTTPException(status_code=405, detail=ret["statusMessage"])
+
     return ret
 
 

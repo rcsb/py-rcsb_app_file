@@ -4,3 +4,4 @@
  4-Mar-2022  - V0.12 Added script for upload and download test, code cleanup, updated Dockerfile.stage and Dockerfile.devel
  4-Apr-2022  - V0.13 Added new tests, code cleanup, added yml configuration file compatibility
 25-May-2022  - V0.14 Add authentication middleware, file status endpoints, various bug fixes, and adjusted directory structure
+ 7-Jun-2022  - V0.15 Added mergeRequest.py and AWS Uploads and Downloads

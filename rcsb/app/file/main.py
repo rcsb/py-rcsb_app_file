@@ -28,6 +28,7 @@ from . import downloadRequest  # This triggers JWTAuthBearer
 from . import serverStatus
 from . import uploadRequest
 from . import fileStatus
+from . import mergeRequest
 from .JWTAuthBearer import JWTAuthBearer
 
 logger = logging.getLogger()
@@ -77,6 +78,11 @@ app.include_router(
 
 app.include_router(
     downloadRequest.router,
+    prefix="/file-v1",
+)
+
+app.include_router(
+    mergeRequest.router,
     prefix="/file-v1",
 )
 
