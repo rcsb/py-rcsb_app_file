@@ -60,6 +60,8 @@ logger.setLevel(logging.INFO)
 
 
 class FileUploadTests(unittest.TestCase):
+    testSliceUpload = False
+    
     def setUp(self):
 
         self.__dataPath = os.path.join(HERE, "test-data")
@@ -208,6 +210,7 @@ class FileUploadTests(unittest.TestCase):
                 logger.exception("Failing with %s", str(e))
                 self.fail()
 
+    @unittest.skipUnless(testSliceUpload, "Skip slice uploadtest")
     def testSlicedUpload(self):
         """Test - sliced file upload operations"""
         endPoint = "upload-slice"
