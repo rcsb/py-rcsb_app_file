@@ -60,6 +60,8 @@ logger.setLevel(logging.INFO)
 
 
 class FileUploadTests(unittest.TestCase):
+    testSliceUpload = False
+    
     def setUp(self):
 
         self.__dataPath = os.path.join(HERE, "test-data")
@@ -208,9 +210,9 @@ class FileUploadTests(unittest.TestCase):
                 logger.exception("Failing with %s", str(e))
                 self.fail()
 
+    @unittest.skipUnless(testSliceUpload, "Skip slice uploadtest")
     def testSlicedUpload(self):
         """Test - sliced file upload operations"""
-        hashType = None
         endPoint = "upload-slice"
         hashType = "MD5"
         #  Using the uncompressed hash
@@ -225,7 +227,7 @@ class FileUploadTests(unittest.TestCase):
         # First, split the file into 4 slices in a new "sessions" directory (prefixed with "staging", e.g., "stagingX1Y2Z...");
         # this also creates a "MANIFEST" file containing the names of the file slices.
         sliceTotal = 4
-        task = ioU.splitFile(self.__testFilePath, sliceTotal, "staging" + sessionId, hashType="md5")
+        task = ioU.splitFile(self.__testFilePath, sliceTotal, "staging" + sessionId, hashType=hashType)
         loop = asyncio.get_event_loop()
         sP = loop.run_until_complete(task)
         # loop.close()
@@ -315,7 +317,7 @@ class FileUploadTests(unittest.TestCase):
 def uploadSimpleTests():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(FileUploadTests("testSimpleUpload"))
-    suiteSelect.addTest(FileUploadTests("testSlicedUpload"))
+    # suiteSelect.addTest(FileUploadTests("testSlicedUpload"))
     suiteSelect.addTest(FileUploadTests("testUploadAccessTokens"))
     return suiteSelect
 

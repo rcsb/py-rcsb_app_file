@@ -9,7 +9,7 @@ configuration:
   SESSION_DIR_PATH: ./rcsb/app/tests-file/test-data/data/sessions
   REPOSITORY_DIR_PATH: ./rcsb/app/tests-file/test-data/data/repository
   SHARED_LOCK_PATH: ./rcsb/app/tests-file/test-data/data/shared-locks
-  PDBX_REPOSITORY: rcsb/app/tests-file/test-data/data/mmcif
+  PDBX_REPOSITORY: ./rcsb/app/tests-file/test-data/data/mmcif
   ACCESS_KEY: awsKey
   SECRET_KEY: awsSecret
   AWS_REGION: awsRegion
