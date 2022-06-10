@@ -5,4 +5,4 @@
  4-Apr-2022  - V0.13 Added new tests, code cleanup, added yml configuration file compatibility
 25-May-2022  - V0.14 Add authentication middleware, file status endpoints, various bug fixes, and adjusted directory structure
  7-Jun-2022  - V0.15 Added mergeRequest.py and AWS Uploads and Downloads
-10-Jun-2022  - V0.16 Add ClienUtils wrapper; add method to delete staging and session directories
+10-Jun-2022  - V0.16 Add ClientUtils wrapper; add method to delete staging and session directories
