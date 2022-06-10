@@ -25,6 +25,7 @@ import shutil
 import typing
 import math
 import aiofiles
+from regex import E
 
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
@@ -68,6 +69,7 @@ class IoUtils:
         self.__cP = cP
         self.__pathU = PathUtils(self.__cP)
         self.__makedirs = wrapAsync(os.makedirs)
+        self.__rmtree = wrapAsync(shutil.rmtree)
         self.__replace = wrapAsync(os.replace)
         self.__hashSHA1 = wrapAsync(hashlib.sha1)
         self.__hashMD5 = wrapAsync(hashlib.md5)
@@ -340,7 +342,7 @@ class IoUtils:
         logger.info("leaving join with ret %r", ret)
         return ret
 
-    async def splitFile(self, inputFilePath: str, numSlices: int, sessionId: str, hashType="md5"):
+    async def splitFile(self, inputFilePath: str, numSlices: int, sessionId: str, hashType="MD5"):
         """Split the input file into
 
         Args:
@@ -362,7 +364,6 @@ class IoUtils:
         numBytes = os.path.getsize(inputFilePath)
         sliceSize = int(math.ceil(numBytes / numSlices))  # Need ceil to properly split odd-number bytes into expected number of slices
         logger.info("numBytes (%d) numSlices (%d) slice size %r", numBytes, numSlices, sliceSize)
-        print("numBytes (%d) numSlices (%d) slice size %r", numBytes, numSlices, sliceSize)
 
         await self.__makedirs(sessionDirPath, mode=0o755, exist_ok=True)
 
@@ -382,3 +383,22 @@ class IoUtils:
                     #
                     chunk = await ifh.read(sliceSize)
         return sessionDirPath
+
+    async def removeSessionDir(self, sessionId: str):
+        """Remove a session directory.
+
+        Args:
+            sessionId (str): unique session identifier
+
+        Returns:
+            (bool): True for success or False otherwise
+        """
+        try:
+            sessionDirPath = os.path.join(self.__pathU.getSessionDirPath(), sessionId)
+            logger.info("Deleting session directory %r", sessionDirPath)
+            await self.__rmtree(sessionDirPath)
+            return True
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            return False
+

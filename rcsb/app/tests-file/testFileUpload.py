@@ -225,7 +225,7 @@ class FileUploadTests(unittest.TestCase):
         # First, split the file into 4 slices in a new "sessions" directory (prefixed with "staging", e.g., "stagingX1Y2Z...");
         # this also creates a "MANIFEST" file containing the names of the file slices.
         sliceTotal = 4
-        task = ioU.splitFile(self.__testFilePath, sliceTotal, "staging" + sessionId, hashType="md5")
+        task = ioU.splitFile(self.__testFilePath, sliceTotal, "staging" + sessionId, hashType="MD5")
         loop = asyncio.get_event_loop()
         sP = loop.run_until_complete(task)
         # loop.close()
@@ -310,6 +310,14 @@ class FileUploadTests(unittest.TestCase):
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
+
+        # - delete the staging and main session directories -
+        ok = asyncio.run(ioU.removeSessionDir("staging" + sessionId))
+        self.assertTrue(ok)
+        #
+        # - delete the main session directory -
+        ok = asyncio.run(ioU.removeSessionDir(sessionId))
+        self.assertTrue(ok)
 
 
 def uploadSimpleTests():
