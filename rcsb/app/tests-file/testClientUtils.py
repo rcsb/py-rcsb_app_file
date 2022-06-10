@@ -68,62 +68,63 @@ class ClientUtilsTests(unittest.TestCase):
     def testClientUtils(self):
         """Test - file upload, multipart upload, and file download"""
         try:
-            # Test single file upload
-            logger.info("Starting upload of file %s", self.__testFilePath)
-            startTime = time.time()
-            asyncio.run(
-                self.__cU.upload(
-                    filePath=self.__testFilePath,
-                    idCode="D_4999000001",
-                    repositoryType="onedep-archive",
-                    contentType="model",
-                    contentFormat="pdbx",
-                    partNumber=1,
-                    version="9",
-                    copyMode="native",
-                    allowOverWrite=True,
-                )
-            )
-            logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
-            #
-            # Test multipart file upload
-            logger.info("Starting multipart-upload of file %s", self.__testFilePath)
-            startTime = time.time()
-            sId = asyncio.run(
-                self.__cU.multipartUpload(
-                    filePath=self.__testFilePath,
-                    sliceTotal=4,
-                    idCode="D_5999000001",
-                    repositoryType="onedep-archive",
-                    contentType="model",
-                    contentFormat="pdbx",
-                    partNumber=1,
-                    version="9",
-                    copyMode="native",
-                    allowOverWrite=True,
-                )
-            )
-            logger.info("Completed multipart upload for sessionId %s (%.4f seconds)", sId, time.time() - startTime)
-            #
-            # Test file download
-            logger.info("Starting download of last uploaded file to %s", self.__testFileDownloadPath)
-            startTime = time.time()
-            asyncio.run(
-                self.__cU.download(
-                    fileDownloadPath=self.__testFileDownloadPath,
-                    idCode="D_5999000001",
-                    repositoryType="onedep-archive",
-                    contentType="model",
-                    contentFormat="pdbx",
-                    partNumber=1,
-                    version="9",
-                )
-            )
-            logger.info("Completed download (%.4f seconds)", time.time() - startTime)
-            #
-            logger.info("Removing session directories for sessionId %s", sId)
-            ok = asyncio.run(self.__cU.deleteSessionDirectory(sessionId=sId))
-            logger.info("Completed removing session directories with status %r", ok)
+            return
+            # # Test single file upload
+            # logger.info("Starting upload of file %s", self.__testFilePath)
+            # startTime = time.time()
+            # asyncio.run(
+            #     self.__cU.upload(
+            #         filePath=self.__testFilePath,
+            #         idCode="D_4999000001",
+            #         repositoryType="onedep-archive",
+            #         contentType="model",
+            #         contentFormat="pdbx",
+            #         partNumber=1,
+            #         version="9",
+            #         copyMode="native",
+            #         allowOverWrite=True,
+            #     )
+            # )
+            # logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
+            # #
+            # # Test multipart file upload
+            # logger.info("Starting multipart-upload of file %s", self.__testFilePath)
+            # startTime = time.time()
+            # sId = asyncio.run(
+            #     self.__cU.multipartUpload(
+            #         filePath=self.__testFilePath,
+            #         sliceTotal=4,
+            #         idCode="D_5999000001",
+            #         repositoryType="onedep-archive",
+            #         contentType="model",
+            #         contentFormat="pdbx",
+            #         partNumber=1,
+            #         version="9",
+            #         copyMode="native",
+            #         allowOverWrite=True,
+            #     )
+            # )
+            # logger.info("Completed multipart upload for sessionId %s (%.4f seconds)", sId, time.time() - startTime)
+            # #
+            # # Test file download
+            # logger.info("Starting download of last uploaded file to %s", self.__testFileDownloadPath)
+            # startTime = time.time()
+            # asyncio.run(
+            #     self.__cU.download(
+            #         fileDownloadPath=self.__testFileDownloadPath,
+            #         idCode="D_5999000001",
+            #         repositoryType="onedep-archive",
+            #         contentType="model",
+            #         contentFormat="pdbx",
+            #         partNumber=1,
+            #         version="9",
+            #     )
+            # )
+            # logger.info("Completed download (%.4f seconds)", time.time() - startTime)
+            # #
+            # logger.info("Removing session directories for sessionId %s", sId)
+            # ok = asyncio.run(self.__cU.deleteSessionDirectory(sessionId=sId))
+            # logger.info("Completed removing session directories with status %r", ok)
 
         except Exception as e:
             logger.exception("Failing with %s", str(e))
