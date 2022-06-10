@@ -311,14 +311,6 @@ class FileUploadTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
-        # - delete the staging and main session directories -
-        ok = asyncio.run(ioU.removeSessionDir("staging" + sessionId))
-        self.assertTrue(ok)
-        #
-        # - delete the main session directory -
-        ok = asyncio.run(ioU.removeSessionDir(sessionId))
-        self.assertTrue(ok)
-
 
 def uploadSimpleTests():
     suiteSelect = unittest.TestSuite()
