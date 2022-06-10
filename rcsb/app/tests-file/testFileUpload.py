@@ -314,7 +314,7 @@ class FileUploadTests(unittest.TestCase):
 def uploadSimpleTests():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(FileUploadTests("testSimpleUpload"))
-    suiteSelect.addTest(FileUploadTests("testSlicedUpload"))
+    # suiteSelect.addTest(FileUploadTests("testSlicedUpload"))
     suiteSelect.addTest(FileUploadTests("testUploadAccessTokens"))
     return suiteSelect
 
