@@ -241,7 +241,7 @@ class ClientUtils():
         ok2 = await self.__ioU.removeSessionDir(sessionId)
         if not ok2:
             logger.warning("Unable to delete session directory for sessionId %s", sessionId)
-        
+        #
         return ok1 and ok2
 
     async def download(

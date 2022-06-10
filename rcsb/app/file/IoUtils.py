@@ -25,7 +25,6 @@ import shutil
 import typing
 import math
 import aiofiles
-from regex import E
 
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
@@ -401,4 +400,3 @@ class IoUtils:
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             return False
-
