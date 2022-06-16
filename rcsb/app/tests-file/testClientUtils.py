@@ -51,7 +51,7 @@ class ClientUtilsTests(unittest.TestCase):
         for fn in ["example-data.cif"]:  # Only needed for ConfigProvider init
             fU.put(self.__testFilePath, os.path.join(self.__cachePath, fn))
         #
-        self.__cU = ClientUtils(cachePath=self.__cachePath, configFilePath=self.__configFilePath)
+        self.__cU = ClientUtils(cachePath=self.__cachePath, configFilePath=self.__configFilePath, hostAndPort="http://0.0.0.0:8000")
         #
         self.__startTime = time.time()
         #
