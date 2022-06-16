@@ -40,12 +40,12 @@ class ClientUtils():
     """Collected client-side utilities.
     """
 
-    def __init__(self, cachePath=os.environ.get("CACHE_PATH"), configFilePath=os.environ.get("CONFIG_FILE")):
+    def __init__(self, cachePath=os.environ.get("CACHE_PATH"), configFilePath=os.environ.get("CONFIG_FILE"), hostAndPort=None):
         self.__cachePath = cachePath
         self.__configFilePath = configFilePath
         logger.info("cachePath %s, configFilePath %s", self.__cachePath, self.__configFilePath)
-        self.__serverAndPort = "http://0.0.0.0:8000"
-        logger.info("Server and port address of application: %s", self.__serverAndPort)
+        self.__hostAndPort = hostAndPort if hostAndPort else "http://0.0.0.0:8000"
+        logger.info("Server and port address of application: %s", self.__hostAndPort)
         #
         cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         self.__fU = FileUtil()
@@ -97,7 +97,7 @@ class ClientUtils():
             async with httpx.AsyncClient() as client:
                 with open(filePath, "rb") as ifh:
                     files = {"uploadFile": ifh}
-                    response = await client.post(os.path.join(self.__serverAndPort, "file-v1", endPoint), files=files, data=mD, headers=self.__headerD)
+                    response = await client.post(os.path.join(self.__hostAndPort, "file-v1", endPoint), files=files, data=mD, headers=self.__headerD)
                     logger.info("Uploaded %r with status_code %r", filePath, response.status_code)
                     if response.status_code != 200:
                         logger.error("response %r %r", response.status_code, response.text)
@@ -181,7 +181,7 @@ class ClientUtils():
                     async with httpx.AsyncClient() as client:
                         with open(fPath, "rb") as itfh:
                             files = {"uploadFile": itfh}
-                            response = await client.post(os.path.join(self.__serverAndPort, "file-v1", endPoint), files=files, data=mD, headers=self.__headerD)
+                            response = await client.post(os.path.join(self.__hostAndPort, "file-v1", endPoint), files=files, data=mD, headers=self.__headerD)
                         if response.status_code != 200:
                             logger.error("response %r %r", response.status_code, response.text)
                         rD = response.json()
@@ -216,7 +216,7 @@ class ClientUtils():
             #
             async with httpx.AsyncClient() as client:
                 with open(fPath, "rb") as ifh:
-                    response = await client.post(os.path.join(self.__serverAndPort, "file-v1", endPoint), data=mD, headers=self.__headerD)
+                    response = await client.post(os.path.join(self.__hostAndPort, "file-v1", endPoint), data=mD, headers=self.__headerD)
                 if response.status_code != 200:
                     logger.error("response %r %r", response.status_code, response.text)
                 rD = response.json()
@@ -273,7 +273,7 @@ class ClientUtils():
             }
             #
             async with httpx.AsyncClient() as client:
-                response = await client.get(os.path.join(self.__serverAndPort, "file-v1", endPoint), params=mD, headers=self.__headerD)
+                response = await client.get(os.path.join(self.__hostAndPort, "file-v1", endPoint), params=mD, headers=self.__headerD)
                 logger.info("download response status code %r", response.status_code)
                 if response.status_code != 200:
                     logger.error("response %r %r", response.status_code, response.text)
