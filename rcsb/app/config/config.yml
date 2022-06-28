@@ -6,10 +6,10 @@ configuration:
   JWT_SUBJECT: aTestSubject
   JWT_ALGORITHM: HS256
   JWT_SECRET: aTestSecret
-  SESSION_DIR_PATH: ./rcsb/app/tests-file/test-data/data/sessions
-  REPOSITORY_DIR_PATH: ./rcsb/app/tests-file/test-data/data/repository
-  SHARED_LOCK_PATH: ./rcsb/app/tests-file/test-data/data/shared-locks
-  PDBX_REPOSITORY: ./rcsb/app/tests-file/test-data/data/mmcif
+  SESSION_DIR_PATH: rcsb/app/tests-file/test-data/data/sessions
+  REPOSITORY_DIR_PATH: rcsb/app/tests-file/test-data/data/repository
+  SHARED_LOCK_PATH: rcsb/app/tests-file/test-data/data/shared-locks
+  PDBX_REPOSITORY: rcsb/app/tests-file/test-data/data/mmcif
   ACCESS_KEY: awsKey
   SECRET_KEY: awsSecret
   AWS_REGION: awsRegion

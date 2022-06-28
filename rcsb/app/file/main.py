@@ -34,10 +34,12 @@ from .JWTAuthBearer import JWTAuthBearer
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
+
 # The following mimics the default Gunicorn logging format
 formatter = logging.Formatter("%(asctime)s [%(process)d] [%(levelname)s] [%(module)s.%(funcName)s] %(message)s", "[%Y-%m-%d %H:%M:%S %z]")
 # The following mimics the default Uvicorn logging format
 # formatter = logging.Formatter("%(levelname)s:     %(asctime)s-%(module)s.%(funcName)s: %(message)s")
+
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 logger.propagate = True
@@ -57,9 +59,9 @@ async def startupEvent():
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     #
-    logger.debug("Startup - running application startup placeholder method using %r", cachePath)
-    # logger.info("cachePath %s ", cachePath)
-    # logger.info("configFilePath %s ", configFilePath)
+    logger.debug("Startup - running application startup placeholder method")
+    logger.debug("Using cachePath %r", cachePath)
+    logger.debug("Using configFilePath %r", configFilePath)
     cp = ConfigProvider.ConfigProvider(cachePath, configFilePath)
     _ = cp.getConfig()
     _ = cp.getData()
