@@ -24,6 +24,7 @@ import uuid
 import typing
 import httpx
 # import aiofiles
+import math
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -94,7 +95,8 @@ class ClientUtils():
                 "hashDigest": hashDigest,
             }
             #
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=300.0) as client:
+                # Default timeout is 5.0 seconds
                 with open(filePath, "rb") as ifh:
                     files = {"uploadFile": ifh}
                     response = await client.post(os.path.join(self.__hostAndPort, "file-v1", endPoint), files=files, data=mD, headers=self.__headerD)
@@ -138,7 +140,7 @@ class ClientUtils():
                 if fileSize <= sliceSize:
                     sliceTotal = 1
                 else:
-                    sliceTotal = int(fileSize / sliceSize)
+                    sliceTotal = int(math.ceil(fileSize / sliceSize))
         except Exception as e:
             logger.exception("Failing to determine sliceTotal, with %s", str(e))
         #
@@ -178,7 +180,8 @@ class ClientUtils():
                         "hashDigest": None,
                     }
                     #
-                    async with httpx.AsyncClient() as client:
+                    async with httpx.AsyncClient(timeout=1800.0) as client:
+                        # Default timeout is 5.0 seconds, but takes ~10 seconds for ~0.3 GB slice
                         with open(fPath, "rb") as itfh:
                             files = {"uploadFile": itfh}
                             response = await client.post(os.path.join(self.__hostAndPort, "file-v1", endPoint), files=files, data=mD, headers=self.__headerD)
@@ -214,7 +217,10 @@ class ClientUtils():
                 "hashDigest": hashDigest,
             }
             #
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=1800.0) as client:
+                # NOTE: Need to use long timeout for very large files (> 350 MB), else
+                # can cause client-side error during checkHash() call in IoUtils.joinSlices().
+                # Default value is 5.0 seconds, but takes ~60 seconds for ~3 GB file
                 with open(fPath, "rb") as ifh:
                     response = await client.post(os.path.join(self.__hostAndPort, "file-v1", endPoint), data=mD, headers=self.__headerD)
                 if response.status_code != 200:
@@ -272,7 +278,8 @@ class ClientUtils():
                 "hashType": hashType,
             }
             #
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=1800.0) as client:
+                # Default timeout is 5.0 seconds, but takes ~120 seconds for ~3 GB file
                 response = await client.get(os.path.join(self.__hostAndPort, "file-v1", endPoint), params=mD, headers=self.__headerD)
                 logger.info("download response status code %r", response.status_code)
                 if response.status_code != 200:

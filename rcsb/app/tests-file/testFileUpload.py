@@ -61,7 +61,7 @@ logger.setLevel(logging.INFO)
 
 class FileUploadTests(unittest.TestCase):
     testSliceUpload = False
-    
+
     def setUp(self):
 
         self.__dataPath = os.path.join(HERE, "test-data")

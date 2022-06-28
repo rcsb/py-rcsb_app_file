@@ -92,7 +92,6 @@ class ClientUtilsTests(unittest.TestCase):
             sId = asyncio.run(
                 self.__cU.multipartUpload(
                     filePath=self.__testFilePath,
-                    sliceTotal=4,
                     idCode="D_5999000001",
                     repositoryType="onedep-archive",
                     contentType="model",
