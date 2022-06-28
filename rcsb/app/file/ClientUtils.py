@@ -24,6 +24,7 @@ import uuid
 import typing
 import httpx
 # import aiofiles
+import math
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -139,7 +140,7 @@ class ClientUtils():
                 if fileSize <= sliceSize:
                     sliceTotal = 1
                 else:
-                    sliceTotal = int(fileSize / sliceSize)
+                    sliceTotal = int(math.ceil(fileSize / sliceSize))
         except Exception as e:
             logger.exception("Failing to determine sliceTotal, with %s", str(e))
         #
