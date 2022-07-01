@@ -82,7 +82,8 @@ class AWSUploadTests(unittest.TestCase):
         with TestClient(app) as client:
             with open(testFileName, "rb") as ofh:
                 files = {"uploadFile": ofh}
-                response = client.post("http://128.6.159.177:8000/file-v1/upload-aioboto3", files=files, data=multiD)
+                fileAppServerAndPort = "http://X.X.X.X:8000"
+                response = client.post(fileAppServerAndPort+"/file-v1/upload-aioboto3", files=files, data=multiD)
         logger.info(response.status_code)
 
 
