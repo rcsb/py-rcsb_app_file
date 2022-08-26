@@ -231,6 +231,7 @@ class IoUtils:
         with FileLock(lockPath):
             ret = await self.store(ifh, slicePath, mode="wb", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
         ret["sliceCount"] = self.getSliceCount(sessionId, sliceTotal)
+        ret["sliceIndex"] = sliceIndex
         return ret
 
     # ---

@@ -20,12 +20,13 @@ __license__ = "Apache 2.0"
 import logging
 import os
 import time
+# from time import sleep
 import uuid
 import typing
 import math
-import httpx
 import asyncio
-import aiofiles
+import httpx
+# import aiofiles
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -99,8 +100,8 @@ class ClientUtils():
             async with httpx.AsyncClient(timeout=300.0) as client:
                 # Default timeout is 5.0 seconds
                 with open(filePath, "rb") as ifh:
-                    files = {"uploadFile": ifh}
-                    response = await client.post(os.path.join(self.__hostAndPort, "file-v1", endPoint), files=files, data=mD, headers=self.__headerD)
+                    filesD = {"uploadFile": ifh}
+                    response = await client.post(os.path.join(self.__hostAndPort, "file-v1", endPoint), files=filesD, data=mD, headers=self.__headerD)
                     logger.info("Uploaded %r with status_code %r", filePath, response.status_code)
                     if response.status_code != 200:
                         logger.error("response %r %r", response.status_code, response.text)
@@ -113,10 +114,12 @@ class ClientUtils():
         except Exception as e:
             logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
 
-    async def semaphoreTask(self, client, mD, filesD, endPoint, startTime):
-        semaphore = asyncio.Semaphore(10)
+    async def semaphoreTask(self, client, maxThreads, mD, filesD, endPoint, startTime):
+        semaphore = asyncio.Semaphore(maxThreads)
         async with semaphore:
             response = await client.post(os.path.join(self.__hostAndPort, "file-v1", endPoint), data=mD, files=filesD, headers=self.__headerD)
+            # filesD = {}  # clear the file data from memory -- This didn't make a difference
+            # logger.info("response %r", response.text)
             if response.status_code != 200:
                 logger.error("response %r %r", response.status_code, response.text)
             rD = response.json()
@@ -125,12 +128,19 @@ class ClientUtils():
                 logger.error("response %r %r", response.status_code, response.text)
             #
             logger.info("Completed slice (%d) on %s (%.4f seconds)", mD["sliceIndex"], endPoint, time.time() - startTime)
-            return
+            return (rD["sliceIndex"], rD["success"])
 
     async def multipartUpload(
         self,
         filePath: typing.Optional[str],
         sliceTotal: typing.Optional[int] = None,
+        sliceSize: typing.Optional[int] = 33554432,  # 32 MB = 33554432; 256 MB = 268435456
+        maxOpenFileHandles: typing.Optional[int] = 10,  # maximum number of slices to have open/read at a time;
+        #                                               # NOTE: you should account for 2x this number, since the file handles are copied onto the semaphore tasks too,
+        #                                                       which remain in memory there until the task is run
+        #                                               # SO ACTUALLY: total_max_mem_usage = sliceSize * maxOpenFileHandles * 2
+        #
+        maxThreads: typing.Optional[int] = 10,  # max number of simultaneous running threads; the semaphore count
         sessionId: typing.Optional[str] = None,
         idCode: typing.Optional[str] = None,  # "D_1000000001"
         repositoryType: typing.Optional[str] = None,  # "onedep-archive"
@@ -150,8 +160,6 @@ class ClientUtils():
         sessionId = sessionId if sessionId else uuid.uuid4().hex
         try:
             if not sliceTotal:
-                # sliceSize = 268435456  # 256 MB
-                sliceSize = 33554432  # 32 MB
                 fileSize = self.__fU.size(filePath)
                 if fileSize <= sliceSize:
                     sliceTotal = 1
@@ -179,21 +187,18 @@ class ClientUtils():
         # Second, read the MANIFEST file to determine what slices there are, and upload each slice using endpoint "upload-slice" to a non-staging "sessions" directory
         # (e.g., if file was split into directory "sessions/stagingX1...", the upload will be placed in adjacent directory "sessions/X1...")
         sliceIndex = 0
-        #
+        openFileHandles = 0
         #
         async with httpx.AsyncClient(timeout=1800.0) as client:
             # Default timeout is 5.0 seconds, but takes ~10 seconds for ~0.3 GB slice
-            # async with aiofiles.open(fPath, "rb") as itfh:
-
-            # async with aiofiles.open(manifestPath, "r", encoding="utf-8") as ifh:
             with open(manifestPath, "r", encoding="utf-8") as ifh:
                 tasks = []
                 # for line in await ifh.readlines():
                 for line in ifh:
-                # async for line in ifh:
                     fn = line[:-1]
                     fPath = os.path.join(sP, fn)
                     sliceIndex += 1
+                    openFileHandles += 1
                     startTime = time.time()
                     try:
                         mD = {
@@ -207,26 +212,29 @@ class ClientUtils():
                         }
                         #
                         with open(fPath, "rb") as itfh:
-                            # files = {"uploadFile": await itfh.read()}
-                            # files = {"uploadFile": itfh}
-                            files = {"uploadFile": itfh.read()}
-                            # response = await client.post(os.path.join(self.__hostAndPort, "file-v1", endPoint), files=files, data=mD, headers=self.__headerD)
-                            tasks.append(asyncio.ensure_future(self.semaphoreTask(client, mD, files, endPoint, startTime)))
+                            filesD = {"uploadFile": itfh.read()}
+                            tasks.append(asyncio.ensure_future(self.semaphoreTask(client, maxThreads, mD, filesD, endPoint, startTime)))
+                            # filesD = {}  # clear the file data from memory -- This didn't make a difference
                             logger.info("Created slice %s of %s", mD["sliceIndex"], sliceTotal)
                             #
-                        # if response.status_code != 200:
-                        #     logger.error("response %r %r", response.status_code, response.text)
-                        # rD = response.json()
-                        # logger.debug("rD %r", rD.items())
-                        # if not rD["success"]:
-                        #     logger.error("response %r %r", response.status_code, response.text)
-                        # #
-                        # logger.info("Completed slice (%d) on %s (%.4f seconds)", sliceIndex, endPoint, time.time() - startTime)
                     except Exception as e:
                         logger.exception("Failing with %s", str(e))
+                    #
+                    try:
+                        if openFileHandles == maxOpenFileHandles:
+                            retList = await asyncio.gather(*tasks)  # NOTE: This runs the tasks and clears them from memory, and closes the file handles
+                            logger.info("Slice upload return list: %r", retList)
+                            tasks = []
+                            openFileHandles = 0
+                    except Exception as e:
+                        logger.exception("Failing with %s", str(e))
+            #
             try:
-                r = await asyncio.gather(*tasks)
-                print(r)
+                if openFileHandles > 0:
+                    retList = await asyncio.gather(*tasks)
+                    logger.info("Slice upload return list: %r", retList)
+                    tasks = []
+                    openFileHandles = 0
             except Exception as e:
                 logger.exception("Failing with Exception %s", str(e))
         #
