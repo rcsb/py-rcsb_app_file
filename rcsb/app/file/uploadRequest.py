@@ -39,28 +39,31 @@ class HashType(str, Enum):
 
 class UploadResult(BaseModel):
     fileName: str = Field(None, title="Stored file name", description="Stored file name", example="D_0000000001_model_P1.cif.V3")
-    success: bool = Field(None, title="Success status", description="Success status", example="True")
-    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
+    success: bool = Field(None, title="Success status", description="Success status", example=True)
+    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example=200)
     statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
 
 
 class UploadResultAws(BaseModel):
     fileName: str = Field(None, title="Stored file name", description="Stored file name", example="D_0000000001_model_P1.cif.V3")
-    success: bool = Field(None, title="Success status", description="Success status", example="True")
-    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
+    success: bool = Field(None, title="Success status", description="Success status", example=True)
+    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example=200)
     statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
 
 
 class UploadSliceResult(BaseModel):
-    sliceCount: str = Field(None, title="Slice count", description="Slice count", example="2")
-    success: bool = Field(None, title="Success status", description="Success status", example="True")
+    sliceIndex: int = Field(None, title="Slice index", description="Slice index", example=1)
+    sliceCount: int = Field(None, title="Slice count", description="Number of slices currently uploaded (if applicable)", example=2)
+    success: bool = Field(None, title="Success status", description="Success status", example=True)
+    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example=200)
+    statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
 
 
 class UploadStatusResult(BaseModel):
     fileName: str = Field(None, title="Stored file name", description="Stored file name", example="D_0000000001_model_P1.cif.V3")
-    sliceCount: str = Field(None, title="Slice count", description="Number of slices currently uploaded (if applicable)", example="2")
-    success: bool = Field(None, title="Success status", description="Success status", example="True")
-    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
+    sliceCount: int = Field(None, title="Slice count", description="Number of slices currently uploaded (if applicable)", example=2)
+    success: bool = Field(None, title="Success status", description="Success status", example=True)
+    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example=200)
     statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
 
 
@@ -150,7 +153,7 @@ async def uploadSlice(
         logger.debug("sliceIndex %d sliceTotal %d return %r", sliceIndex, sliceTotal, ret)
     except Exception as e:
         logger.exception("Failing for %r %r with %s", fn, ct, str(e))
-        ret = {"success": False, "statusCode": 400, "statusMessage": "Slice upload fails with %s" % str(e)}
+        ret = {"sliceIndex": sliceIndex, "success": False, "statusCode": 400, "statusMessage": "Slice upload fails with %s" % str(e)}
 
     if not ret["success"]:
         raise HTTPException(status_code=405, detail=ret["statusMessage"])

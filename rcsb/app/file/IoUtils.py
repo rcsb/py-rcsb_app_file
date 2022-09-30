@@ -30,7 +30,9 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.utils.io.FileLock import FileLock
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 def wrapAsync(fnc: typing.Callable) -> typing.Awaitable:
@@ -231,6 +233,7 @@ class IoUtils:
         with FileLock(lockPath):
             ret = await self.store(ifh, slicePath, mode="wb", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
         ret["sliceCount"] = self.getSliceCount(sessionId, sliceTotal)
+        ret["sliceIndex"] = sliceIndex
         return ret
 
     # ---
@@ -393,7 +396,7 @@ class IoUtils:
             (bool): True for success or False otherwise
         """
         try:
-            sessionDirPath = os.path.join(self.__pathU.getSessionDirPath(), sessionId)
+            sessionDirPath = os.path.abspath(os.path.join(self.__pathU.getSessionDirPath(), sessionId))
             logger.info("Deleting session directory %r", sessionDirPath)
             await self.__rmtree(sessionDirPath)
             return True
