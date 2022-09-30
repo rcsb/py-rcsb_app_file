@@ -36,6 +36,23 @@ pip install .
 
 # Deployment on Local Server
 
+### Testing without docker
+
+From base repository directory (in `py-rcsb_app_file/`), start app with:
+```bash
+
+./deploy/LAUNCH_GUNICORN.sh
+
+```
+
+Then, in a separate shell (also from the base repository directory), run individual tests, e.g.:
+```bash
+
+python3 ./rcsb/app/tests-file/testClientUtils.py
+
+```
+
+
 ### Build Docker Container
 
 In directory that contains `Dockerfile.stage`:

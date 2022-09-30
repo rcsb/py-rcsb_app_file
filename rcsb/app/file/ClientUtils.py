@@ -50,6 +50,8 @@ class ClientUtils():
         self.__hostAndPort = hostAndPort if hostAndPort else "http://0.0.0.0:8000"
         logger.info("Server and port address of application: %s", self.__hostAndPort)
         #
+        self.__timeout = None  # Turn off request timeout
+        #
         cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         self.__fU = FileUtil()
         self.__ioU = IoUtils(cP)
@@ -97,7 +99,7 @@ class ClientUtils():
                 "hashDigest": hashDigest,
             }
             #
-            async with httpx.AsyncClient(timeout=300.0) as client:
+            async with httpx.AsyncClient(timeout=self.__timeout) as client:
                 # Default timeout is 5.0 seconds
                 with open(filePath, "rb") as ifh:
                     filesD = {"uploadFile": ifh}
@@ -134,8 +136,8 @@ class ClientUtils():
         self,
         filePath: typing.Optional[str],
         sliceTotal: typing.Optional[int] = None,
-        sliceSize: typing.Optional[int] = 33554432,  # 32 MB = 33554432; 256 MB = 268435456
-        maxOpenFileHandles: typing.Optional[int] = 10,  # maximum number of slices to have open/read at a time;
+        sliceSize: typing.Optional[int] = 268435456,  # 32 MB = 33554432; 256 MB = 268435456
+        maxOpenFileHandles: typing.Optional[int] = 5,  # maximum number of slices to have open/read at a time;
         #                                               # NOTE: you should account for 2x this number, since the file handles are copied onto the semaphore tasks too,
         #                                                       which remain in memory there until the task is run
         #                                               # SO ACTUALLY: total_max_mem_usage = sliceSize * maxOpenFileHandles * 2
@@ -189,7 +191,7 @@ class ClientUtils():
         sliceIndex = 0
         openFileHandles = 0
         #
-        async with httpx.AsyncClient(timeout=1800.0) as client:
+        async with httpx.AsyncClient(timeout=self.__timeout) as client:
             # Default timeout is 5.0 seconds, but takes ~10 seconds for ~0.3 GB slice
             with open(manifestPath, "r", encoding="utf-8") as ifh:
                 tasks = []
@@ -260,7 +262,7 @@ class ClientUtils():
                 "hashDigest": hashDigest,
             }
             #
-            async with httpx.AsyncClient(timeout=1800.0) as client:
+            async with httpx.AsyncClient(timeout=self.__timeout) as client:
                 # NOTE: Need to use long timeout for very large files (> 350 MB), else
                 # can cause client-side error during checkHash() call in IoUtils.joinSlices().
                 # Default value is 5.0 seconds, but takes ~60 seconds for ~3 GB file
@@ -321,7 +323,7 @@ class ClientUtils():
                 "hashType": hashType,
             }
             #
-            async with httpx.AsyncClient(timeout=1800.0) as client:
+            async with httpx.AsyncClient(timeout=self.__timeout) as client:
                 # Default timeout is 5.0 seconds, but takes ~120 seconds for ~3 GB file
                 response = await client.get(os.path.join(self.__hostAndPort, "file-v1", endPoint), params=mD, headers=self.__headerD)
                 logger.info("download response status code %r", response.status_code)
