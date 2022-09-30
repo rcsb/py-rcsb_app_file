@@ -1,6 +1,6 @@
 # py-rcsb_app_file
 
-File Access Service Application
+File Access API Service Application
 
 ### Installation
 
