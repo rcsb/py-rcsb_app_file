@@ -1,6 +1,8 @@
-# py-rcsb_app_file
+# RCSB File Access API Application
 
-File Access Service Application
+## A FastAPI File Access Service Application
+
+[![Build Status](https://dev.azure.com/rcsb/RCSB%20PDB%20Python%20Projects/_apis/build/status/rcsb.py-rcsb_app_file?branchName=master)](https://dev.azure.com/rcsb/RCSB%20PDB%20Python%20Projects/_build/latest?definitionId=12&branchName=master)
 
 ### Installation
 
