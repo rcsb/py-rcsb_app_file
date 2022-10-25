@@ -71,10 +71,6 @@ async def fileExists(
     version: str = Query("latest", title="Version string", description="OneDep version number or description", example="1,2,3, latest, previous"),
 ):
     success = False
-    fileName = fileName if fileName else None
-    fileDir = fileDir if fileDir else None
-    filePath = filePath if filePath else None
-    # fileVersion = version if version else None
     try:
         fU = FileUtil()
         cachePath = os.environ.get("CACHE_PATH")
@@ -82,14 +78,15 @@ async def fileExists(
         cP = ConfigProvider(cachePath, configFilePath)
         pathU = PathUtils(cP)
         #
-        logger.info("repositoryType %r idCode %r contentType %r format %r version %r", repositoryType, idCode, contentType, contentFormat, version)
-        #
         if not filePath:
             if fileDir and fileName:
+                logger.info("Checking fileDir %r fileName %r", fileDir, fileName)
                 filePath = os.path.join(fileDir, fileName)
             else:
+                logger.info("Checking repositoryType %r idCode %r contentType %r format %r version %r", repositoryType, idCode, contentType, contentFormat, version)
                 filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
-        #
+        else:
+            logger.info("Checking filePath %r", filePath)
         fileName = fU.getFileName(filePath)
         # fileEnd = fileName.split(".")[-1]
         # if "V" in fileEnd:
@@ -112,28 +109,67 @@ async def fileExists(
     return ret
 
 
-@router.post("/path-exists", response_model=PathResult)
-async def pathExists(
-    path: str = Query(None, title="Path", description="File or directory path", example="repository/archive/D_2000000001/D_2000000001_model_P1.cif.V1"),
+@router.post("/dir-exists", response_model=PathResult)
+async def dirExists(
+    idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Query(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
+    fileDir: str = Query(None, title="File directory", description="File directory path", example="/non_standard/directory/"),
 ):
     success = False
     try:
         fU = FileUtil()
-        logger.info("Checking if path exists %r", path)
-        success = fU.exists(path)
-        logger.info("success %r path %r", success, path)
+        cachePath = os.environ.get("CACHE_PATH")
+        configFilePath = os.environ.get("CONFIG_FILE")
+        cP = ConfigProvider(cachePath, configFilePath)
+        pathU = PathUtils(cP)
+        #
+        if not fileDir:
+            logger.info("Checking repositoryType %r idCode %r", repositoryType, idCode)
+            fileDir = pathU.getDirPath(repositoryType, idCode)
+        else:
+            logger.info("Checking fileDir %r", fileDir)
+        #
+        success = fU.exists(fileDir)
+        logger.info("success %r fileDir %r", success, fileDir)
         #
     except Exception as e:
         logger.exception("Failing with %s", str(e))
-        ret = {"path": path, "success": False, "statusCode": 400, "statusMessage": "File checking fails with %s" % str(e)}
+        raise HTTPException(status_code=400, detail="File checking fails with %s" % str(e))
     #
     if not success:
-        if path:
-            raise HTTPException(status_code=404, detail="Request path does not exist %s" % path)
+        if fileDir:
+            raise HTTPException(status_code=404, detail="Request directory path does not exist %s" % fileDir)
+        else:
+            raise HTTPException(status_code=403, detail="Bad or incomplete path metadata")
+    else:
+        ret = {"success": success, "path": fileDir, "statusCode": 200, "statusMessage": "Directory exists"}
+
+    return ret
+
+
+@router.post("/path-exists", response_model=PathResult)
+async def pathExists(
+    filePath: str = Query(None, title="File path", description="Full file or directory path", example="non_standard/directory/D_2000000001/D_2000000001_model_P1.cif.V1"),
+
+):
+    success = False
+    try:
+        fU = FileUtil()
+        logger.info("Checking if path exists %r", filePath)
+        success = fU.exists(filePath)
+        logger.info("success %r path %r", success, filePath)
+        #
+    except Exception as e:
+        logger.exception("Failing with %s", str(e))
+        ret = {"path": filePath, "success": False, "statusCode": 400, "statusMessage": "File checking fails with %s" % str(e)}
+    #
+    if not success:
+        if filePath:
+            raise HTTPException(status_code=404, detail="Request path does not exist %s" % filePath)
         else:
             raise HTTPException(status_code=403, detail="No path provided in request")
     else:
-        ret = {"path": path, "success": True, "statusCode": 200, "statusMessage": "Path exists"}
+        ret = {"path": filePath, "success": True, "statusCode": 200, "statusMessage": "Path exists"}
 
     return ret
 
