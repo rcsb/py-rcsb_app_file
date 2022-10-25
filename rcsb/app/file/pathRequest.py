@@ -2,6 +2,15 @@
 # File: pathRequest.py
 # Date: 24-May-2022
 #
+# Add Endpoints:
+#   - fileExists (use for checking if file exists provided ID, repoType, contentType, etc.--client focused)
+#   - pathExists (use for checking if file or directory exists provided an absolute path--general purpose)
+#   - dirExists  (use for checking if directory exists provided the ID and repoType--client focused)
+#   - getLatestFileVersion
+#   - Copy and/or move files between directories
+#   - List directory
+#   - getFileHash
+#
 ##
 __docformat__ = "google en"
 __author__ = "Dennis Piehl"
@@ -41,11 +50,21 @@ class FileResult(BaseModel):
     statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
     statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
 
+
+class DirResult(BaseModel):
+    success: bool = Field(None, title="Success status", description="Success status", example="True")
+    dirPath: str = Field(None, title="Directory path", description="Directory path to list", example="repository/archive/D_2000000001/")
+    dirList: list = Field(None, title="Directory list", description="Directory content list", example=["D_0000000001_model_P1.cif.V1", "D_0000000001_model_P1.cif.V2"])
+    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
+    statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
+
+
 class PathResult(BaseModel):
     success: bool = Field(None, title="Success status", description="Success status", example="True")
     path: str = Field(None, title="Path", description="File or directory path", example="repository/archive/D_2000000001/D_2000000001_model_P1.cif.V1")
     statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
     statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
+
 
 class FileCopyResult(BaseModel):
     success: bool = Field(None, title="Success status", description="Success status", example="True")
@@ -53,15 +72,6 @@ class FileCopyResult(BaseModel):
     filePathTarget: str = Field(None, title="Target file path", description="Stored file name", example="D_0000000001_model_P1.cif.V3")
     statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
     statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
-
-
-# Add Endpoints:
-# - fileExists (use for checking if file exists provided ID, repoType, contentType, etc.--client focused)
-# - pathExists (use for checking if file or directory exists provided an absolute path--general purpose)
-# - dirExists  (use for checking if directory exists provided the ID and repoType--client focused)
-# - getLatestFileVersion
-# - Move and/or copy files between directories
-# - getFileHash
 
 
 @router.post("/file-exists", response_model=FileResult)
@@ -72,7 +82,7 @@ async def fileExists(
     contentFormat: str = Query(None, title="Content format", description="OneDep content format", example="pdb, pdbx, mtz, pdf"),
     partNumber: int = Query(1, title="Content part", description="OneDep part number", example="1,2,3"),
     fileName: str = Query(None, title="Filename", description="Filename", example="example.cif.gz"),
-    fileDir: str = Query(None, title="File directory", description="File directory", example="/non_standard/directory/"),
+    dirPath: str = Query(None, title="File directory", description="File directory", example="/non_standard/directory/"),
     filePath: str = Query(None, title="File path", description="Full file path", example="/non_standard/directory/example.cif.gz"),
     version: str = Query("latest", title="Version string", description="OneDep version number or description", example="1,2,3, latest, previous"),
 ):
@@ -85,9 +95,9 @@ async def fileExists(
         pathU = PathUtils(cP)
         #
         if not filePath:
-            if fileDir and fileName:
-                logger.info("Checking fileDir %r fileName %r", fileDir, fileName)
-                filePath = os.path.join(fileDir, fileName)
+            if dirPath and fileName:
+                logger.info("Checking dirPath %r fileName %r", dirPath, fileName)
+                filePath = os.path.join(dirPath, fileName)
             else:
                 logger.info("Checking repositoryType %r idCode %r contentType %r format %r version %r", repositoryType, idCode, contentType, contentFormat, version)
                 filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
@@ -119,7 +129,7 @@ async def fileExists(
 async def dirExists(
     idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Query(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
-    fileDir: str = Query(None, title="File directory", description="File directory path", example="/non_standard/directory/"),
+    dirPath: str = Query(None, title="File directory", description="File directory path", example="/non_standard/directory/"),
 ):
     success = False
     try:
@@ -129,26 +139,26 @@ async def dirExists(
         cP = ConfigProvider(cachePath, configFilePath)
         pathU = PathUtils(cP)
         #
-        if not fileDir:
+        if not dirPath:
             logger.info("Checking repositoryType %r idCode %r", repositoryType, idCode)
-            fileDir = pathU.getDirPath(repositoryType, idCode)
+            dirPath = pathU.getDirPath(repositoryType, idCode)
         else:
-            logger.info("Checking fileDir %r", fileDir)
+            logger.info("Checking dirPath %r", dirPath)
         #
-        success = fU.exists(fileDir)
-        logger.info("success %r fileDir %r", success, fileDir)
+        success = fU.exists(dirPath)
+        logger.info("success %r dirPath %r", success, dirPath)
         #
     except Exception as e:
         logger.exception("Failing with %s", str(e))
         raise HTTPException(status_code=400, detail="File checking fails with %s" % str(e))
     #
     if not success:
-        if fileDir:
-            raise HTTPException(status_code=404, detail="Request directory path does not exist %s" % fileDir)
+        if dirPath:
+            raise HTTPException(status_code=404, detail="Request directory path does not exist %s" % dirPath)
         else:
             raise HTTPException(status_code=403, detail="Bad or incomplete path metadata")
     else:
-        ret = {"success": success, "path": fileDir, "statusCode": 200, "statusMessage": "Directory exists"}
+        ret = {"success": success, "path": dirPath, "statusCode": 200, "statusMessage": "Directory exists"}
 
     return ret
 
@@ -238,7 +248,7 @@ async def fileCopy(
     contentFormatSource: str = Query(None, title="Input Content format", description="OneDep content format of file to copy", example="pdb, pdbx, mtz, pdf"),
     partNumberSource: int = Query(1, title="Input Content part", description="OneDep part number of file to copy", example="1,2,3"),
     fileNameSource: str = Query(None, title="Input Filename", description="Filename of file to copy", example="example.cif.gz"),
-    fileDirSource: str = Query(None, title="Input File directory", description="File directory of file to copy", example="/non_standard/directory/"),
+    dirPathSource: str = Query(None, title="Input File directory", description="File directory of file to copy", example="/non_standard/directory/"),
     filePathSource: str = Query(None, title="Input File path", description="Full file path of file to copy", example="/non_standard/directory/example.cif.gz"),
     versionSource: str = Query("latest", title="Input Version string", description="OneDep version number or description of file to copy", example="1,2,3, latest, previous"),
     #
@@ -248,7 +258,7 @@ async def fileCopy(
     contentFormatTarget: str = Query(None, title="Input Content format", description="OneDep content format of destination file", example="pdb, pdbx, mtz, pdf"),
     partNumberTarget: int = Query(1, title="Input Content part", description="OneDep part number of destination file", example="1,2,3"),
     fileNameTarget: str = Query(None, title="Input Filename", description="Filename of destination file", example="example.cif.gz"),
-    fileDirTarget: str = Query(None, title="Input File directory", description="File directory of destination file", example="/non_standard/directory/"),
+    dirPathTarget: str = Query(None, title="Input File directory", description="File directory of destination file", example="/non_standard/directory/"),
     filePathTarget: str = Query(None, title="Input File path", description="Full file path of destination file", example="/non_standard/directory/example.cif.gz"),
     versionTarget: str = Query("latest", title="Input Version string", description="OneDep version number or description of destination file", example="1,2,3, latest, previous"),
 ):
@@ -261,9 +271,9 @@ async def fileCopy(
         pathU = PathUtils(cP)
         #
         if not filePathSource:
-            if fileDirSource and fileNameSource:
-                logger.info("Copying fileDir %r fileName %r", fileDirSource, fileNameSource)
-                filePathSource = os.path.join(fileDirSource, fileNameSource)
+            if dirPathSource and fileNameSource:
+                logger.info("Copying dirPath %r fileName %r", dirPathSource, fileNameSource)
+                filePathSource = os.path.join(dirPathSource, fileNameSource)
             else:
                 logger.info(
                     "Copying repositoryType %r idCode %r contentType %r format %r version %r",
@@ -271,9 +281,9 @@ async def fileCopy(
                 )
                 filePathSource = pathU.getVersionedPath(repositoryTypeSource, idCodeSource, contentTypeSource, partNumberSource, contentFormatSource, versionSource)
         if not filePathTarget:
-            if fileDirTarget and fileNameTarget:
-                logger.info("Destination fileDir %r fileName %r", fileDirTarget, fileNameTarget)
-                filePathTarget = os.path.join(fileDirTarget, fileNameTarget)
+            if dirPathTarget and fileNameTarget:
+                logger.info("Destination dirPath %r fileName %r", dirPathTarget, fileNameTarget)
+                filePathTarget = os.path.join(dirPathTarget, fileNameTarget)
             else:
                 logger.info(
                     "Destination repositoryType %r idCode %r contentType %r format %r version %r",
@@ -282,7 +292,7 @@ async def fileCopy(
                 filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, idCodeTarget, contentTypeTarget, partNumberTarget, contentFormatTarget, versionTarget)
 
         if not (filePathSource or filePathTarget):
-            raise HTTPException(status_code=403, detail="Source (%r) or target (%r) filepath not defined." % (filePathSource, filePathTarget))
+            raise HTTPException(status_code=403, detail="Source (%r) or target (%r) filepath not defined" % (filePathSource, filePathTarget))
 
         logger.info("Copying filePath %r to %r", filePathSource, filePathTarget)
         success = fU.put(filePathSource, filePathTarget)
@@ -294,8 +304,56 @@ async def fileCopy(
         raise HTTPException(status_code=400, detail="File checking fails with %s" % str(e))
     #
     if not success:
-        raise HTTPException(status_code=403, detail="Bad or incomplete payload")
+        raise HTTPException(status_code=403, detail="Bad or incomplete request parameters")
     else:
         ret = {"success": success, "filePathSource": filePathSource, "filePathTarget": filePathTarget, "statusCode": 200, "statusMessage": "File copy success"}
+
+    return ret
+
+
+@router.post("/list-dir", response_model=DirResult)
+async def listDir(
+    idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Query(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
+    dirPath: str = Query(None, title="File directory", description="File directory", example="/non_standard/directory/"),
+    filePath: str = Query(None, title="File path", description="Full file path", example="/non_standard/directory/example.cif.gz"),
+):
+    success = False
+    dirList = []
+    try:
+        fU = FileUtil()
+        cachePath = os.environ.get("CACHE_PATH")
+        configFilePath = os.environ.get("CONFIG_FILE")
+        cP = ConfigProvider(cachePath, configFilePath)
+        pathU = PathUtils(cP)
+        #
+        if not dirPath:
+            if filePath:
+                # List the parent directory of the requested filePath
+                dirPath = os.path.abspath(os.path.dirname(filePath))
+                logger.info("Listing dirPath %r for filePath %r", dirPath, filePath)
+            else:
+                # List directory of requested repositoryType and idCode
+                dirPath = pathU.getDirPath(repositoryType, idCode)
+                logger.info("Listing dirPath %r for repositoryType %r idCode %r", dirPath, repositoryType, idCode)
+        else:
+            logger.info("Listing dirPath %r", dirPath)
+        dirExistsBool = fU.exists(dirPath)
+        if dirExistsBool:
+            dirList = os.listdir(dirPath)
+            logger.info("dirList (len %d): %r", len(dirList), dirList)
+            success = True
+        #
+    except Exception as e:
+        logger.exception("Failing with %s", str(e))
+        raise HTTPException(status_code=400, detail="File checking fails with %s" % str(e))
+    #
+    if not success:
+        if not dirExistsBool:
+            raise HTTPException(status_code=404, detail="Requested directory does not exist %s" % dirPath)
+        else:
+            raise HTTPException(status_code=403, detail="Failed to list directory for given request parameters")
+    else:
+        ret = {"success": success, "dirPath": dirPath, "dirList": dirList, "statusCode": 200, "statusMessage": "Directory contents"}
 
     return ret

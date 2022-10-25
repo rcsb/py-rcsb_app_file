@@ -9,7 +9,7 @@
 #
 ##
 """
-Tests for file status API.
+Tests for file/directory path API endpoints.
 
 """
 
@@ -178,7 +178,6 @@ class PathRequestTests(unittest.TestCase):
                 logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
-                #
             #
             # Next test for file that DOESN'T exists
             path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_1234567890/D_1234567890_model_P1.cif.V1"
@@ -187,7 +186,82 @@ class PathRequestTests(unittest.TestCase):
                 logger.info("file status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 404)
-                #
+            #
+            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
+    def testDirExists(self):
+        """Test - dir exists"""
+        endPoint = "dir-exists"
+        startTime = time.time()
+        try:
+            # First test for dir that actually exists (created in fixture above)
+            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/"
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+            #
+            # Next test for dir that DOESN'T exists
+            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_1234567890/"
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 404)
+            #
+            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
+    def testListDir(self):
+        """Test - list dir"""
+        endPoint = "list-dir"
+        startTime = time.time()
+        try:
+            # First test for dir that actually exists (created in fixture above), given a specific dirPath
+            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/"
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+            #
+            # Next test for dir that actually exists (created in fixture above), given a specific filePath
+            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/D_2000000001_model_P1.cif.V1"
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+            #
+            # Next test for dir that actually exists (created in fixture above), given idCode and repositoryType
+            mD = {
+                "idCode": "D_2000000001",
+                "repositoryType": "onedep-archive",
+            }
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+            #
+            # Next test for dir that DOESN'T exists
+            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_1234567890/"
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 404)
+            #
             logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
@@ -224,6 +298,8 @@ def pathRequestTestSuite():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(PathRequestTests("testFileExists"))
     suiteSelect.addTest(PathRequestTests("testPathExists"))
+    suiteSelect.addTest(PathRequestTests("testDirExists"))
+    suiteSelect.addTest(PathRequestTests("testListDir"))
     suiteSelect.addTest(PathRequestTests("testLatestFileVersion"))
     return suiteSelect
 
