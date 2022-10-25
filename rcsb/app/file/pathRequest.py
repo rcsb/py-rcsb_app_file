@@ -165,27 +165,27 @@ async def dirExists(
 
 @router.post("/path-exists", response_model=PathResult)
 async def pathExists(
-    filePath: str = Query(None, title="File path", description="Full file or directory path", example="non_standard/directory/D_2000000001/D_2000000001_model_P1.cif.V1"),
+    path: str = Query(None, title="File path", description="Full file or directory path", example="non_standard/directory/D_2000000001/D_2000000001_model_P1.cif.V1"),
 
 ):
     success = False
     try:
         fU = FileUtil()
-        logger.info("Checking if path exists %r", filePath)
-        success = fU.exists(filePath)
-        logger.info("success %r path %r", success, filePath)
+        logger.info("Checking if path exists %r", path)
+        success = fU.exists(path)
+        logger.info("success %r path %r", success, path)
         #
     except Exception as e:
         logger.exception("Failing with %s", str(e))
-        ret = {"path": filePath, "success": False, "statusCode": 400, "statusMessage": "File checking fails with %s" % str(e)}
+        ret = {"path": path, "success": False, "statusCode": 400, "statusMessage": "File checking fails with %s" % str(e)}
     #
     if not success:
-        if filePath:
-            raise HTTPException(status_code=404, detail="Request path does not exist %s" % filePath)
+        if path:
+            raise HTTPException(status_code=404, detail="Request path does not exist %s" % path)
         else:
             raise HTTPException(status_code=403, detail="No path provided in request")
     else:
-        ret = {"path": filePath, "success": True, "statusCode": 200, "statusMessage": "Path exists"}
+        ret = {"path": path, "success": True, "statusCode": 200, "statusMessage": "Path exists"}
 
     return ret
 
@@ -242,25 +242,25 @@ async def latestFileVersion(
 
 @router.post("/file-copy", response_model=FileCopyResult)
 async def fileCopy(
-    idCodeSource: str = Query(None, title="Input ID Code", description="Identifier code of file to copy", example="D_0000000001"),
-    repositoryTypeSource: str = Query(None, title="Input Repository Type", description="OneDep repository type of file to copy", example="onedep-archive, onedep-deposit"),
-    contentTypeSource: str = Query(None, title="Input Content type", description="OneDep content type of file to copy", example="model, structure-factors, val-report-full"),
+    idCodeSource: str = Query(None, title="Source ID Code", description="Identifier code of file to copy", example="D_0000000001"),
+    repositoryTypeSource: str = Query(None, title="Source Repository Type", description="OneDep repository type of file to copy", example="onedep-archive, onedep-deposit"),
+    contentTypeSource: str = Query(None, title="Source Content type", description="OneDep content type of file to copy", example="model, structure-factors, val-report-full"),
     contentFormatSource: str = Query(None, title="Input Content format", description="OneDep content format of file to copy", example="pdb, pdbx, mtz, pdf"),
-    partNumberSource: int = Query(1, title="Input Content part", description="OneDep part number of file to copy", example="1,2,3"),
-    fileNameSource: str = Query(None, title="Input Filename", description="Filename of file to copy", example="example.cif.gz"),
-    dirPathSource: str = Query(None, title="Input File directory", description="File directory of file to copy", example="/non_standard/directory/"),
-    filePathSource: str = Query(None, title="Input File path", description="Full file path of file to copy", example="/non_standard/directory/example.cif.gz"),
-    versionSource: str = Query("latest", title="Input Version string", description="OneDep version number or description of file to copy", example="1,2,3, latest, previous"),
+    partNumberSource: int = Query(1, title="Source Content part", description="OneDep part number of file to copy", example="1,2,3"),
+    fileNameSource: str = Query(None, title="Source Filename", description="Filename of file to copy", example="example.cif.gz"),
+    dirPathSource: str = Query(None, title="Source File directory", description="File directory of file to copy", example="/non_standard/directory/"),
+    filePathSource: str = Query(None, title="Source File path", description="Full file path of file to copy", example="/non_standard/directory/example.cif.gz"),
+    versionSource: str = Query("latest", title="Source Version string", description="OneDep version number or description of file to copy", example="1,2,3, latest, previous, next"),
     #
-    idCodeTarget: str = Query(None, title="Input ID Code", description="Identifier code of destination file", example="D_0000000001"),
-    repositoryTypeTarget: str = Query(None, title="Input Repository Type", description="OneDep repository type of destination file", example="onedep-archive, onedep-deposit"),
-    contentTypeTarget: str = Query(None, title="Input Content type", description="OneDep content type of destination file", example="model, structure-factors, val-report-full"),
+    idCodeTarget: str = Query(None, title="Target ID Code", description="Identifier code of destination file", example="D_0000000001"),
+    repositoryTypeTarget: str = Query(None, title="Target Repository Type", description="OneDep repository type of destination file", example="onedep-archive, onedep-deposit"),
+    contentTypeTarget: str = Query(None, title="Target Content type", description="OneDep content type of destination file", example="model, structure-factors, val-report-full"),
     contentFormatTarget: str = Query(None, title="Input Content format", description="OneDep content format of destination file", example="pdb, pdbx, mtz, pdf"),
-    partNumberTarget: int = Query(1, title="Input Content part", description="OneDep part number of destination file", example="1,2,3"),
-    fileNameTarget: str = Query(None, title="Input Filename", description="Filename of destination file", example="example.cif.gz"),
-    dirPathTarget: str = Query(None, title="Input File directory", description="File directory of destination file", example="/non_standard/directory/"),
-    filePathTarget: str = Query(None, title="Input File path", description="Full file path of destination file", example="/non_standard/directory/example.cif.gz"),
-    versionTarget: str = Query("latest", title="Input Version string", description="OneDep version number or description of destination file", example="1,2,3, latest, previous"),
+    partNumberTarget: int = Query(1, title="Target Content part", description="OneDep part number of destination file", example="1,2,3"),
+    fileNameTarget: str = Query(None, title="Target Filename", description="Filename of destination file", example="example.cif.gz"),
+    dirPathTarget: str = Query(None, title="Target File directory", description="File directory of destination file", example="/non_standard/directory/"),
+    filePathTarget: str = Query(None, title="Target File path", description="Full file path of destination file", example="/non_standard/directory/example.cif.gz"),
+    versionTarget: str = Query(None, title="Target Version string", description="OneDep version number or description of destination file", example="1,2,3, latest, previous, next"),
 ):
     success = False
     try:
@@ -280,18 +280,28 @@ async def fileCopy(
                     repositoryTypeSource, idCodeSource, contentTypeSource, contentFormatSource, versionSource
                 )
                 filePathSource = pathU.getVersionedPath(repositoryTypeSource, idCodeSource, contentTypeSource, partNumberSource, contentFormatSource, versionSource)
+                logger.info("filePathSource %r", filePathSource)
         if not filePathTarget:
             if dirPathTarget and fileNameTarget:
                 logger.info("Destination dirPath %r fileName %r", dirPathTarget, fileNameTarget)
                 filePathTarget = os.path.join(dirPathTarget, fileNameTarget)
             else:
+                if not versionTarget:
+                    sourceFileEnd = filePathSource.split(".")[-1]
+                    if "V" in sourceFileEnd:
+                        # set target version to the same as source version
+                        versionTarget = sourceFileEnd.split("V")[1]
+                    else:
+                        # set target version to "next" increment in target repo (if file doesn't already exist in the target repo, then it will start at "V1")
+                        versionTarget = "next"
                 logger.info(
                     "Destination repositoryType %r idCode %r contentType %r format %r version %r",
                     repositoryTypeTarget, idCodeTarget, contentTypeTarget, contentFormatTarget, versionTarget
                 )
                 filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, idCodeTarget, contentTypeTarget, partNumberTarget, contentFormatTarget, versionTarget)
+                logger.info("filePathTarget %r", filePathTarget)
 
-        if not (filePathSource or filePathTarget):
+        if not filePathSource or not filePathTarget:
             raise HTTPException(status_code=403, detail="Source (%r) or target (%r) filepath not defined" % (filePathSource, filePathTarget))
 
         logger.info("Copying filePath %r to %r", filePathSource, filePathTarget)

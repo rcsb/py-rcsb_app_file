@@ -236,7 +236,7 @@ class PathRequestTests(unittest.TestCase):
             # Next test for dir that actually exists (created in fixture above), given a specific filePath
             path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/D_2000000001_model_P1.cif.V1"
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                response = client.post("/file-v1/%s" % endPoint, params={"filePath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
@@ -293,6 +293,38 @@ class PathRequestTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
+    def testFileCopy(self):
+        """Test - file copy"""
+        endPoint = "file-copy"
+        startTime = time.time()
+        try:
+            # Copy file from one repositoryType to another
+            mD = {
+                "idCodeSource": "D_1000000001",
+                "repositoryTypeSource": "onedep-archive",
+                "contentTypeSource": "model",
+                "contentFormatSource": "pdbx",
+                "partNumberSource": 1,
+                #
+                "idCodeTarget": "D_1000000001",
+                "repositoryTypeTarget": "onedep-deposit",
+                "contentTypeTarget": "model",
+                "contentFormatTarget": "pdbx",
+                "partNumberTarget": 1,
+            }
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
+                # print("RESPONSE", response.text)
+                logger.info("file status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+                #
+            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
 
 def pathRequestTestSuite():
     suiteSelect = unittest.TestSuite()
@@ -301,6 +333,7 @@ def pathRequestTestSuite():
     suiteSelect.addTest(PathRequestTests("testDirExists"))
     suiteSelect.addTest(PathRequestTests("testListDir"))
     suiteSelect.addTest(PathRequestTests("testLatestFileVersion"))
+    suiteSelect.addTest(PathRequestTests("testFileCopy"))
     return suiteSelect
 
 
