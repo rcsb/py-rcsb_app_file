@@ -111,6 +111,15 @@ class PathUtils:
             logger.exception("Failing with %s", str(e))
         return filePath
 
+    def getDirPath(self, repositoryType: str, idCode: str) -> typing.Optional[str]:
+        dirPath = None
+        try:
+            repoPath = self.getRepositoryDirPath(repositoryType)
+            dirPath = os.path.join(repoPath, idCode)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+        return dirPath
+
     def checkContentTypeFormat(self, contentType: str = None, contentFormat: str = None) -> bool:
         ok = False
         try:

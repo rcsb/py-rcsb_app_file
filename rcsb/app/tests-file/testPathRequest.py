@@ -1,5 +1,5 @@
 ##
-# File:    testFileStatus.py
+# File:    testPathRequest.py
 # Author:  Dennis Piehl
 # Date:    24-May-2022
 # Version: 0.001
@@ -9,7 +9,7 @@
 #
 ##
 """
-Tests for file status API.
+Tests for file/directory path API endpoints.
 
 """
 
@@ -47,7 +47,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-class FileStatusTests(unittest.TestCase):
+class PathRequestTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Fixture to create file test data"""
@@ -68,7 +68,7 @@ class FileStatusTests(unittest.TestCase):
         #     ofh.write("".join(random.choices(string.ascii_uppercase + string.digits, k=nB)))
         # #
         # testFilePath = os.path.join(dataPath, "example-data.cif")
-        FileStatusTests.__repoFixture(repoTestPath, testFilePath)
+        PathRequestTests.__repoFixture(repoTestPath, testFilePath)
 
     @classmethod
     def __repoFixture(cls, repoPath, testFilePath):
@@ -178,7 +178,6 @@ class FileStatusTests(unittest.TestCase):
                 logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
-                #
             #
             # Next test for file that DOESN'T exists
             path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_1234567890/D_1234567890_model_P1.cif.V1"
@@ -187,7 +186,82 @@ class FileStatusTests(unittest.TestCase):
                 logger.info("file status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 404)
-                #
+            #
+            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
+    def testDirExists(self):
+        """Test - dir exists"""
+        endPoint = "dir-exists"
+        startTime = time.time()
+        try:
+            # First test for dir that actually exists (created in fixture above)
+            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/"
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+            #
+            # Next test for dir that DOESN'T exists
+            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_1234567890/"
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 404)
+            #
+            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
+    def testListDir(self):
+        """Test - list dir"""
+        endPoint = "list-dir"
+        startTime = time.time()
+        try:
+            # First test for dir that actually exists (created in fixture above), given a specific dirPath
+            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/"
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+            #
+            # Next test for dir that actually exists (created in fixture above), given a specific filePath
+            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/D_2000000001_model_P1.cif.V1"
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params={"filePath": path}, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+            #
+            # Next test for dir that actually exists (created in fixture above), given idCode and repositoryType
+            mD = {
+                "idCode": "D_2000000001",
+                "repositoryType": "onedep-archive",
+            }
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+            #
+            # Next test for dir that DOESN'T exists
+            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_1234567890/"
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 404)
+            #
             logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
@@ -219,15 +293,50 @@ class FileStatusTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
+    def testFileCopy(self):
+        """Test - file copy"""
+        endPoint = "file-copy"
+        startTime = time.time()
+        try:
+            # Copy file from one repositoryType to another
+            mD = {
+                "idCodeSource": "D_1000000001",
+                "repositoryTypeSource": "onedep-archive",
+                "contentTypeSource": "model",
+                "contentFormatSource": "pdbx",
+                "partNumberSource": 1,
+                #
+                "idCodeTarget": "D_1000000001",
+                "repositoryTypeTarget": "onedep-deposit",
+                "contentTypeTarget": "model",
+                "contentFormatTarget": "pdbx",
+                "partNumberTarget": 1,
+            }
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
+                # print("RESPONSE", response.text)
+                logger.info("file status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+                #
+            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
 
-def fileStatusTests():
+
+def pathRequestTestSuite():
     suiteSelect = unittest.TestSuite()
-    suiteSelect.addTest(FileStatusTests("testFileExists"))
-    suiteSelect.addTest(FileStatusTests("testPathExists"))
-    suiteSelect.addTest(FileStatusTests("testLatestFileVersion"))
+    suiteSelect.addTest(PathRequestTests("testFileExists"))
+    suiteSelect.addTest(PathRequestTests("testPathExists"))
+    suiteSelect.addTest(PathRequestTests("testDirExists"))
+    suiteSelect.addTest(PathRequestTests("testListDir"))
+    suiteSelect.addTest(PathRequestTests("testLatestFileVersion"))
+    suiteSelect.addTest(PathRequestTests("testFileCopy"))
     return suiteSelect
 
 
 if __name__ == "__main__":
-    mySuite = fileStatusTests()
+    mySuite = pathRequestTestSuite()
     unittest.TextTestRunner(verbosity=2).run(mySuite)
