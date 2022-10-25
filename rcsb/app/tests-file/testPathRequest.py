@@ -21,11 +21,11 @@ __license__ = "Apache 2.0"
 import logging
 import os
 import platform
-# import random
 import resource
-# import string
 import time
 import unittest
+# import random
+# import string
 
 # pylint: disable=wrong-import-position
 # This environment must be set before main.app is imported
@@ -39,7 +39,6 @@ from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.main import app
-# from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.utils.io.FileUtil import FileUtil
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
@@ -97,12 +96,6 @@ class PathRequestTests(unittest.TestCase):
         self.__repoTestPath = os.path.join(self.__cachePath, "repository", "archive")
         self.__dataPath = os.path.join(HERE, "test-data")
         self.__testFilePath = os.path.join(self.__dataPath, "example-data.cif")
-        # self.__downloadFilePath = os.path.join(self.__cachePath, "downloadFile.dat")
-
-        # if not os.environ.get("REPOSITORY_PATH", None):
-        #     os.environ["REPOSITORY_PATH"] = self.__repoTestPath
-        # else:
-        #     logger.info("Using REPOSITORY_PATH setting from environment %r", os.environ.get("REPOSITORY_PATH"))
 
         # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
         cP = ConfigProvider(self.__cachePath, self.__configFilePath)
@@ -137,7 +130,6 @@ class PathRequestTests(unittest.TestCase):
             }
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
-                # print("RESPONSE", response.text)
                 logger.info("file status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
@@ -282,7 +274,6 @@ class PathRequestTests(unittest.TestCase):
             }
             with TestClient(app) as client:
                 response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
-                # print("RESPONSE", response.text)
                 logger.info("file status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
@@ -314,7 +305,6 @@ class PathRequestTests(unittest.TestCase):
             }
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
-                # print("RESPONSE", response.text)
                 logger.info("file status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)

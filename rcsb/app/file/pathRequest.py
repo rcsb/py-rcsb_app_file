@@ -59,6 +59,14 @@ class DirResult(BaseModel):
     statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
 
 
+class CompressResult(BaseModel):
+    success: bool = Field(None, title="Success status", description="Success status", example="True")
+    dirPath: str = Field(None, title="Directory path", description="Directory path to list", example="repository/archive/D_2000000001/")
+    compressPath: list = Field(None, title="Compressed directory path", description="Compressed directory path", example="repository/archive/D_0000000001.tar.gz")
+    statusCode: int = Field(None, title="HTTP status code", description="HTTP status code", example="200")
+    statusMessage: str = Field(None, title="Status message", description="Status message", example="Success")
+
+
 class PathResult(BaseModel):
     success: bool = Field(None, title="Success status", description="Success status", example="True")
     path: str = Field(None, title="Path", description="File or directory path", example="repository/archive/D_2000000001/D_2000000001_model_P1.cif.V1")
@@ -329,6 +337,7 @@ async def listDir(
     filePath: str = Query(None, title="File path", description="Full file path", example="/non_standard/directory/example.cif.gz"),
 ):
     success = False
+    dirExistsCheck = None
     dirList = []
     try:
         fU = FileUtil()
@@ -348,22 +357,81 @@ async def listDir(
                 logger.info("Listing dirPath %r for repositoryType %r idCode %r", dirPath, repositoryType, idCode)
         else:
             logger.info("Listing dirPath %r", dirPath)
-        dirExistsBool = fU.exists(dirPath)
-        if dirExistsBool:
+        dirExistsCheck = fU.exists(dirPath)
+        if dirExistsCheck:
             dirList = os.listdir(dirPath)
             logger.info("dirList (len %d): %r", len(dirList), dirList)
             success = True
         #
     except Exception as e:
         logger.exception("Failing with %s", str(e))
-        raise HTTPException(status_code=400, detail="File checking fails with %s" % str(e))
+        raise HTTPException(status_code=400, detail="Directory listing fails with %s" % str(e))
     #
     if not success:
-        if not dirExistsBool:
+        if not dirExistsCheck and dirExistsCheck is not None:
             raise HTTPException(status_code=404, detail="Requested directory does not exist %s" % dirPath)
         else:
             raise HTTPException(status_code=403, detail="Failed to list directory for given request parameters")
     else:
         ret = {"success": success, "dirPath": dirPath, "dirList": dirList, "statusCode": 200, "statusMessage": "Directory contents"}
+
+    return ret
+
+
+@router.post("/compress-session", response_model=CompressResult)
+async def compressSession(
+    idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Query(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
+    dirPath: str = Query(None, title="File directory", description="File directory", example="/non_standard/directory/"),
+    filePath: str = Query(None, title="File path", description="Full file path", example="/non_standard/directory/example.cif.gz"),
+):
+    success = False
+    dirRemovedBool = False
+    dirExistsCheck = None
+    compressPath = None
+    try:
+        fU = FileUtil()
+        cachePath = os.environ.get("CACHE_PATH")
+        configFilePath = os.environ.get("CONFIG_FILE")
+        cP = ConfigProvider(cachePath, configFilePath)
+        pathU = PathUtils(cP)
+        #
+        if not dirPath:
+            if filePath:
+                # Compress the parent directory of the requested filePath
+                dirPath = os.path.abspath(os.path.dirname(filePath))
+                logger.info("Compressing dirPath %r for filePath %r", dirPath, filePath)
+            else:
+                # Compress directory of requested repositoryType and idCode
+                dirPath = pathU.getDirPath(repositoryType, idCode)
+                logger.info("Compressing dirPath %r for repositoryType %r idCode %r", dirPath, repositoryType, idCode)
+        else:
+            logger.info("Compressing dirPath %r", dirPath)
+        dirExistsCheck = fU.exists(dirPath)
+        if dirExistsCheck:
+            compressPath = os.path.abspath(dirPath)+".tar.gz"
+            ok = fU.bundleTarfile(compressPath, [os.path.abspath(dirPath)])
+            if ok:
+                logger.info("created compressPath %s from dirPath %s", compressPath, dirPath)
+                fU.remove(dirPath)
+                dirRemovedBool = not fU.exists(dirPath)
+                logger.info("removal status %r for dirPath %s", dirRemovedBool, dirPath)
+                if not dirRemovedBool:
+                    logger.error("unable to remove dirPath %s after compression", dirPath)
+            success = ok and dirRemovedBool
+        #
+    except Exception as e:
+        logger.exception("Failing with %s", str(e))
+        raise HTTPException(status_code=400, detail="Directory compression fails with %s" % str(e))
+    #
+    if not success:
+        if not dirExistsCheck and dirExistsCheck is not None:
+            raise HTTPException(status_code=404, detail="Requested directory does not exist %s" % dirPath)
+        elif ok and not dirRemovedBool:
+            raise HTTPException(status_code=403, detail="Failed to remove directory after compression")
+        else:
+            raise HTTPException(status_code=403, detail="Failed to compress directory")
+    else:
+        ret = {"success": success, "dirPath": dirPath, "compressPath": compressPath, "statusCode": 200, "statusMessage": "Directory contents"}
 
     return ret
