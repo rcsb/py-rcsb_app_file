@@ -31,8 +31,8 @@ import unittest
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
-os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
+os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output"))
+os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "tests-file", "test-data", "config", "config.yml"))
 
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
@@ -50,27 +50,28 @@ class PathRequestTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Fixture to create file test data"""
-        dataPath = os.path.join(HERE, "test-data")
-        cachePath = os.environ.get("CACHE_PATH")
-        # sessionPath = os.path.join(cachePath, "sessions")
-        repoTestPath = os.path.join(dataPath, "data", "repository", "archive")
+        cls.__dataPath = os.path.join(HERE, "test-data")
+        cls.__cachePath = os.environ.get("CACHE_PATH")
+        # sessionPath = os.path.join(cls.__cachePath, "sessions")
+        cls.__repoTestPath = os.path.join(cls.__cachePath, "data", "repository", "archive")
+        logger.info("cls.__repoTestPath %s", cls.__repoTestPath)
 
         fU = FileUtil()
         # fU.mkdir(sessionPath)
-        testFilePath = os.path.join(dataPath, "example-data.cif")
+        cls.__testFilePath = os.path.join(cls.__dataPath, "example-data.cif")
         for fn in ["example-data.cif"]:  # Only needed for ConfigProvider init
-            fU.put(testFilePath, os.path.join(cachePath, fn))
+            fU.put(cls.__testFilePath, os.path.join(cls.__cachePath, fn))
         #
         # nB = 2500000
         # testFilePath = os.path.join(sessionPath, "testFile.dat")
         # with open(testFilePath, "w", encoding="utf-8") as ofh:
         #     ofh.write("".join(random.choices(string.ascii_uppercase + string.digits, k=nB)))
         # #
-        # testFilePath = os.path.join(dataPath, "example-data.cif")
-        PathRequestTests.__repoFixture(repoTestPath, testFilePath)
+        # cls.__testFilePath = os.path.join(cls.__dataPath, "example-data.cif")
+        PathRequestTests.__repoFixture()
 
     @classmethod
-    def __repoFixture(cls, repoPath, testFilePath):
+    def __repoFixture(cls):
         ctFmtTupL = [
             ("model", "cif"),
             ("sf-convert-report", "cif"),
@@ -80,24 +81,20 @@ class PathRequestTests(unittest.TestCase):
             ("sf", "cif"),
         ]
         # Example - D_1000258919_model_P1.cif.V1
-        for idCode in ["D_2000000001"]:
-            dirPath = os.path.join(repoPath, idCode)
+        for idCode in ["D_1000000001", "D_2000000001"]:
+            dirPath = os.path.join(cls.__repoTestPath, idCode)
             FileUtil().mkdir(dirPath)
             for pNo in ["P1", "P2"]:
                 for contentType, fmt in ctFmtTupL[:6]:
                     for vS in ["V1", "V2"]:
                         fn = idCode + "_" + contentType + "_" + pNo + "." + fmt + "." + vS
                         pth = os.path.join(dirPath, fn)
-                        FileUtil().put(testFilePath, pth)
+                        FileUtil().put(cls.__testFilePath, pth)
 
     def setUp(self):
-        self.__cachePath = os.environ.get("CACHE_PATH")
         self.__configFilePath = os.environ.get("CONFIG_FILE")
-        self.__repoTestPath = os.path.join(self.__cachePath, "repository", "archive")
-        self.__dataPath = os.path.join(HERE, "test-data")
-        self.__testFilePath = os.path.join(self.__dataPath, "example-data.cif")
 
-        # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
+        # Note - testConfigProvider() must (maybe?) precede this test to install a bootstrap configuration file
         cP = ConfigProvider(self.__cachePath, self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
@@ -163,7 +160,7 @@ class PathRequestTests(unittest.TestCase):
         startTime = time.time()
         try:
             # First test for file that actually exists (created in fixture above)
-            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/D_2000000001_model_P1.cif.V1"
+            path = os.path.join(self.__repoTestPath, "D_2000000001", "D_2000000001_model_P1.cif.V1")
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"path": path}, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
@@ -172,7 +169,7 @@ class PathRequestTests(unittest.TestCase):
                 logger.info("Content length (%d)", len(response.content))
             #
             # Next test for file that DOESN'T exists
-            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_1234567890/D_1234567890_model_P1.cif.V1"
+            path = os.path.join(self.__repoTestPath, "D_1234567890", "D_1234567890_model_P1.cif.V1")
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"path": path}, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
@@ -190,7 +187,7 @@ class PathRequestTests(unittest.TestCase):
         startTime = time.time()
         try:
             # First test for dir that actually exists (created in fixture above)
-            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/"
+            path = os.path.join(self.__repoTestPath, "D_2000000001")
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
@@ -199,7 +196,7 @@ class PathRequestTests(unittest.TestCase):
                 logger.info("Content length (%d)", len(response.content))
             #
             # Next test for dir that DOESN'T exists
-            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_1234567890/"
+            path = os.path.join(self.__repoTestPath, "D_1234567890")
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
@@ -217,7 +214,7 @@ class PathRequestTests(unittest.TestCase):
         startTime = time.time()
         try:
             # First test for dir that actually exists (created in fixture above), given a specific dirPath
-            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/"
+            path = os.path.join(self.__repoTestPath, "D_2000000001")
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
@@ -226,14 +223,14 @@ class PathRequestTests(unittest.TestCase):
                 logger.info("Content length (%d)", len(response.content))
             #
             # Next test for dir that actually exists (created in fixture above), given a specific filePath
-            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/D_2000000001_model_P1.cif.V1"
+            path = os.path.join(self.__repoTestPath, "D_2000000001", "D_2000000001_model_P1.cif.V1")
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"filePath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
-            #
+            
             # Next test for dir that actually exists (created in fixture above), given idCode and repositoryType
             mD = {
                 "idCode": "D_2000000001",
@@ -247,7 +244,7 @@ class PathRequestTests(unittest.TestCase):
                 logger.info("Content length (%d)", len(response.content))
             #
             # Next test for dir that DOESN'T exists
-            path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_1234567890/"
+            path = os.path.join(self.__repoTestPath, "D_1234567890")
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
@@ -284,9 +281,9 @@ class PathRequestTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
-    def testFileCopy(self):
+    def testCopyFile(self):
         """Test - file copy"""
-        endPoint = "file-copy"
+        endPoint = "copy-file"
         startTime = time.time()
         try:
             # Copy file from one repositoryType to another
@@ -315,6 +312,82 @@ class PathRequestTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
+    def testMoveFile(self):
+        """Test - move file"""
+        endPoint = "move-file"
+        startTime = time.time()
+        try:
+            # Move file from one repositoryType to another
+            mD = {
+                "idCodeSource": "D_2000000001",
+                "repositoryTypeSource": "onedep-archive",
+                "contentTypeSource": "model",
+                "contentFormatSource": "pdbx",
+                "partNumberSource": 2,
+                "versionSource": 1,
+                #
+                "idCodeTarget": "D_3000000001",
+                "repositoryTypeTarget": "onedep-archive",
+                "contentTypeTarget": "model",
+                "contentFormatTarget": "pdbx",
+                "partNumberTarget": 2,
+                "versionTarget": 1,
+            }
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
+                logger.info("file status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+                #
+            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
+    def testCompressDir(self):
+        """Test - compress dir"""
+        endPoint = "compress-dir"
+        startTime = time.time()
+        try:
+            # First create a copy of one archive directory
+            mD = {
+                "idCodeSource": "D_1000000001",
+                "repositoryTypeSource": "onedep-archive",
+                "contentTypeSource": "model",
+                "contentFormatSource": "pdbx",
+                "partNumberSource": 1,
+                #
+                "idCodeTarget": "D_1000000002",
+                "repositoryTypeTarget": "onedep-archive",
+                "contentTypeTarget": "model",
+                "contentFormatTarget": "pdbx",
+                "partNumberTarget": 1,
+            }
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % "copy-file", params=mD, headers=self.__headerD)
+                logger.info("file status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+            #
+            # Next compress the copied directory
+            mD = {
+                "idCode": "D_1000000002",
+                "repositoryType": "onedep-archive",
+            }
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
+                logger.info("file status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+                #
+            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
 
 def pathRequestTestSuite():
     suiteSelect = unittest.TestSuite()
@@ -323,7 +396,9 @@ def pathRequestTestSuite():
     suiteSelect.addTest(PathRequestTests("testDirExists"))
     suiteSelect.addTest(PathRequestTests("testListDir"))
     suiteSelect.addTest(PathRequestTests("testLatestFileVersion"))
-    suiteSelect.addTest(PathRequestTests("testFileCopy"))
+    suiteSelect.addTest(PathRequestTests("testCopyFile"))
+    suiteSelect.addTest(PathRequestTests("testMoveFile"))
+    suiteSelect.addTest(PathRequestTests("testCompressDir"))
     return suiteSelect
 
 
