@@ -29,10 +29,13 @@ import aiofiles
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.utils.io.FileLock import FileLock
+from rcsb.app.file.KvSqlite import KvSqlite
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+KV = KvSqlite()
 
 
 def wrapAsync(fnc: typing.Callable) -> typing.Awaitable:
@@ -214,6 +217,166 @@ class IoUtils:
         except Exception as e:
             logger.exception("Failing with file %s %r", filePath, str(e))
         return None
+
+    # ---
+    async def storePartial(
+        self,
+        ifh: typing.IO,
+        sliceIndex: int,
+        sliceOffset: int,
+        sliceTotal: int,
+        sessionId: int,
+        idCode: str,
+        repoType: str,
+        contentType: str,
+        contentFormat: str,
+        partNumber: int,
+        version: str,
+        copyMode: str = "native",
+        allowOverWrite: bool = True,
+        hashType: str = "MD5",
+        hashDigest: typing.Optional[str] = None,
+    ) -> typing.Dict:
+
+        global KV
+
+        logger.debug(
+            "repoType %r idCode %r contentType %r partNumber %r contentFormat %r version %r copyMode %r", repoType, idCode, contentType, partNumber, contentFormat, version, copyMode
+        )
+
+        if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
+            return {"success": False, "statusCode": 405, "statusMessage": "Bad content type and/or format - upload rejected"}
+
+        outPath = self.__pathU.getVersionedPath(repoType, idCode, contentType, partNumber, contentFormat, version)
+        if not outPath:
+            return {"success": False, "statusCode": 405,
+                    "statusMessage": "Bad content type metadata - cannot build a valid path"}
+        elif os.path.exists(outPath) and not allowOverWrite:
+            logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
+            return {"success": False, "statusCode": 405,
+                    "statusMessage": "Encountered existing file - overwrite prohibited"}
+
+        filename = os.path.basename(outPath)
+        key = f'{sessionId}:{filename}'
+        current_index = KV.get(key)
+        if current_index is None:
+            KV.set(key, 0)
+        else:
+            if current_index + 1 >= sliceTotal:
+                return {"success": False, "statusCode": 500, "statusMessage": "Error - exceeded expected slice count"}
+            if sliceIndex <= current_index:
+                return {"success": False, "statusCode": 500, "statusMessage": f"Error - redundant slice {sliceIndex} of {sliceTotal} for id {sessionId}"}
+            if sliceIndex > current_index + 1:
+               count = 0
+               while sliceIndex > KV.get(key) + 1:
+                   await asyncio.sleep(1)
+                   count += 1
+                   if count > 30:
+                       return {"success": False, "statusCode": 500, "statusMessage": "Error - slices out of order"}
+            KV.set(key, KV.get(key) + 1)
+
+        lockPath = self.__pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
+        myLock = FileLock(lockPath)
+        with myLock:
+            logger.debug("am i locked %r", myLock.isLocked())
+            # outPath = self.__pathU.getVersionedPath(repoType, idCode, contentType, partNumber, contentFormat, version)
+            # if not outPath:
+            #     return {"success": False, "statusCode": 405, "statusMessage": "Bad content type metadata - cannot build a valid path"}
+            # elif os.path.exists(outPath) and not allowOverWrite:
+            #     logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
+            #     return {"success": False, "statusCode": 405, "statusMessage": "Encountered existing file - overwrite prohibited"}
+            logging.warning(f'writing slice {sliceIndex} of {sliceTotal} offset {sliceOffset} file {filename}')
+            ret = await self.writePartial(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, sessionId, key, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
+
+        if KV.get(key) + 1 == sliceTotal:
+            KV.remove(key)
+            # what if extra slice arrives after remove...starts a new entry for same file above...how prevent?
+
+        #
+        ret["fileName"] = os.path.basename(outPath) if ret["success"] else None
+        return ret
+
+    async def writePartial(
+        self,
+        ifh: typing.IO,
+        outPath: str,
+        sliceIndex: int,
+        sliceOffset: int,
+        sliceTotal: int,
+        sessionId: int,
+        key: str,
+        mode: typing.Optional[str] = "wb",
+        copyMode: typing.Optional[str] = "native",
+        hashType: typing.Optional[str] = None,
+        hashDigest: typing.Optional[str] = None,
+    ) -> typing.Dict:
+        """Store data in the input file handle in the specified output path.
+
+        Args:
+            ifh (file-like-object): input file object containing target data
+            outPath (str): output file path
+            sliceTotal (int): total number of chunks to be uploaded
+            sliceIndex: index of present chunk
+            sliceOffset: chunk byte offset
+            sessionId: unique identifier after login
+            mode (str, optional): output file mode
+            copyMode (str, optional): concrete copy mode (native|shell). Defaults to 'native'.
+            hashType (str, optional): hash type (MD5|SHA1|SHA256). Defaults to 'MD5'.
+            hashDigest (str, optional): hash digest. Defaults to None.
+
+        Returns:
+            (dict): {"success": True|False, "statusMessage": <text>}
+        """
+        global KV
+        ok = False
+        ret = {"success": False, "statusMessage": None}
+        try:
+            dirPath, fn = os.path.split(outPath)
+            tempPath = os.path.join(dirPath, "." + fn)
+            await self.__makedirs(dirPath, mode=0o755, exist_ok=True)
+
+            async with aiofiles.open(tempPath, mode) as ofh:
+                await ofh.seek(sliceOffset)
+                if copyMode == "native":
+                    await ofh.write(ifh.read())
+                    await ofh.flush()
+                    os.fsync(ofh.fileno())
+                elif copyMode == "gzip_decompress":
+                    await ofh.write(gzip.decompress(ifh.read()))
+                    await ofh.flush()
+                    os.fsync(ofh.fileno())
+
+        except Exception as e:
+            logger.exception("Internal write error for path %r: %s", outPath, str(e))
+            ret = {"success": False, "statusCode": 400, "statusMessage": "Store fails with %s" % str(e)}
+        finally:
+            ifh.close()
+            ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
+            if (KV.get(key) + 1) == sliceTotal:
+                logging.warning(f'slice {sliceTotal} complete')
+                ok = True
+                if hashDigest and hashType:
+                    # ok = self.checkHash(tempPath, hashDigest, hashType)
+                    ok = await self.__checkHashAsync(tempPath, hashDigest, hashType)
+                    if not ok:
+                        ret = {"success": False, "statusCode": 400, "statusMessage": "%s hash check failed" % hashType}
+                    if ok:
+                        await self.__replace(tempPath, outPath)
+                        logging.warning(f'renamed {outPath}')
+                        logger.info("Uploaded %r (%d)", outPath, os.path.getsize(outPath))
+                    if os.path.exists(tempPath):
+                        try:
+                            os.unlink(tempPath)
+                            logging.warning(f'deleted {tempPath}')
+                        except Exception:
+                            logging.warning(f'could not delete {tempPath}')
+                            pass
+                else:
+                    logging.warning('hash error')
+                    ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
+                # logger.info("Uploaded %r (%d)", outPath, os.path.getsize(outPath))
+
+        return ret
 
     # ---
     async def storeSlice(

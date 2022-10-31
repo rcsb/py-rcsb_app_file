@@ -27,6 +27,7 @@ from . import LogFilterUtils
 from . import downloadRequest  # This triggers JWTAuthBearer
 from . import serverStatus
 from . import uploadRequest
+from . import uploadPartial
 from . import pathRequest
 from . import mergeRequest
 from .JWTAuthBearer import JWTAuthBearer
@@ -91,6 +92,11 @@ app.include_router(
 app.include_router(
     pathRequest.router,
     prefix="/file-v1",
+)
+
+app.include_router(
+    uploadPartial.router,
+    prefix="/file-v2",
 )
 
 app.include_router(serverStatus.router)

@@ -2,6 +2,8 @@ import asyncio
 import uuid
 import os
 import requests
+import io
+from copy import deepcopy
 from rcsb.app.file.IoUtils import IoUtils
 
 os.environ["CACHE_PATH"] = os.path.join(".", "rcsb", "app", "tests-file", "test-data", "data")
@@ -64,7 +66,8 @@ for version in range(1, 9):
         "hashDigest": testHash
     }
 
-    url = "http://0.0.0.0:80/file-v1/upload"
+    url = "http://127.0.0.1:8000/file-v1/upload"
+    # url = "http://0.0.0.0:80/file-v1/upload"
 
     # upload with requests library
     with open(filePath, "rb") as ifh:
@@ -90,7 +93,8 @@ for version in range(1, 9):
     downloadName = downloadDict["idCode"] + "_" + "v" + downloadDict["version"]
     FileUtil().mkdir(downloadDirPath)
 
-    url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
+    url = "http://127.0.0.1:8000/file-v1/download/onedep-archive"
+    # url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
 
     # download with requests library
     response = requests.get(url, params=downloadDict, headers=headerD)
@@ -101,6 +105,69 @@ for version in range(1, 9):
     print("Upload status code:", response.status_code)
 
 # sliced upload
+
+url = "http://127.0.0.1:8000/file-v2/uploadPartial"
+# url = "http://0.0.0.0:80/file-v2/uploadPartial"
+
+partNumber = 1
+version = 9
+allowOverWrite = True
+hashType = "MD5"
+hD = CryptUtils().getFileHash(filePath, hashType=hashType)
+fullTestHash = hD["hashDigest"]
+
+sliceIndex = 0
+file_size = os.path.getsize(filePath)
+slice_size = file_size // 4
+sliceTotal = 0
+if slice_size < file_size:
+    sliceTotal = file_size // slice_size
+    if file_size % slice_size:
+        sliceTotal = sliceTotal + 1
+else:
+    sliceTotal = 1
+sliceOffset = 0
+
+sessionId = uuid.uuid4().hex
+
+mD = {  
+        "sliceIndex": sliceIndex,
+        "sliceOffset": sliceOffset,
+        "sliceTotal": sliceTotal,
+        "sessionId": sessionId,
+        "idCode": "D_00000000",
+        "repositoryType": "onedep-archive",
+        "contentType": "model",
+        "contentFormat": "pdbx",
+        "partNumber": partNumber,
+        "version": str(version),
+        "copyMode": "native",
+        "allowOverWrite": allowOverWrite,
+        "hashType": hashType,
+        "hashDigest": fullTestHash,
+}
+
+tmp = io.BytesIO()
+with open(filePath, "rb") as to_upload:
+    for i in range(0, mD["sliceTotal"]):
+        packet_size = min(
+            file_size - (mD["sliceIndex"] * slice_size),
+            slice_size,
+        )
+        tmp.truncate(packet_size)
+        tmp.seek(0)
+        tmp.write(to_upload.read(packet_size))
+        tmp.seek(0)
+
+        response = requests.post(url, data=deepcopy(mD), headers=headerD, files={"uploadFile": tmp})
+        if response.status_code != 200:
+            print(f'error - status code {response.status_code} {response.text}...terminating')
+            break
+        mD["sliceIndex"] += 1
+        mD["sliceOffset"] = mD["sliceIndex"] * slice_size
+
+
+"""
 hashType = "MD5"
 hD = CryptUtils().getFileHash(filePath, hashType=hashType)
 fullTestHash = hD["hashDigest"]
@@ -161,3 +228,4 @@ url = "http://0.0.0.0:80/file-v1/join-slice"
 
 with open(testFilePath, "rb") as ifh:
     response = requests.post(url, data=mD, headers=headerD)
+"""
