@@ -257,23 +257,20 @@ class IoUtils:
                     "statusMessage": "Encountered existing file - overwrite prohibited"}
 
         filename = os.path.basename(outPath)
-        key = f'{sessionId}:{filename}'
-        current_index = KV.get(key)
-        if current_index is None:
-            KV.set(key, 0)
-        else:
-            if current_index + 1 >= sliceTotal:
-                return {"success": False, "statusCode": 500, "statusMessage": "Error - exceeded expected slice count"}
-            if sliceIndex <= current_index:
-                return {"success": False, "statusCode": 500, "statusMessage": f"Error - redundant slice {sliceIndex} of {sliceTotal} for id {sessionId}"}
-            if sliceIndex > current_index + 1:
-               count = 0
-               while sliceIndex > KV.get(key) + 1:
-                   await asyncio.sleep(1)
-                   count += 1
-                   if count > 30:
-                       return {"success": False, "statusCode": 500, "statusMessage": "Error - slices out of order"}
-            KV.set(key, KV.get(key) + 1)
+        key = str(sessionId)
+        val = filename
+        current_index = KV.gget(key, val) # initializes to zero
+        if current_index + 1 > sliceTotal:
+            return {"success": False, "statusCode": 500, "statusMessage": f"Error - index {sliceIndex} kv index {current_index} exceeds expected slice count {sliceTotal}"}
+        if sliceIndex < current_index:
+            return {"success": False, "statusCode": 500, "statusMessage": f"Error - redundant slice {sliceIndex} of {sliceTotal} for id {sessionId} is less than {current_index}"}
+        if sliceIndex > current_index + 1:
+           count = 0
+           while sliceIndex > KV.gget(key, val) + 1:
+               await asyncio.sleep(1)
+               count += 1
+               if count > 30:
+                   return {"success": False, "statusCode": 500, "statusMessage": "Error - slices out of order"}
 
         lockPath = self.__pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
         myLock = FileLock(lockPath)
@@ -285,14 +282,16 @@ class IoUtils:
             # elif os.path.exists(outPath) and not allowOverWrite:
             #     logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
             #     return {"success": False, "statusCode": 405, "statusMessage": "Encountered existing file - overwrite prohibited"}
+
             logging.warning(f'writing slice {sliceIndex} of {sliceTotal} offset {sliceOffset} file {filename}')
-            ret = await self.writePartial(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, sessionId, key, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
+            ret = await self.writePartial(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, sessionId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
 
-        if KV.get(key) + 1 == sliceTotal:
-            KV.remove(key)
+        if KV.gget(key, val) + 1 == sliceTotal:
+            KV.rremove(key, val)
             # what if extra slice arrives after remove...starts a new entry for same file above...how prevent?
+        else:
+            KV.inc(key, val)
 
-        #
         ret["fileName"] = os.path.basename(outPath) if ret["success"] else None
         return ret
 
@@ -305,6 +304,7 @@ class IoUtils:
         sliceTotal: int,
         sessionId: int,
         key: str,
+        val: str,
         mode: typing.Optional[str] = "wb",
         copyMode: typing.Optional[str] = "native",
         hashType: typing.Optional[str] = None,
@@ -315,10 +315,12 @@ class IoUtils:
         Args:
             ifh (file-like-object): input file object containing target data
             outPath (str): output file path
-            sliceTotal (int): total number of chunks to be uploaded
             sliceIndex: index of present chunk
             sliceOffset: chunk byte offset
+            sliceTotal (int): total number of chunks to be uploaded
             sessionId: unique identifier after login
+            key: database key from previous function
+            val: database val from previous function
             mode (str, optional): output file mode
             copyMode (str, optional): concrete copy mode (native|shell). Defaults to 'native'.
             hashType (str, optional): hash type (MD5|SHA1|SHA256). Defaults to 'MD5'.
@@ -352,7 +354,7 @@ class IoUtils:
         finally:
             ifh.close()
             ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
-            if (KV.get(key) + 1) == sliceTotal:
+            if (KV.gget(key, val) + 1) == sliceTotal:
                 logging.warning(f'slice {sliceTotal} complete')
                 ok = True
                 if hashDigest and hashType:
