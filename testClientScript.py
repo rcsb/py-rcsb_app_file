@@ -66,8 +66,8 @@ for version in range(1, 9):
         "hashDigest": testHash
     }
 
-    url = "http://127.0.0.1:8000/file-v1/upload"
-    # url = "http://0.0.0.0:80/file-v1/upload"
+    # url = "http://127.0.0.1:8000/file-v1/upload"
+    url = "http://0.0.0.0:80/file-v1/upload"
 
     # upload with requests library
     with open(filePath, "rb") as ifh:
@@ -93,8 +93,8 @@ for version in range(1, 9):
     downloadName = downloadDict["idCode"] + "_" + "v" + downloadDict["version"]
     FileUtil().mkdir(downloadDirPath)
 
-    url = "http://127.0.0.1:8000/file-v1/download/onedep-archive"
-    # url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
+    # url = "http://127.0.0.1:8000/file-v1/download/onedep-archive"
+    url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
 
     # download with requests library
     response = requests.get(url, params=downloadDict, headers=headerD)
@@ -106,8 +106,8 @@ for version in range(1, 9):
 
 # sliced upload
 
-url = "http://127.0.0.1:8000/file-v2/uploadPartial"
-# url = "http://0.0.0.0:80/file-v2/uploadPartial"
+# url = "http://127.0.0.1:8000/file-v2/uploadPartial"
+url = "http://0.0.0.0:80/file-v2/uploadPartial"
 
 partNumber = 1
 version = 9

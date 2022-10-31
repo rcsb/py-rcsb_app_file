@@ -355,7 +355,7 @@ class IoUtils:
             ifh.close()
             ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
             if (KV.gget(key, val) + 1) == sliceTotal:
-                logging.warning(f'slice {sliceTotal} complete')
+                logging.warning(f'{sliceTotal} slices complete')
                 ok = True
                 if hashDigest and hashType:
                     # ok = self.checkHash(tempPath, hashDigest, hashType)

@@ -5,9 +5,13 @@ class KvSqlite(object):
     def __init__(self):
         # determine better path
         self.KV_SQLITE_PATH = "./kv.sqlite"
+        self.KV_SESSIONS_TABLE = "sessions"
         # create database if not exists
         # create table if not exists
-        self.KV = KeyValueSqlite(self.KV_SQLITE_PATH, "sessions")
+        try:
+            self.KV = KeyValueSqlite(self.KV_SQLITE_PATH, self.KV_SESSIONS_TABLE)
+        except Exception:
+            pass  # table already exists
 
     def get(self, key):
         return self.KV.get(key)
