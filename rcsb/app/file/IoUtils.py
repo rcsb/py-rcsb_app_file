@@ -247,19 +247,22 @@ class IoUtils:
         if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
             return {"success": False, "statusCode": 405, "statusMessage": "Bad content type and/or format - upload rejected"}
 
-        outPath = self.__pathU.getVersionedPath(repoType, idCode, contentType, partNumber, contentFormat, version)
-        if not outPath:
-            return {"success": False, "statusCode": 405,
-                    "statusMessage": "Bad content type metadata - cannot build a valid path"}
-        elif os.path.exists(outPath) and not allowOverWrite:
-            logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
-            return {"success": False, "statusCode": 405,
-                    "statusMessage": "Encountered existing file - overwrite prohibited"}
+        lockPath = self.__pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
+        myLock = FileLock(lockPath)
+        with myLock:
+            outPath = self.__pathU.getVersionedPath(repoType, idCode, contentType, partNumber, contentFormat, version)
+            if not outPath:
+                return {"success": False, "statusCode": 405,
+                        "statusMessage": "Bad content type metadata - cannot build a valid path"}
+            elif os.path.exists(outPath) and not allowOverWrite:
+                logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
+                return {"success": False, "statusCode": 405,
+                        "statusMessage": "Encountered existing file - overwrite prohibited"}
 
         filename = os.path.basename(outPath)
         key = str(sessionId)
         val = filename
-        current_index = KV.gget(key, val) # initializes to zero
+        current_index = KV.gget(key, val)  # initializes to zero
         if current_index + 1 > sliceTotal:
             return {"success": False, "statusCode": 500, "statusMessage": f"Error - index {sliceIndex} kv index {current_index} exceeds expected slice count {sliceTotal}"}
         if sliceIndex < current_index:

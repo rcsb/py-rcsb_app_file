@@ -1,17 +1,21 @@
 from keyvalue_sqlite import KeyValueSqlite
+import logging
 
 
 class KvSqlite(object):
     def __init__(self):
-        # determine better path
+        # fix mount point
         self.KV_SQLITE_PATH = "./kv.sqlite"
         self.KV_SESSIONS_TABLE = "sessions"
         # create database if not exists
         # create table if not exists
         try:
             self.KV = KeyValueSqlite(self.KV_SQLITE_PATH, self.KV_SESSIONS_TABLE)
-        except Exception:
-            pass  # table already exists
+        except Exception as exc:
+            # table already exists
+            logging.warning(f'exception in KvSqlite: {type(exc)} {exc}')
+        if self.KV is None:
+            raise Exception(f'error in KvSqlite - no database')
 
     def get(self, key):
         return self.KV.get(key)
