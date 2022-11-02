@@ -115,7 +115,8 @@ class ClientUtilsTests(unittest.TestCase):
             logger.info("Starting multipart-upload of file %s", self.__testFilePath)
             startTime = time.time()
             sId = asyncio.run(
-                self.__cU.multipartUpload(
+                # self.__cU.multipartUpload(
+                self.__cU.uploadPartial(
                     filePath=self.__testFilePath,
                     idCode="D_5999000002",
                     repositoryType="onedep-archive",
@@ -135,7 +136,7 @@ class ClientUtilsTests(unittest.TestCase):
             asyncio.run(
                 self.__cU.download(
                     fileDownloadPath=self.__testFileDownloadPath,
-                    idCode="D_5999000001",
+                    idCode="D_4999000001",
                     repositoryType="onedep-archive",
                     contentType="model",
                     contentFormat="pdbx",
@@ -145,9 +146,9 @@ class ClientUtilsTests(unittest.TestCase):
             )
             logger.info("Completed download (%.4f seconds)", time.time() - startTime)
             #
-            logger.info("Removing session directories for sessionId %s", sId)
-            ok = asyncio.run(self.__cU.deleteSessionDirectory(sessionId=sId))
-            logger.info("Completed removing session directories with status %r", ok)
+            # logger.info("Removing session directories for sessionId %s", sId)
+            # ok = asyncio.run(self.__cU.deleteSessionDirectory(sessionId=sId))
+            # logger.info("Completed removing session directories with status %r", ok)
 
         except Exception as e:
             logger.exception("Failing with %s", str(e))

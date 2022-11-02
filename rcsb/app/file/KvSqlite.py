@@ -17,19 +17,13 @@ class KvSqlite(object):
         if self.KV is None:
             raise Exception(f'error in KvSqlite - no database')
 
-    def get(self, key):
-        return self.KV.get(key)
-
-    def set(self, key, val):
-        self.KV.set(key, val)
-
     def convert(self, d):
         return str(d)
 
     def deconvert(self, s):
         return eval(s)
 
-    def gget(self, key, val):
+    def get(self, key, val):
         s = self.KV.get(key)
         if s is None:
             self.KV.set(key, self.convert({}))
@@ -42,7 +36,7 @@ class KvSqlite(object):
             d = self.deconvert(s)
         return d[val]
 
-    def sset(self, key, val, vval):
+    def set(self, key, val, vval):
         s = self.KV.get(key)
         if s is None:
             self.KV.set(key, self.convert({}))
@@ -70,10 +64,7 @@ class KvSqlite(object):
         d[val] += 1
         self.KV.set(key, self.convert(d))
 
-    def remove(self, key):
-        self.KV.remove(key, ignore_missing_key=True)
-
-    def rremove(self, key, val):
+    def rm(self, key, val):
         s = self.KV.get(key)
         if s is not None:
             d = self.deconvert(s)

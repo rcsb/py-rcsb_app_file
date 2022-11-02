@@ -66,7 +66,6 @@ for version in range(1, 9):
         "hashDigest": testHash
     }
 
-    # url = "http://127.0.0.1:8000/file-v1/upload"
     url = "http://0.0.0.0:80/file-v1/upload"
 
     # upload with requests library
@@ -93,7 +92,6 @@ for version in range(1, 9):
     downloadName = downloadDict["idCode"] + "_" + "v" + downloadDict["version"]
     FileUtil().mkdir(downloadDirPath)
 
-    # url = "http://127.0.0.1:8000/file-v1/download/onedep-archive"
     url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
 
     # download with requests library
@@ -106,7 +104,6 @@ for version in range(1, 9):
 
 # sliced upload
 
-# url = "http://127.0.0.1:8000/file-v2/uploadPartial"
 url = "http://0.0.0.0:80/file-v2/uploadPartial"
 
 partNumber = 1
@@ -116,9 +113,10 @@ hashType = "MD5"
 hD = CryptUtils().getFileHash(filePath, hashType=hashType)
 fullTestHash = hD["hashDigest"]
 
-sliceIndex = 0
+slices = 4  # make dynamic
 file_size = os.path.getsize(filePath)
-slice_size = file_size // 4
+sliceIndex = 0
+slice_size = file_size // slices
 sliceTotal = 0
 if slice_size < file_size:
     sliceTotal = file_size // slice_size

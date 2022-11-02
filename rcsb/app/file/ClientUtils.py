@@ -25,6 +25,8 @@ import typing
 import math
 import asyncio
 import httpx
+import io
+from copy import deepcopy
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -113,6 +115,81 @@ class ClientUtils():
             logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
         except Exception as e:
             logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
+
+    async def uploadPartial(self,
+                            filePath: str,
+                            idCode: str,
+                            repositoryType: str,
+                            contentType: str,
+                            contentFormat: str,
+                            partNumber: int,
+                            version: str,
+                            copyMode: str,
+                            allowOverWrite: bool,
+                            ):
+
+        endpoint = "uploadPartial"
+        url = os.path.join(self.__hostAndPort, "file-v2", endpoint)
+
+        hashType = "MD5"
+        hD = CryptUtils().getFileHash(filePath, hashType=hashType)
+        fullTestHash = hD["hashDigest"]
+
+        slices = 4  # make dynamic
+        file_size = os.path.getsize(filePath)
+        sliceIndex = 0
+        slice_size = file_size // slices
+        sliceTotal = 0
+        if slice_size < file_size:
+            sliceTotal = file_size // slice_size
+            if file_size % slice_size:
+                sliceTotal = sliceTotal + 1
+        else:
+            sliceTotal = 1
+        sliceOffset = 0
+
+        sessionId = uuid.uuid4().hex
+
+        mD = {
+            "sliceIndex": sliceIndex,
+            "sliceOffset": sliceOffset,
+            "sliceTotal": sliceTotal,
+            "sessionId": sessionId,
+            "idCode": "D_00000000",
+            "repositoryType": "onedep-archive",
+            "contentType": "model",
+            "contentFormat": "pdbx",
+            "partNumber": partNumber,
+            "version": str(version),
+            "copyMode": "native",
+            "allowOverWrite": allowOverWrite,
+            "hashType": hashType,
+            "hashDigest": fullTestHash,
+        }
+
+        tmp = io.BytesIO()
+        try:
+            async with httpx.AsyncClient(timeout=self.__timeout) as client:
+                with open(filePath, "rb") as to_upload:
+                    for i in range(0, mD["sliceTotal"]):
+                        packet_size = min(
+                            file_size - (mD["sliceIndex"] * slice_size),
+                            slice_size,
+                        )
+                        tmp.truncate(packet_size)
+                        tmp.seek(0)
+                        tmp.write(to_upload.read(packet_size))
+                        tmp.seek(0)
+                        # should posts be semaphore tasks?
+                        response = await client.post(url, data=deepcopy(mD), headers=self.__headerD, files={"uploadFile": tmp})
+                        if response.status_code != 200:
+                            print(f'error - status code {response.status_code} {response.text}...terminating')
+                            break
+                        mD["sliceIndex"] += 1
+                        mD["sliceOffset"] = mD["sliceIndex"] * slice_size
+        except Exception as exc:
+            logger.exception(f'error in sliced upload {exc}')
+        return sessionId
 
     async def semaphoreTask(self, client, maxThreads, mD, filesD, endPoint, startTime):
         semaphore = asyncio.Semaphore(maxThreads)

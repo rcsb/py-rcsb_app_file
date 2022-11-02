@@ -247,6 +247,7 @@ class IoUtils:
         if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
             return {"success": False, "statusCode": 405, "statusMessage": "Bad content type and/or format - upload rejected"}
 
+        # versioned path requires file lock
         lockPath = self.__pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
         myLock = FileLock(lockPath)
         with myLock:
@@ -259,21 +260,25 @@ class IoUtils:
                 return {"success": False, "statusCode": 405,
                         "statusMessage": "Encountered existing file - overwrite prohibited"}
 
+        # validate sequential slice index
         filename = os.path.basename(outPath)
         key = str(sessionId)
         val = filename
-        current_index = KV.gget(key, val)  # initializes to zero
+        current_index = KV.get(key, val)  # initializes to zero
         if current_index + 1 > sliceTotal:
-            return {"success": False, "statusCode": 500, "statusMessage": f"Error - index {sliceIndex} kv index {current_index} exceeds expected slice count {sliceTotal}"}
+            return {"success": False, "statusCode": 500,
+                    "statusMessage": f"Error - index {sliceIndex} kv index {current_index} exceeds expected slice count {sliceTotal}"}
         if sliceIndex < current_index:
-            return {"success": False, "statusCode": 500, "statusMessage": f"Error - redundant slice {sliceIndex} of {sliceTotal} for id {sessionId} is less than {current_index}"}
+            return {"success": False, "statusCode": 500,
+                    "statusMessage": f"Error - redundant slice {sliceIndex} of {sliceTotal} for id {sessionId} is less than {current_index}"}
         if sliceIndex > current_index + 1:
-           count = 0
-           while sliceIndex > KV.gget(key, val) + 1:
-               await asyncio.sleep(1)
-               count += 1
-               if count > 30:
-                   return {"success": False, "statusCode": 500, "statusMessage": "Error - slices out of order"}
+            count = 0
+            timeout = 30
+            while sliceIndex > KV.get(key, val) + 1:
+                await asyncio.sleep(1)
+                count += 1
+                if count > timeout:
+                    return {"success": False, "statusCode": 500, "statusMessage": "Error - slices out of order"}
 
         lockPath = self.__pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
         myLock = FileLock(lockPath)
@@ -289,9 +294,9 @@ class IoUtils:
             logging.warning(f'writing slice {sliceIndex} of {sliceTotal} offset {sliceOffset} file {filename}')
             ret = await self.writePartial(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, sessionId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
 
-        if KV.gget(key, val) + 1 == sliceTotal:
-            KV.rremove(key, val)
-            # what if extra slice arrives after remove...starts a new entry for same file above...how prevent?
+        if KV.get(key, val) + 1 == sliceTotal:
+            KV.rm(key, val)
+            # what if extra slice arrives after remove...starts a new entry for same file above...how to prevent?
         else:
             KV.inc(key, val)
 
@@ -357,7 +362,7 @@ class IoUtils:
         finally:
             ifh.close()
             ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
-            if (KV.gget(key, val) + 1) == sliceTotal:
+            if (KV.get(key, val) + 1) == sliceTotal:
                 logging.warning(f'{sliceTotal} slices complete')
                 ok = True
                 if hashDigest and hashType:
