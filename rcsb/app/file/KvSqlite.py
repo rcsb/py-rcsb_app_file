@@ -1,16 +1,68 @@
+import sqlite3
 from keyvalue_sqlite import KeyValueSqlite
 import logging
+
+
+class Kv(object):
+    def __init__(self, filepath, table):
+        self.FILEPATH = filepath
+        self.TABLE = table
+        try:
+            with self.getConnection() as connection:
+                connection.cursor().execute("CREATE TABLE IF NOT EXISTS sessions (key, val)")
+        except Exception as exc:
+            raise Exception(f'exception in Kv, {type(exc)} {exc}')
+
+    def getConnection(self):
+        connection = sqlite3.connect(self.FILEPATH)
+        return connection
+
+    def get(self, key):
+        res = None
+        try:
+            with self.getConnection() as connection:
+                res = connection.cursor().execute(f"SELECT val FROM sessions WHERE key = '{key}'").fetchone()[0]
+        except Exception as exc:
+            logging.warning(f'warning in Kv get, {type(exc)} {exc}')
+        return res
+
+    def set(self, key, val):
+        try:
+            with self.getConnection() as connection:
+                res = connection.cursor().execute(f"SELECT val FROM sessions WHERE key = '{key}'").fetchone()
+                if res is None:
+                    # logging.warning(f'inserting {key} = {val}')
+                    res = connection.cursor().execute(f"INSERT INTO sessions VALUES ('{key}', \"{val}\")")
+                    connection.commit()
+                    # logging.warning(f'inserted {key} = {val}')
+                else:
+                    # logging.warning(f'updating {key} = {val}')
+                    res = connection.cursor().execute(f"UPDATE sessions SET val = \"{val}\" WHERE key = '{key}'")
+                    connection.commit()
+                    # logging.warning(f'updated {key} = {val}')
+        except Exception as exc:
+            logging.warning(f'possible error in Kv set for {key} = {val}, {type(exc)} {exc}')
+
+    def clear(self, key):
+        try:
+            with self.getConnection() as connection:
+                res = connection.cursor().execute(f"DELETE FROM sessions WHERE key = '{key}'")
+                connection.commit()
+        except Exception as exc:
+            logging.warning(f'possible error in Kv clear, {type(exc)} {exc}')
 
 
 class KvSqlite(object):
     def __init__(self):
         # fix mount point
-        self.KV_SQLITE_PATH = "./kv.sqlite"
-        self.KV_SESSIONS_TABLE = "sessions"
+        self.FILEPATH = "./kv.sqlite"
+        self.TABLE = "sessions"
+        self.KV = None
         # create database if not exists
         # create table if not exists
         try:
-            self.KV = KeyValueSqlite(self.KV_SQLITE_PATH, self.KV_SESSIONS_TABLE)
+            self.KV = Kv(self.FILEPATH, self.TABLE)
+            # self.KV = KeyValueSqlite(self.FILEPATH, self.TABLE)
         except Exception as exc:
             # table already exists
             logging.warning(f'exception in KvSqlite: {type(exc)} {exc}')
@@ -34,7 +86,10 @@ class KvSqlite(object):
             self.KV.set(key, self.convert(d))
             s = self.KV.get(key)
             d = self.deconvert(s)
-        return d[val]
+        try:
+            return d[val]
+        except:
+            raise Exception(f'error in KV get, {d}')
 
     def set(self, key, val, vval):
         s = self.KV.get(key)
@@ -64,12 +119,17 @@ class KvSqlite(object):
         d[val] += 1
         self.KV.set(key, self.convert(d))
 
-    def rm(self, key, val):
+    def clear_val(self, key, val):
         s = self.KV.get(key)
         if s is not None:
             d = self.deconvert(s)
             if val in d:
                 del d[val]
                 self.KV.set(key, self.convert(d))
+
+    def clear_key(self, key):
+        s = self.KV.get(key)
+        if s is not None:
+            self.KV.clear(key)
 
 

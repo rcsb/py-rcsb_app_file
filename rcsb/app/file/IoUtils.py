@@ -295,7 +295,7 @@ class IoUtils:
             ret = await self.writePartial(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, sessionId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
 
         if KV.get(key, val) + 1 == sliceTotal:
-            KV.rm(key, val)
+            KV.clear_val(key, val)
             # what if extra slice arrives after remove...starts a new entry for same file above...how to prevent?
         else:
             KV.inc(key, val)
@@ -387,6 +387,14 @@ class IoUtils:
                 # logger.info("Uploaded %r (%d)", outPath, os.path.getsize(outPath))
 
         return ret
+
+    async def clearSession(self, sid: str):
+        global KV
+        try:
+            KV.clear_key(sid)
+        except Exception:
+            return False
+        return True
 
     # ---
     async def storeSlice(

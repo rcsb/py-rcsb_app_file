@@ -145,6 +145,8 @@ class ClientUtilsTests(unittest.TestCase):
                 )
             )
             logger.info("Completed download (%.4f seconds)", time.time() - startTime)
+            ok = asyncio.run(self.__cU.clearSession(sId))
+            logger.info("Removed session with status %r", ok)
             #
             # logger.info("Removing session directories for sessionId %s", sId)
             # ok = asyncio.run(self.__cU.deleteSessionDirectory(sessionId=sId))

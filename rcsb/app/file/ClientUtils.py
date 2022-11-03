@@ -191,6 +191,14 @@ class ClientUtils():
             logger.exception(f'error in sliced upload {exc}')
         return sessionId
 
+    async def clearSession(self, sid):
+        ok = await self.__ioU.clearSession(sid)
+        if not ok:
+            logging.warning(f'error - could not delete session {sid}')
+            return False
+        return True
+
+
     async def semaphoreTask(self, client, maxThreads, mD, filesD, endPoint, startTime):
         semaphore = asyncio.Semaphore(maxThreads)
         async with semaphore:
