@@ -66,6 +66,7 @@ async def uploadPartial(
     hashType: HashType = Form(None, title="Hash type", description="Hash type", example="SHA256"),
     hashDigest: str = Form(None, title="Hash digest", description="Hash digest", example="'0394a2ede332c9a13eb82e9b24631604c31df978b4e2f0fbd2c549944f9d79a5'"),
 ):
+    logging.warning(f'upload {idCode} {version} slice {sliceIndex}')
     fn = None
     ct = None
     try:
@@ -108,6 +109,7 @@ async def uploadPartial(
     if not ret["success"]:
         raise HTTPException(status_code=405, detail=ret["statusMessage"])
     #
+    logging.warning(f'returning {str(ret)}')
     return ret
 
 

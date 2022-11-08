@@ -18,5 +18,4 @@ aioboto3 >= 9.6
 boto3 >= 1.21.21
 httpx >= 0.23.0
 #
-keyvalue-sqlite
 

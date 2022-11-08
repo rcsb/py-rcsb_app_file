@@ -37,6 +37,7 @@ TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+logger.propagate = False
 
 
 class ClientUtilsTests(unittest.TestCase):
@@ -66,69 +67,103 @@ class ClientUtilsTests(unittest.TestCase):
         endTime = time.time()
         logger.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
 
-    async def gatherSingleFileUploadTasks(self, numTasks):
+    async def gatherSingleFileUploadTasks(self, numTasks, sessionId, slice_size):
         # Schedule n single-file upload calls *concurrently*:
         tL = []
         for i in range(numTasks):
-            tL.append(self.__cU.upload(
-                filePath=self.__testFilePath,
-                idCode="D_499900000"+str(i),
-                repositoryType="onedep-archive",
-                contentType="model",
-                contentFormat="pdbx",
-                partNumber=1,
-                version="9",
-                copyMode="native",
-                allowOverWrite=True,
-            ))
+            tL.append(self.__cU.upload([{
+                'filePath': self.__testFilePath,
+                'idCode': "D_499900000"+str(i),
+                'repositoryType': "onedep-archive",
+                'contentType': "model",
+                'contentFormat': "pdbx",
+                'partNumber': 1,
+                'version': "9",
+                'copyMode': "native",
+                'allowOverWrite': True,
+                'sessionId': sessionId,
+                'slice_size': slice_size
+            }]))
         taskL = await asyncio.gather(*tL)
         logger.info("single-file upload taskL: %r", taskL)
 
     def testClientUtils(self):
         """Test - file upload, multipart upload, and file download"""
         try:
-            # Test single file upload
+            # Test single-file single-part upload
             logger.info("Starting upload of file %s", self.__testFilePath)
+            sessionId = asyncio.run(self.__cU.getSession())
+            slice_size = 2500
             startTime = time.time()
             asyncio.run(
-                self.__cU.upload(
-                    filePath=self.__testFilePath,
-                    idCode="D_4999000001",
-                    repositoryType="onedep-archive",
-                    contentType="model",
-                    contentFormat="pdbx",
-                    partNumber=1,
-                    version="9",
-                    copyMode="native",
-                    allowOverWrite=True,
-                )
+                self.__cU.upload([{
+                    'filePath': self.__testFilePath,
+                    'idCode': "D_4999000001",
+                    'repositoryType': "onedep-archive",
+                    'contentType': "model",
+                    'contentFormat': "pdbx",
+                    'partNumber': 1,
+                    'version': 9,
+                    'copyMode': "native",
+                    'allowOverWrite': True,
+                    'sessionId': sessionId,
+                    'slice_size': slice_size
+                }])
             )
             logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
             #
-            # Test *concurrency* for multiple single-file uploads
+            # Test *concurrency* for multiple single-file single-part uploads
             logger.info("Starting concurrent single-file uploads")
             startTime = time.time()
-            asyncio.run(self.gatherSingleFileUploadTasks(numTasks=8))
+            asyncio.run(self.gatherSingleFileUploadTasks(numTasks=8, sessionId=sessionId, slice_size=slice_size))
             logger.info("Completed concurrent upload (%.4f seconds)", time.time() - startTime)
             #
-            # Test multipart file upload
+            # Test single-file multipart upload
             logger.info("Starting multipart-upload of file %s", self.__testFilePath)
             startTime = time.time()
-            sId = asyncio.run(
-                # self.__cU.multipartUpload(
-                self.__cU.uploadPartial(
-                    filePath=self.__testFilePath,
-                    idCode="D_5999000002",
-                    repositoryType="onedep-archive",
-                    contentType="model",
-                    contentFormat="pdbx",
-                    partNumber=1,
-                    version="9",
-                    copyMode="native",
-                    allowOverWrite=True,
-                )
+            response = asyncio.run(
+                self.__cU.upload([{
+                    'filePath': self.__testFilePath,
+                    'idCode': "D_8000210027",
+                    'repositoryType': "onedep-archive",
+                    'contentType': "model",
+                    'contentFormat': "pdbx",
+                    'partNumber': 1,
+                    'version': "1",
+                    'copyMode': "native",
+                    'allowOverWrite': True,
+                    'sessionId': sessionId,
+                    'slice_size': slice_size
+                }])
             )
-            logger.info("Completed multipart upload for sessionId %s (%.4f seconds)", sId, time.time() - startTime)
+            #
+            logger.info("Completed multipart upload (%.4f seconds) %s", time.time() - startTime, str(response))
+            #
+            # Test multi-file multipart upload
+            logger.info("Starting multi-file multipart-upload of file %s", self.__testFilePath)
+            startTime = time.time()
+            data = []
+            for part in range(1, 4):
+                data.append(
+                    {
+                        'filePath': self.__testFilePath,
+                        'idCode': "D_8000210027",
+                        'repositoryType': "onedep-archive",
+                        'contentType': "model",
+                        'contentFormat': "pdbx",
+                        'partNumber': part,
+                        'version': 1,
+                        'copyMode': "native",
+                        'allowOverWrite': True,
+                        'sessionId': sessionId,
+                        'slice_size': slice_size
+                    }
+                )
+            results = asyncio.run(self.__cU.upload(data))
+            for result in results:
+                print(f'multi-file multipart result {result}')
+            #
+            logger.info("Completed multi-file multipart upload (%.4f seconds) %s", time.time() - startTime, str(result))
             #
             # Test file download
             logger.info("Starting download of last uploaded file to %s", self.__testFileDownloadPath)
@@ -145,12 +180,8 @@ class ClientUtilsTests(unittest.TestCase):
                 )
             )
             logger.info("Completed download (%.4f seconds)", time.time() - startTime)
-            ok = asyncio.run(self.__cU.clearSession(sId))
-            logger.info("Removed session with status %r", ok)
-            #
-            # logger.info("Removing session directories for sessionId %s", sId)
-            # ok = asyncio.run(self.__cU.deleteSessionDirectory(sessionId=sId))
-            # logger.info("Completed removing session directories with status %r", ok)
+            ok = asyncio.run(self.__cU.clearSession(sessionId))
+            logger.info(f"Removed session {sessionId} with status %r", ok)
 
         except Exception as e:
             logger.exception("Failing with %s", str(e))

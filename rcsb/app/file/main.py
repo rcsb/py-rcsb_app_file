@@ -26,8 +26,8 @@ from . import ConfigProvider
 from . import LogFilterUtils
 from . import downloadRequest  # This triggers JWTAuthBearer
 from . import serverStatus
+from . import uploadRequest_v1
 from . import uploadRequest
-from . import uploadPartial
 from . import pathRequest
 from . import mergeRequest
 from .JWTAuthBearer import JWTAuthBearer
@@ -75,7 +75,7 @@ def shutdownEvent():
 
 
 app.include_router(
-    uploadRequest.router,
+    uploadRequest_v1.router,
     prefix="/file-v1",
 )
 
@@ -95,7 +95,7 @@ app.include_router(
 )
 
 app.include_router(
-    uploadPartial.router,
+    uploadRequest.router,
     prefix="/file-v2",
 )
 

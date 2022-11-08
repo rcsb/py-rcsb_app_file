@@ -34,9 +34,7 @@ from rcsb.app.file.KvSqlite import KvSqlite
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-
-KV = KvSqlite()
-
+logger.propagate = False
 
 def wrapAsync(fnc: typing.Callable) -> typing.Awaitable:
     @functools.wraps(fnc)
@@ -71,6 +69,7 @@ class IoUtils:
 
     def __init__(self, cP: typing.Type[ConfigProvider]):
         self.__cP = cP
+        self.__KV = KvSqlite(self.__cP)
         self.__pathU = PathUtils(self.__cP)
         self.__makedirs = wrapAsync(os.makedirs)
         self.__rmtree = wrapAsync(shutil.rmtree)
@@ -81,10 +80,137 @@ class IoUtils:
         self.__checkHashAsync = wrapAsync(self.checkHash)
         self.__getHashDigestAsync = wrapAsync(self.getHashDigest)
 
-    async def store(
+    def checkHash(self, pth: str, hashDigest: str, hashType: str) -> bool:
+        tHash = self.getHashDigest(pth, hashType)
+        return tHash == hashDigest
+
+    def getHashDigest(self, filePath: str, hashType: str = "SHA1", blockSize: int = 65536) -> typing.Optional[str]:
+        """Return the hash (hashType) for the input file.
+
+        Args:
+            filePath (str): for input file path
+            hashType (str, optional): one of MD5, SHA1, or SHA256. Defaults to "SHA1".
+            blockSize (int, optional): the size of incremental read operations. Defaults to 65536.
+
+        Returns:
+            (str): hash digest or None on failure
+        """
+        if hashType not in ["MD5", "SHA1", "SHA256"]:
+            return None
+        try:
+            if hashType == "SHA1":
+                # hashObj = await self.__hashSHA1()
+                hashObj = hashlib.sha1()
+            elif hashType == "SHA256":
+                # hashObj = await self.__hashSHA256()
+                hashObj = hashlib.sha256()
+            elif hashType == "MD5":
+                # hashObj = await self.__hashMD5()
+                hashObj = hashlib.md5()
+
+            with open(filePath, "rb") as ifh:
+                for block in iter(lambda: ifh.read(blockSize), b""):
+                    hashObj.update(block)
+            return hashObj.hexdigest()
+        except Exception as e:
+            logger.exception("Failing with file %s %r", filePath, str(e))
+        return None
+
+    # ---
+    async def storeUpload(
+        self,
+        ifh: typing.IO,
+        sliceIndex: int,
+        sliceOffset: int,
+        sliceTotal: int,
+        sessionId: int,
+        idCode: str,
+        repoType: str,
+        contentType: str,
+        contentFormat: str,
+        partNumber: int,
+        version: str,
+        copyMode: str = "native",
+        allowOverWrite: bool = True,
+        hashType: str = "MD5",
+        hashDigest: typing.Optional[str] = None,
+    ) -> typing.Dict:
+
+        logger.debug(
+            "repoType %r idCode %r contentType %r partNumber %r contentFormat %r version %r copyMode %r", repoType, idCode, contentType, partNumber, contentFormat, version, copyMode
+        )
+
+        if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
+            return {"success": False, "statusCode": 405, "statusMessage": "Bad content type and/or format - upload rejected"}
+
+        # does versioned path require file lock?
+        outPath = None
+        outPath = self.__pathU.getVersionedPath(repoType, idCode, contentType, partNumber, contentFormat, version)
+        if not outPath:
+            return {"success": False, "statusCode": 405,
+                    "statusMessage": "Bad content type metadata - cannot build a valid path"}
+        elif os.path.exists(outPath) and not allowOverWrite:
+            logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
+            return {"success": False, "statusCode": 405,
+                    "statusMessage": "Encountered existing file - overwrite prohibited"}
+
+        # validate sequential slice index
+        filename = os.path.basename(outPath)
+        key = str(sessionId)
+        val = filename
+        current_index = self.__KV.get(key, val)  # initializes to zero
+        if current_index + 1 > sliceTotal:
+            return {"success": False, "statusCode": 500,
+                    "statusMessage": f"Error - index {sliceIndex} kv index {current_index} exceeds expected slice count {sliceTotal}"}
+        if sliceIndex < current_index:
+            return {"success": False, "statusCode": 500,
+                    "statusMessage": f"Error - redundant slice {sliceIndex} of {sliceTotal} for id {sessionId} is less than {current_index}"}
+        if sliceIndex > current_index + 1:
+            return {"success": False, "statusCode": 500,
+                    "statusMessage": f"Error - slice {sliceIndex} of {sliceTotal} is out of order from previous index {current_index}"}
+            # or busy wait
+            # count = 0
+            # timeout = 30
+            # while sliceIndex > self.__KV.get(key, val) + 1:
+            #     await asyncio.sleep(1)
+            #     count += 1
+            #     if count > timeout:
+            #         return {"success": False, "statusCode": 500, "statusMessage": "Error - slices out of order"}
+
+        lockPath = self.__pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
+        # myLock = FileLock(lockPath)
+        # with myLock:
+        with FileLock(lockPath):
+            # logger.debug("am i locked %r", myLock.isLocked())
+            outPath = self.__pathU.getVersionedPath(repoType, idCode, contentType, partNumber, contentFormat, version)
+            if not outPath:
+                return {"success": False, "statusCode": 405, "statusMessage": "Bad content type metadata - cannot build a valid path"}
+            elif os.path.exists(outPath) and not allowOverWrite:
+                logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
+                return {"success": False, "statusCode": 405, "statusMessage": "Encountered existing file - overwrite prohibited"}
+
+            # logging.warning(f'writing slice {sliceIndex} of {sliceTotal} offset {sliceOffset} file {filename}')
+            ret = await self.writeUpload(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, sessionId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
+
+        if self.__KV.get(key, val) + 1 == sliceTotal:
+            self.__KV.clear_val(key, val)
+            # what if extra slice arrives after remove...starts a new entry for same file above...how to prevent?
+        else:
+            self.__KV.inc(key, val)
+
+        ret["fileName"] = os.path.basename(outPath) if ret["success"] else None
+        return ret
+
+    async def writeUpload(
         self,
         ifh: typing.IO,
         outPath: str,
+        sliceIndex: int,
+        sliceOffset: int,
+        sliceTotal: int,
+        sessionId: int,
+        key: str,
+        val: str,
         mode: typing.Optional[str] = "wb",
         copyMode: typing.Optional[str] = "native",
         hashType: typing.Optional[str] = None,
@@ -95,6 +221,12 @@ class IoUtils:
         Args:
             ifh (file-like-object): input file object containing target data
             outPath (str): output file path
+            sliceIndex: index of present chunk
+            sliceOffset: chunk byte offset
+            sliceTotal (int): total number of chunks to be uploaded
+            sessionId: unique identifier after login
+            key: database key from previous function
+            val: database val from previous function
             mode (str, optional): output file mode
             copyMode (str, optional): concrete copy mode (native|shell). Defaults to 'native'.
             hashType (str, optional): hash type (MD5|SHA1|SHA256). Defaults to 'MD5'.
@@ -103,6 +235,86 @@ class IoUtils:
         Returns:
             (dict): {"success": True|False, "statusMessage": <text>}
         """
+        ok = False
+        ret = {"success": False, "statusMessage": None}
+        try:
+            dirPath, fn = os.path.split(outPath)
+            tempPath = os.path.join(dirPath, "." + fn)
+            await self.__makedirs(dirPath, mode=0o755, exist_ok=True)
+
+            async with aiofiles.open(tempPath, mode) as ofh:
+                await ofh.seek(sliceOffset)
+                if copyMode == "native":
+                    await ofh.write(ifh.read())
+                    await ofh.flush()
+                    os.fsync(ofh.fileno())
+                elif copyMode == "gzip_decompress":
+                    await ofh.write(gzip.decompress(ifh.read()))
+                    await ofh.flush()
+                    os.fsync(ofh.fileno())
+
+        except Exception as e:
+            logger.exception("Internal write error for path %r: %s", outPath, str(e))
+            ret = {"success": False, "statusCode": 400, "statusMessage": "Store fails with %s" % str(e)}
+        finally:
+            ifh.close()
+            ret = {"sliceIndex": sliceIndex, "sliceCount": sliceTotal, "success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
+            if (self.__KV.get(key, val) + 1) == sliceTotal:
+                # logging.warning(f'{sliceTotal} slices complete')
+                ok = True
+                if hashDigest and hashType:
+                    # ok = self.checkHash(tempPath, hashDigest, hashType)
+                    ok = await self.__checkHashAsync(tempPath, hashDigest, hashType)
+                    if not ok:
+                        ret = {"success": False, "statusCode": 400, "statusMessage": "%s hash check failed" % hashType}
+                    if ok:
+                        await self.__replace(tempPath, outPath)
+                        ret = {"sliceIndex": sliceIndex, "sliceCount": sliceTotal, "success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
+                        # logging.warning(f'renamed {outPath}')
+                        # logger.info("Uploaded %r (%d)", outPath, os.path.getsize(outPath))
+                    if os.path.exists(tempPath):
+                        try:
+                            os.unlink(tempPath)
+                            # logging.warning(f'deleted {tempPath}')
+                        except Exception:
+                            logging.warning(f'could not delete {tempPath}')
+                            pass
+                else:
+                    logging.warning('hash error')
+                    ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
+
+        return ret
+
+    async def clearSession(self, sid: str):
+        try:
+            self.__KV.clear_key(sid)
+        except Exception:
+            return False
+        return True
+
+"""
+    async def store(
+        self,
+        ifh: typing.IO,
+        outPath: str,
+        mode: typing.Optional[str] = "wb",
+        copyMode: typing.Optional[str] = "native",
+        hashType: typing.Optional[str] = None,
+        hashDigest: typing.Optional[str] = None,
+    ) -> typing.Dict:
+        # Store data in the input file handle in the specified output path.
+        # 
+        # Args:
+        #     ifh (file-like-object): input file object containing target data
+        #     outPath (str): output file path
+        #     mode (str, optional): output file mode
+        #     copyMode (str, optional): concrete copy mode (native|shell). Defaults to 'native'.
+        #     hashType (str, optional): hash type (MD5|SHA1|SHA256). Defaults to 'MD5'.
+        #     hashDigest (str, optional): hash digest. Defaults to None.
+        # 
+        # Returns:
+        #     (dict): {"success": True|False, "statusMessage": <text>}
+        
         ok = False
         ret = {"success": False, "statusMessage": None}
         try:
@@ -146,7 +358,7 @@ class IoUtils:
             logger.info("Completed store with %r (%d)", outPath, os.path.getsize(outPath))
         return ret
 
-    async def storeUpload(
+    async def storeUpload_v1(
         self,
         ifh: typing.IO,
         repoType: str,
@@ -181,220 +393,6 @@ class IoUtils:
         #
         ret["fileName"] = os.path.basename(outPath) if ret["success"] else None
         return ret
-
-    def checkHash(self, pth: str, hashDigest: str, hashType: str) -> bool:
-        tHash = self.getHashDigest(pth, hashType)
-        return tHash == hashDigest
-
-    def getHashDigest(self, filePath: str, hashType: str = "SHA1", blockSize: int = 65536) -> typing.Optional[str]:
-        """Return the hash (hashType) for the input file.
-
-        Args:
-            filePath (str): for input file path
-            hashType (str, optional): one of MD5, SHA1, or SHA256. Defaults to "SHA1".
-            blockSize (int, optional): the size of incremental read operations. Defaults to 65536.
-
-        Returns:
-            (str): hash digest or None on failure
-        """
-        if hashType not in ["MD5", "SHA1", "SHA256"]:
-            return None
-        try:
-            if hashType == "SHA1":
-                # hashObj = await self.__hashSHA1()
-                hashObj = hashlib.sha1()
-            elif hashType == "SHA256":
-                # hashObj = await self.__hashSHA256()
-                hashObj = hashlib.sha256()
-            elif hashType == "MD5":
-                # hashObj = await self.__hashMD5()
-                hashObj = hashlib.md5()
-
-            with open(filePath, "rb") as ifh:
-                for block in iter(lambda: ifh.read(blockSize), b""):
-                    hashObj.update(block)
-            return hashObj.hexdigest()
-        except Exception as e:
-            logger.exception("Failing with file %s %r", filePath, str(e))
-        return None
-
-    # ---
-    async def storePartial(
-        self,
-        ifh: typing.IO,
-        sliceIndex: int,
-        sliceOffset: int,
-        sliceTotal: int,
-        sessionId: int,
-        idCode: str,
-        repoType: str,
-        contentType: str,
-        contentFormat: str,
-        partNumber: int,
-        version: str,
-        copyMode: str = "native",
-        allowOverWrite: bool = True,
-        hashType: str = "MD5",
-        hashDigest: typing.Optional[str] = None,
-    ) -> typing.Dict:
-
-        global KV
-
-        logger.debug(
-            "repoType %r idCode %r contentType %r partNumber %r contentFormat %r version %r copyMode %r", repoType, idCode, contentType, partNumber, contentFormat, version, copyMode
-        )
-
-        if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
-            return {"success": False, "statusCode": 405, "statusMessage": "Bad content type and/or format - upload rejected"}
-
-        # versioned path requires file lock
-        lockPath = self.__pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
-        myLock = FileLock(lockPath)
-        with myLock:
-            outPath = self.__pathU.getVersionedPath(repoType, idCode, contentType, partNumber, contentFormat, version)
-            if not outPath:
-                return {"success": False, "statusCode": 405,
-                        "statusMessage": "Bad content type metadata - cannot build a valid path"}
-            elif os.path.exists(outPath) and not allowOverWrite:
-                logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
-                return {"success": False, "statusCode": 405,
-                        "statusMessage": "Encountered existing file - overwrite prohibited"}
-
-        # validate sequential slice index
-        filename = os.path.basename(outPath)
-        key = str(sessionId)
-        val = filename
-        current_index = KV.get(key, val)  # initializes to zero
-        if current_index + 1 > sliceTotal:
-            return {"success": False, "statusCode": 500,
-                    "statusMessage": f"Error - index {sliceIndex} kv index {current_index} exceeds expected slice count {sliceTotal}"}
-        if sliceIndex < current_index:
-            return {"success": False, "statusCode": 500,
-                    "statusMessage": f"Error - redundant slice {sliceIndex} of {sliceTotal} for id {sessionId} is less than {current_index}"}
-        if sliceIndex > current_index + 1:
-            count = 0
-            timeout = 30
-            while sliceIndex > KV.get(key, val) + 1:
-                await asyncio.sleep(1)
-                count += 1
-                if count > timeout:
-                    return {"success": False, "statusCode": 500, "statusMessage": "Error - slices out of order"}
-
-        lockPath = self.__pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
-        myLock = FileLock(lockPath)
-        with myLock:
-            logger.debug("am i locked %r", myLock.isLocked())
-            # outPath = self.__pathU.getVersionedPath(repoType, idCode, contentType, partNumber, contentFormat, version)
-            # if not outPath:
-            #     return {"success": False, "statusCode": 405, "statusMessage": "Bad content type metadata - cannot build a valid path"}
-            # elif os.path.exists(outPath) and not allowOverWrite:
-            #     logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
-            #     return {"success": False, "statusCode": 405, "statusMessage": "Encountered existing file - overwrite prohibited"}
-
-            logging.warning(f'writing slice {sliceIndex} of {sliceTotal} offset {sliceOffset} file {filename}')
-            ret = await self.writePartial(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, sessionId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
-
-        if KV.get(key, val) + 1 == sliceTotal:
-            KV.clear_val(key, val)
-            # what if extra slice arrives after remove...starts a new entry for same file above...how to prevent?
-        else:
-            KV.inc(key, val)
-
-        ret["fileName"] = os.path.basename(outPath) if ret["success"] else None
-        return ret
-
-    async def writePartial(
-        self,
-        ifh: typing.IO,
-        outPath: str,
-        sliceIndex: int,
-        sliceOffset: int,
-        sliceTotal: int,
-        sessionId: int,
-        key: str,
-        val: str,
-        mode: typing.Optional[str] = "wb",
-        copyMode: typing.Optional[str] = "native",
-        hashType: typing.Optional[str] = None,
-        hashDigest: typing.Optional[str] = None,
-    ) -> typing.Dict:
-        """Store data in the input file handle in the specified output path.
-
-        Args:
-            ifh (file-like-object): input file object containing target data
-            outPath (str): output file path
-            sliceIndex: index of present chunk
-            sliceOffset: chunk byte offset
-            sliceTotal (int): total number of chunks to be uploaded
-            sessionId: unique identifier after login
-            key: database key from previous function
-            val: database val from previous function
-            mode (str, optional): output file mode
-            copyMode (str, optional): concrete copy mode (native|shell). Defaults to 'native'.
-            hashType (str, optional): hash type (MD5|SHA1|SHA256). Defaults to 'MD5'.
-            hashDigest (str, optional): hash digest. Defaults to None.
-
-        Returns:
-            (dict): {"success": True|False, "statusMessage": <text>}
-        """
-        global KV
-        ok = False
-        ret = {"success": False, "statusMessage": None}
-        try:
-            dirPath, fn = os.path.split(outPath)
-            tempPath = os.path.join(dirPath, "." + fn)
-            await self.__makedirs(dirPath, mode=0o755, exist_ok=True)
-
-            async with aiofiles.open(tempPath, mode) as ofh:
-                await ofh.seek(sliceOffset)
-                if copyMode == "native":
-                    await ofh.write(ifh.read())
-                    await ofh.flush()
-                    os.fsync(ofh.fileno())
-                elif copyMode == "gzip_decompress":
-                    await ofh.write(gzip.decompress(ifh.read()))
-                    await ofh.flush()
-                    os.fsync(ofh.fileno())
-
-        except Exception as e:
-            logger.exception("Internal write error for path %r: %s", outPath, str(e))
-            ret = {"success": False, "statusCode": 400, "statusMessage": "Store fails with %s" % str(e)}
-        finally:
-            ifh.close()
-            ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
-            if (KV.get(key, val) + 1) == sliceTotal:
-                logging.warning(f'{sliceTotal} slices complete')
-                ok = True
-                if hashDigest and hashType:
-                    # ok = self.checkHash(tempPath, hashDigest, hashType)
-                    ok = await self.__checkHashAsync(tempPath, hashDigest, hashType)
-                    if not ok:
-                        ret = {"success": False, "statusCode": 400, "statusMessage": "%s hash check failed" % hashType}
-                    if ok:
-                        await self.__replace(tempPath, outPath)
-                        logging.warning(f'renamed {outPath}')
-                        logger.info("Uploaded %r (%d)", outPath, os.path.getsize(outPath))
-                    if os.path.exists(tempPath):
-                        try:
-                            os.unlink(tempPath)
-                            logging.warning(f'deleted {tempPath}')
-                        except Exception:
-                            logging.warning(f'could not delete {tempPath}')
-                            pass
-                else:
-                    logging.warning('hash error')
-                    ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
-                # logger.info("Uploaded %r (%d)", outPath, os.path.getsize(outPath))
-
-        return ret
-
-    async def clearSession(self, sid: str):
-        global KV
-        try:
-            KV.clear_key(sid)
-        except Exception:
-            return False
-        return True
 
     # ---
     async def storeSlice(
@@ -478,17 +476,17 @@ class IoUtils:
     async def joinSlices(
         self, outPath: str, sessionId: str, sliceTotal: int, mode: str = "wb", hashType: typing.Optional[str] = None, hashDigest: typing.Optional[str] = None
     ) -> typing.Dict:
-        """Assemble the set of sliced portions in the input session in the specified output path.
-
-        Args:
-            outPath (str): output file path
-            mode (str, optional): output file mode
-            sessionId (str):  session identifier
-            sliceTotal (int): number of slices to be assembled into the output file
-
-        Returns:
-            (bool): True for success or False otherwise
-        """
+        # Assemble the set of sliced portions in the input session in the specified output path.
+        # 
+        # Args:
+        #     outPath (str): output file path
+        #     mode (str, optional): output file mode
+        #     sessionId (str):  session identifier
+        #     sliceTotal (int): number of slices to be assembled into the output file
+        # 
+        # Returns:
+        #     (bool): True for success or False otherwise
+        
         ret = {"success": False, "statusMessage": None}
         try:
             dirPath, fn = os.path.split(outPath)
@@ -526,17 +524,17 @@ class IoUtils:
         return ret
 
     async def splitFile(self, inputFilePath: str, numSlices: int, sessionId: str, hashType="MD5"):
-        """Split the input file into
-
-        Args:
-            inputFilePath (str): input file path
-            sessionId (str): unique session identifier for the split file
-            numSlices (int): divide input file into this number of chunks
-            hashType (str, optional): hash type  (MD5, SHA1, or SHA256). Defaults to "MD5".
-
-        Returns:
-            str: path to the session directory
-        """
+        # Split the input file into
+        # 
+        # Args:
+        #     inputFilePath (str): input file path
+        #     sessionId (str): unique session identifier for the split file
+        #     numSlices (int): divide input file into this number of chunks
+        #     hashType (str, optional): hash type  (MD5, SHA1, or SHA256). Defaults to "MD5".
+        # 
+        # Returns:
+        #     str: path to the session directory
+        
 
         prefixName = sessionId + "_"
         myHash = await self.__getHashDigestAsync(inputFilePath, hashType=hashType)
@@ -568,14 +566,14 @@ class IoUtils:
         return sessionDirPath
 
     async def removeSessionDir(self, sessionId: str):
-        """Remove a session directory.
-
-        Args:
-            sessionId (str): unique session identifier
-
-        Returns:
-            (bool): True for success or False otherwise
-        """
+        # Remove a session directory.
+        # 
+        # Args:
+        #     sessionId (str): unique session identifier
+        # 
+        # Returns:
+        #     (bool): True for success or False otherwise
+        
         try:
             sessionDirPath = os.path.abspath(os.path.join(self.__pathU.getSessionDirPath(), sessionId))
             logger.info("Deleting session directory %r", sessionDirPath)
@@ -584,3 +582,4 @@ class IoUtils:
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             return False
+"""

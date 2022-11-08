@@ -1,7 +1,7 @@
 import sqlite3
-from keyvalue_sqlite import KeyValueSqlite
+import typing
 import logging
-
+from rcsb.app.file.ConfigProvider import ConfigProvider
 
 class Kv(object):
     def __init__(self, filepath, table):
@@ -23,7 +23,8 @@ class Kv(object):
             with self.getConnection() as connection:
                 res = connection.cursor().execute(f"SELECT val FROM sessions WHERE key = '{key}'").fetchone()[0]
         except Exception as exc:
-            logging.warning(f'warning in Kv get, {type(exc)} {exc}')
+            pass
+            # logging.warning(f'warning in Kv get, {type(exc)} {exc}')
         return res
 
     def set(self, key, val):
@@ -31,15 +32,11 @@ class Kv(object):
             with self.getConnection() as connection:
                 res = connection.cursor().execute(f"SELECT val FROM sessions WHERE key = '{key}'").fetchone()
                 if res is None:
-                    # logging.warning(f'inserting {key} = {val}')
                     res = connection.cursor().execute(f"INSERT INTO sessions VALUES ('{key}', \"{val}\")")
                     connection.commit()
-                    # logging.warning(f'inserted {key} = {val}')
                 else:
-                    # logging.warning(f'updating {key} = {val}')
                     res = connection.cursor().execute(f"UPDATE sessions SET val = \"{val}\" WHERE key = '{key}'")
                     connection.commit()
-                    # logging.warning(f'updated {key} = {val}')
         except Exception as exc:
             logging.warning(f'possible error in Kv set for {key} = {val}, {type(exc)} {exc}')
 
@@ -53,19 +50,20 @@ class Kv(object):
 
 
 class KvSqlite(object):
-    def __init__(self):
-        # fix mount point
-        self.FILEPATH = "./kv.sqlite"
-        self.TABLE = "sessions"
+    def __init__(self,  cP: typing.Type[ConfigProvider]):
         self.KV = None
+        self.__cP = cP
+        # fix mount point
+        self.FILEPATH = self.__cP.get('KV_FILE_PATH')
+        self.TABLE = self.__cP.get('KV_TABLE_NAME')
         # create database if not exists
         # create table if not exists
         try:
             self.KV = Kv(self.FILEPATH, self.TABLE)
-            # self.KV = KeyValueSqlite(self.FILEPATH, self.TABLE)
         except Exception as exc:
             # table already exists
-            logging.warning(f'exception in KvSqlite: {type(exc)} {exc}')
+            pass
+            # logging.warning(f'exception in KvSqlite: {type(exc)} {exc}')
         if self.KV is None:
             raise Exception(f'error in KvSqlite - no database')
 

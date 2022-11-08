@@ -24,9 +24,11 @@ import uuid
 import typing
 import math
 import asyncio
+import aiohttp
 import httpx
 import io
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -34,9 +36,9 @@ from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.utils.io.FileUtil import FileUtil
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+# logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
+logger = logging.getLogger(__name__)
+# logger.setLevel(logging.INFO)
 
 
 class ClientUtils():
@@ -59,7 +61,179 @@ class ClientUtils():
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
         #
 
-    async def upload(
+    async def getSession(self):
+        return uuid.uuid4().hex
+
+    async def upload(self, data: list):
+        # data is a list of dictionaries
+        tasks = []
+        for d in data:
+            tasks.append(self.uploadFile(**d))
+        return await asyncio.gather(*tasks)
+
+    async def uploadThreadPool(self, data: list):
+        # does not work as well as multiFile
+        # data is a list of lists
+        results = []
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            for d in data:
+                results.append(executor.submit(await self.uploadFile(*d))) # not supposed to put *d in parentheses, throws type error, but otherwise await throws worse error
+        # logging.info(results)
+        # can't print results since mixed async thread results have type error
+        return results
+
+    async def uploadFile(self,
+                            filePath: str,
+                            idCode: str,
+                            repositoryType: str,
+                            contentType: str,
+                            contentFormat: str,
+                            partNumber: int,
+                            version: str,
+                            copyMode: str,
+                            allowOverWrite: bool,
+                            sessionId: str = None,
+                            slice_size: int = None
+                            ):
+
+        # print(f'upload {idCode} part {partNumber} path {filePath}')
+
+        endpoint = "upload"
+        url = os.path.join(self.__hostAndPort, "file-v2", endpoint)
+
+        hashType = "MD5"
+        hD = CryptUtils().getFileHash(filePath, hashType=hashType)
+        fullTestHash = hD["hashDigest"]
+
+        if slice_size is None:
+            slice_size = 1024 * 1024 * 8
+        file_size = os.path.getsize(filePath)
+        sliceTotal = 0
+        if slice_size < file_size:
+            sliceTotal = file_size // slice_size
+            if file_size % slice_size:
+                sliceTotal = sliceTotal + 1
+        else:
+            sliceTotal = 1
+        sliceIndex = 0
+        sliceOffset = 0
+
+        if sessionId is None:
+            print('creating new session id')
+            sessionId = uuid.uuid4().hex
+
+        mD = {
+            "sliceIndex": sliceIndex,
+            "sliceOffset": sliceOffset,
+            "sliceTotal": sliceTotal,
+            "sessionId": sessionId,
+            "idCode": idCode,
+            "repositoryType": repositoryType,
+            "contentType": contentType,
+            "contentFormat": contentFormat,
+            "partNumber": partNumber,
+            "version": str(version),
+            "copyMode": copyMode,
+            "allowOverWrite": allowOverWrite,
+            "hashType": hashType,
+            "hashDigest": fullTestHash,
+        }
+
+        response = None
+        tmp = io.BytesIO()
+        try:
+            async with httpx.AsyncClient(timeout=self.__timeout) as client:
+                with open(filePath, "rb") as to_upload:
+                    for i in range(0, mD["sliceTotal"]):
+                        packet_size = min(
+                            file_size - (mD["sliceIndex"] * slice_size),
+                            slice_size,
+                        )
+                        tmp.truncate(packet_size)
+                        tmp.seek(0)
+                        tmp.write(to_upload.read(packet_size))
+                        tmp.seek(0)
+                        response = await client.post(url, data=deepcopy(mD), headers=self.__headerD, files={"uploadFile": tmp})
+                        if response.status_code != 200:
+                            print(f'error - status code {response.status_code} {response.text}...terminating')
+                            break
+                        mD["sliceIndex"] += 1
+                        mD["sliceOffset"] = mD["sliceIndex"] * slice_size
+        except Exception as exc:
+            logger.exception(f'error in sliced upload {exc}')
+        return response.status_code
+
+    async def clearSession(self, sid):
+        ok = await self.__ioU.clearSession(sid)
+        if not ok:
+            logging.warning(f'error - could not delete session {sid}')
+            return False
+        return True
+
+    async def download(
+        self,
+        fileDownloadPath: typing.Optional[str],  # Location of where to download file
+        idCode: typing.Optional[str] = None,  # "D_1000000001"
+        repositoryType: typing.Optional[str] = None,  # "onedep-archive"
+        contentType: typing.Optional[str] = None,  # "model"
+        contentFormat: typing.Optional[str] = None,  # "pdbx"
+        partNumber: typing.Optional[int] = None,
+        version: typing.Optional[str] = None,
+        useHash: typing.Optional[bool] = True,
+        hashType: typing.Optional[str] = "MD5",
+        hashDigest: typing.Optional[str] = None,
+    ):
+        """Simple file download from repository storage or other location"""
+        #
+        endPoint = os.path.join("download", repositoryType)
+        #
+        startTime = time.time()
+        try:
+            mD = {
+                "idCode": idCode,
+                "contentType": contentType,
+                "contentFormat": contentFormat,
+                "partNumber": partNumber,
+                "version": version,
+                "hashType": hashType,
+            }
+            #
+            async with httpx.AsyncClient(timeout=self.__timeout) as client:
+                # Default timeout is 5.0 seconds, but takes ~120 seconds for ~3 GB file
+                response = await client.get(os.path.join(self.__hostAndPort, "file-v1", endPoint), params=mD, headers=self.__headerD)
+                logger.info("download response status code %r", response.status_code)
+                if response.status_code != 200:
+                    logger.error("response %r %r", response.status_code, response.text)
+                logger.info("Content length (%d)", len(response.content))
+                if useHash:
+                    try:
+                        rspHashType = response.headers["rcsb_hash_type"]
+                        rspHashDigest = response.headers["rcsb_hexdigest"]
+                    except Exception as e:
+                        logger.exception("Exception while trying to get hash informatiion from returned response header: %r. Failing with \n%s", response.headers, str(e))
+                #
+                with open(fileDownloadPath, "wb") as ofh:
+                    ofh.write(response.content)
+                #
+                if useHash:
+                    hD = CryptUtils().getFileHash(fileDownloadPath, hashType=hashType)
+                    hashDigest = hD["hashDigest"]
+                    if hashType != rspHashType:
+                        logger.error("Hash type mismatch between requested type %s and returned response type %s", hashType, rspHashType)
+                    if hashDigest != rspHashDigest:
+                        logger.error(
+                            "Hash digest of downloaded file (%s) does not match expected digest from response header (%s) for file %s",
+                            hashDigest,
+                            rspHashDigest,
+                            fileDownloadPath
+                        )
+                #
+            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+
+"""
+    async def upload_v1(
         self,
         filePath: typing.Optional[str],
         idCode: typing.Optional[str] = None,  # "D_1000000001"
@@ -73,7 +247,7 @@ class ClientUtils():
         hashType: typing.Optional[str] = "MD5",
         hashDigest: typing.Optional[str] = None,
     ):
-        """Simple file upload to repository storage or other location"""
+        # Simple file upload to repository storage or other location
         #
         endPoint = "upload"
         #
@@ -116,88 +290,6 @@ class ClientUtils():
         except Exception as e:
             logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
 
-    async def uploadPartial(self,
-                            filePath: str,
-                            idCode: str,
-                            repositoryType: str,
-                            contentType: str,
-                            contentFormat: str,
-                            partNumber: int,
-                            version: str,
-                            copyMode: str,
-                            allowOverWrite: bool,
-                            ):
-
-        endpoint = "uploadPartial"
-        url = os.path.join(self.__hostAndPort, "file-v2", endpoint)
-
-        hashType = "MD5"
-        hD = CryptUtils().getFileHash(filePath, hashType=hashType)
-        fullTestHash = hD["hashDigest"]
-
-        slices = 4  # make dynamic
-        file_size = os.path.getsize(filePath)
-        sliceIndex = 0
-        slice_size = file_size // slices
-        sliceTotal = 0
-        if slice_size < file_size:
-            sliceTotal = file_size // slice_size
-            if file_size % slice_size:
-                sliceTotal = sliceTotal + 1
-        else:
-            sliceTotal = 1
-        sliceOffset = 0
-
-        sessionId = uuid.uuid4().hex
-
-        mD = {
-            "sliceIndex": sliceIndex,
-            "sliceOffset": sliceOffset,
-            "sliceTotal": sliceTotal,
-            "sessionId": sessionId,
-            "idCode": "D_00000000",
-            "repositoryType": "onedep-archive",
-            "contentType": "model",
-            "contentFormat": "pdbx",
-            "partNumber": partNumber,
-            "version": str(version),
-            "copyMode": "native",
-            "allowOverWrite": allowOverWrite,
-            "hashType": hashType,
-            "hashDigest": fullTestHash,
-        }
-
-        tmp = io.BytesIO()
-        try:
-            async with httpx.AsyncClient(timeout=self.__timeout) as client:
-                with open(filePath, "rb") as to_upload:
-                    for i in range(0, mD["sliceTotal"]):
-                        packet_size = min(
-                            file_size - (mD["sliceIndex"] * slice_size),
-                            slice_size,
-                        )
-                        tmp.truncate(packet_size)
-                        tmp.seek(0)
-                        tmp.write(to_upload.read(packet_size))
-                        tmp.seek(0)
-                        # should posts be semaphore tasks?
-                        response = await client.post(url, data=deepcopy(mD), headers=self.__headerD, files={"uploadFile": tmp})
-                        if response.status_code != 200:
-                            print(f'error - status code {response.status_code} {response.text}...terminating')
-                            break
-                        mD["sliceIndex"] += 1
-                        mD["sliceOffset"] = mD["sliceIndex"] * slice_size
-        except Exception as exc:
-            logger.exception(f'error in sliced upload {exc}')
-        return sessionId
-
-    async def clearSession(self, sid):
-        ok = await self.__ioU.clearSession(sid)
-        if not ok:
-            logging.warning(f'error - could not delete session {sid}')
-            return False
-        return True
-
 
     async def semaphoreTask(self, client, maxThreads, mD, filesD, endPoint, startTime):
         semaphore = asyncio.Semaphore(maxThreads)
@@ -236,9 +328,9 @@ class ClientUtils():
         hashType: typing.Optional[str] = "MD5",
         hashDigest: typing.Optional[str] = None,
     ):
-        """Multipart sliced-upload to repository storage or other location.
-        Begins by first splitting file up into parts, uploading each part, and then joining the parts on the server side.
-        """
+        #Multipart sliced-upload to repository storage or other location.
+        #Begins by first splitting file up into parts, uploading each part, and then joining the parts on the server side.
+        
         endPoint = "upload-slice"
         sessionId = sessionId if sessionId else uuid.uuid4().hex
         try:
@@ -361,7 +453,7 @@ class ClientUtils():
         return sessionId
 
     async def deleteSessionDirectory(self, sessionId: typing.Optional[str]):
-        """Delete the staging and main session directories for a given sessionId."""
+        #Delete the staging and main session directories for a given sessionId.
         # - delete the staging directory -
         ok1 = await self.__ioU.removeSessionDir("staging" + sessionId)
         if not ok1:
@@ -373,65 +465,4 @@ class ClientUtils():
             logger.warning("Unable to delete session directory for sessionId %s", sessionId)
         #
         return ok1 and ok2
-
-    async def download(
-        self,
-        fileDownloadPath: typing.Optional[str],  # Location of where to download file
-        idCode: typing.Optional[str] = None,  # "D_1000000001"
-        repositoryType: typing.Optional[str] = None,  # "onedep-archive"
-        contentType: typing.Optional[str] = None,  # "model"
-        contentFormat: typing.Optional[str] = None,  # "pdbx"
-        partNumber: typing.Optional[int] = None,
-        version: typing.Optional[str] = None,
-        useHash: typing.Optional[bool] = True,
-        hashType: typing.Optional[str] = "MD5",
-        hashDigest: typing.Optional[str] = None,
-    ):
-        """Simple file download from repository storage or other location"""
-        #
-        endPoint = os.path.join("download", repositoryType)
-        #
-        startTime = time.time()
-        try:
-            mD = {
-                "idCode": idCode,
-                "contentType": contentType,
-                "contentFormat": contentFormat,
-                "partNumber": partNumber,
-                "version": version,
-                "hashType": hashType,
-            }
-            #
-            async with httpx.AsyncClient(timeout=self.__timeout) as client:
-                # Default timeout is 5.0 seconds, but takes ~120 seconds for ~3 GB file
-                response = await client.get(os.path.join(self.__hostAndPort, "file-v1", endPoint), params=mD, headers=self.__headerD)
-                logger.info("download response status code %r", response.status_code)
-                if response.status_code != 200:
-                    logger.error("response %r %r", response.status_code, response.text)
-                logger.info("Content length (%d)", len(response.content))
-                if useHash:
-                    try:
-                        rspHashType = response.headers["rcsb_hash_type"]
-                        rspHashDigest = response.headers["rcsb_hexdigest"]
-                    except Exception as e:
-                        logger.exception("Exception while trying to get hash informatiion from returned response header: %r. Failing with \n%s", response.headers, str(e))
-                #
-                with open(fileDownloadPath, "wb") as ofh:
-                    ofh.write(response.content)
-                #
-                if useHash:
-                    hD = CryptUtils().getFileHash(fileDownloadPath, hashType=hashType)
-                    hashDigest = hD["hashDigest"]
-                    if hashType != rspHashType:
-                        logger.error("Hash type mismatch between requested type %s and returned response type %s", hashType, rspHashType)
-                    if hashDigest != rspHashDigest:
-                        logger.error(
-                            "Hash digest of downloaded file (%s) does not match expected digest from response header (%s) for file %s",
-                            hashDigest,
-                            rspHashDigest,
-                            fileDownloadPath
-                        )
-                #
-            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
+"""
