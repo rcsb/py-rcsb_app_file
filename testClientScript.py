@@ -1,20 +1,19 @@
-import asyncio
 import concurrent.futures
 import uuid
 import os
-import requests
 import io
 from copy import deepcopy
-from concurrent.futures import ThreadPoolExecutor, wait, as_completed, FIRST_COMPLETED
-from rcsb.app.file.IoUtils import IoUtils
-
-os.environ["CACHE_PATH"] = os.path.join(".", "rcsb", "app", "tests-file", "test-data", "data")
-os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
-
+from concurrent.futures import ThreadPoolExecutor
+import requests
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.FileUtil import FileUtil
+
+os.environ["CACHE_PATH"] = os.path.join(
+    ".", "rcsb", "app", "tests-file", "test-data", "data"
+)
+os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
 
 cachePath = os.environ.get("CACHE_PATH")
 configFilePath = os.environ.get("CONFIG_FILE")
@@ -35,6 +34,7 @@ subject = cP.get("JWT_SUBJECT")
 
 
 filePath = "./rcsb/app/tests-file/test-data/testFile.dat"
+base_url = "http://0.0.0.0:80"
 
 # create file for download
 # select size of file here (in bytes)
@@ -46,7 +46,10 @@ fU = FileUtil()
 hashType = "MD5"
 hD = CryptUtils().getFileHash(filePath, hashType=hashType)
 testHash = hD["hashDigest"]
-headerD = {"Authorization": "Bearer " + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)}
+headerD = {
+    "Authorization": "Bearer "
+    + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)
+}
 
 sessionId = uuid.uuid4().hex
 
@@ -66,8 +69,7 @@ for version in range(1, 9):
         "sliceOffset": 0,
         "sliceTotal": 1,
         "sessionId": sessionId,
-        "idCode": "D_00000000",
-        "idCode": "D_00000000",
+        "idCode": "D_1000000001",
         "repositoryType": "onedep-archive",
         "contentType": "model",
         "contentFormat": "pdbx",
@@ -76,15 +78,17 @@ for version in range(1, 9):
         "copyMode": copyMode,
         "allowOverWrite": allowOverWrite,
         "hashType": hashType,
-        "hashDigest": testHash
+        "hashDigest": testHash,
     }
 
-    url = "http://0.0.0.0:80/file-v2/upload"
+    url = os.path.join(base_url, "file-v2", "upload")
 
     # upload with requests library
     with open(filePath, "rb") as ifh:
         files = {"uploadFile": ifh}
-        response = requests.post(url, files=files, data=mD, headers=headerD)
+        response = requests.post(
+            url, files=files, data=mD, headers=headerD, timeout=None
+        )
     print(response.text)
 
 # download
@@ -92,7 +96,7 @@ for version in range(1, 9):
 for version in range(1, 9):
 
     downloadDict = {
-        "idCode": "D_00000000",
+        "idCode": "D_1000000001",
         "repositoryType": "onedep-archive",
         "contentType": "model",
         "contentFormat": "pdbx",
@@ -102,15 +106,17 @@ for version in range(1, 9):
     }
     # set file download path
     fileName = downloadDict["idCode"] + "_" + downloadDict["version"] + ".dat"
-    downloadFilePath = os.path.join(".", "test-output", downloadDict["idCode"], fileName)
+    downloadFilePath = os.path.join(
+        ".", "test-output", downloadDict["idCode"], fileName
+    )
     downloadDirPath = os.path.join(".", "test-output", downloadDict["idCode"])
     downloadName = downloadDict["idCode"] + "_" + "v" + downloadDict["version"]
     FileUtil().mkdir(downloadDirPath)
 
-    url = "http://0.0.0.0:80/file-v1/download/onedep-archive"
+    url = os.path.join(base_url, "file-v1", "download", "onedep-archive")
 
     # download with requests library
-    response = requests.get(url, params=downloadDict, headers=headerD)
+    response = requests.get(url, params=downloadDict, headers=headerD, timeout=None)
 
     with open(downloadFilePath, "wb") as ofh:
         ofh.write(response.content)
@@ -119,7 +125,7 @@ for version in range(1, 9):
 
 # sliced upload
 
-url = "http://0.0.0.0:80/file-v2/upload"
+url = os.path.join(base_url, "file-v2", "upload")
 
 partNumber = 1
 version = 9
@@ -141,21 +147,21 @@ else:
     sliceTotal = 1
 sliceOffset = 0
 
-mD = {  
-        "sliceIndex": sliceIndex,
-        "sliceOffset": sliceOffset,
-        "sliceTotal": sliceTotal,
-        "sessionId": sessionId,
-        "idCode": "D_00000000",
-        "repositoryType": "onedep-archive",
-        "contentType": "model",
-        "contentFormat": "pdbx",
-        "partNumber": partNumber,
-        "version": str(version),
-        "copyMode": "native",
-        "allowOverWrite": allowOverWrite,
-        "hashType": hashType,
-        "hashDigest": fullTestHash,
+mD = {
+    "sliceIndex": sliceIndex,
+    "sliceOffset": sliceOffset,
+    "sliceTotal": sliceTotal,
+    "sessionId": sessionId,
+    "idCode": "D_1000000001",
+    "repositoryType": "onedep-archive",
+    "contentType": "model",
+    "contentFormat": "pdbx",
+    "partNumber": partNumber,
+    "version": str(version),
+    "copyMode": "native",
+    "allowOverWrite": allowOverWrite,
+    "hashType": hashType,
+    "hashDigest": fullTestHash,
 }
 
 tmp = io.BytesIO()
@@ -170,24 +176,31 @@ with open(filePath, "rb") as to_upload:
         tmp.write(to_upload.read(packet_size))
         tmp.seek(0)
 
-        response = requests.post(url, data=deepcopy(mD), headers=headerD, files={"uploadFile": tmp})
+        response = requests.post(
+            url,
+            data=deepcopy(mD),
+            headers=headerD,
+            files={"uploadFile": tmp},
+            timeout=None,
+        )
         if response.status_code != 200:
-            print(f'error - status code {response.status_code} {response.text}...terminating')
+            print(
+                f"error - status code {response.status_code} {response.text}...terminating"
+            )
             break
-        else:
-            print(f'chunk {i} upload result {response.text}')
+        print(f"chunk {i} upload result {response.text}")
         mD["sliceIndex"] += 1
         mD["sliceOffset"] = mD["sliceIndex"] * slice_size
 
 # multifile sliced upload
 
-url = "http://0.0.0.0:80/file-v2/upload"
+url = os.path.join(base_url, "file-v2", "upload")
 
 FILES_TO_UPLOAD = [
-                    "./rcsb/app/tests-file/test-data/data/repository/archive/D_1000000001/D_1000000001_model_P1.cif.V1",
-                    "./rcsb/app/tests-file/test-data/data/repository/archive/D_1000000001/D_1000000001_model_P1.cif.V2",
-                    "./rcsb/app/tests-file/test-data/data/repository/archive/D_1000000001/D_1000000001_model_P1.cif.V3",
-                    ]
+    "./rcsb/app/tests-file/test-data/data/repository/archive/D_00000000/D_00000000_model_P1.cif.V1",
+    "./rcsb/app/tests-file/test-data/data/repository/archive/D_00000000/D_00000000_model_P1.cif.V2",
+    "./rcsb/app/tests-file/test-data/data/repository/archive/D_00000000/D_00000000_model_P1.cif.V3",
+]
 
 
 def asyncUpload(filePath):
@@ -217,7 +230,7 @@ def asyncUpload(filePath):
         "sliceOffset": sliceOffset,
         "sliceTotal": sliceTotal,
         "sessionId": sessionId,
-        "idCode": "D_90000000",
+        "idCode": "D_00000000",
         "repositoryType": "onedep-archive",
         "contentType": "model",
         "contentFormat": "pdbx",
@@ -240,9 +253,17 @@ def asyncUpload(filePath):
             tmp.seek(0)
             tmp.write(to_upload.read(packet_size))
             tmp.seek(0)
-            response = requests.post(url, data=deepcopy(mD), headers=headerD, files={"uploadFile": tmp})
+            response = requests.post(
+                url,
+                data=deepcopy(mD),
+                headers=headerD,
+                files={"uploadFile": tmp},
+                timeout=None,
+            )
             if response.status_code != 200:
-                print(f'error - status code {response.status_code} {response.text}...terminating')
+                print(
+                    f"error - status code {response.status_code} {response.text}...terminating"
+                )
                 break
             responses.append(response)
             mD["sliceIndex"] += 1
@@ -259,67 +280,3 @@ with ThreadPoolExecutor(max_workers=10) as executor:
     print("multi-file sliced upload result")
     for result in results:
         print([response.text for response in result])
-
-
-"""
-hashType = "MD5"
-hD = CryptUtils().getFileHash(filePath, hashType=hashType)
-fullTestHash = hD["hashDigest"]
-
-url = "http://0.0.0.0:80/file-v1/upload-slice"
-
-cP = ConfigProvider(cachePath)
-ioU = IoUtils(cP)
-sessionId = uuid.uuid4().hex
-
-sliceTotal = 4
-loop = asyncio.get_event_loop()
-task = ioU.splitFile(filePath, sliceTotal, "staging" + sessionId)
-sP = loop.run_until_complete(task)
-
-sliceIndex = 0
-manifestPath = os.path.join(sP, "MANIFEST")
-with open(manifestPath, "r", encoding="utf-8") as ifh:
-    for line in ifh:
-        testFile = line[:-1]
-        testFilePath = os.path.join(sP, testFile)
-        sliceIndex += 1
-
-        mD = {
-            "sliceIndex": sliceIndex,
-            "sliceTotal": sliceTotal,
-            "sessionId": sessionId,
-            "copyMode": "native",
-            "allowOverWrite": True,
-            "hashType": None,
-            "hashDigest": None,
-        }
-
-        with open(testFilePath, "rb") as ifh:
-            files = {"uploadFile": ifh}
-            response = requests.post(url, files=files, data=mD, headers=headerD)
-
-partNumber = 1
-allowOverWrite = True
-version = 1
-
-mD = {
-    "sessionId": sessionId,
-    "sliceTotal": sliceTotal,
-    "idCode": "D_00000000",
-    "repositoryType": "onedep-archive",
-    "contentType": "model",
-    "contentFormat": "pdbx",
-    "partNumber": partNumber,
-    "version": str(version),
-    "copyMode": "native",
-    "allowOverWrite": allowOverWrite,
-    "hashType": hashType,
-    "hashDigest": fullTestHash,
-}
-
-url = "http://0.0.0.0:80/file-v1/join-slice"
-
-with open(testFilePath, "rb") as ifh:
-    response = requests.post(url, data=mD, headers=headerD)
-"""
