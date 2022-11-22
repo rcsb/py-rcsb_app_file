@@ -122,7 +122,7 @@ class IoUtils:
         sliceIndex: int,
         sliceOffset: int,
         sliceTotal: int,
-        sessionId: int,
+        uploadId: int,
         idCode: str,
         repoType: str,
         contentType: str,
@@ -135,46 +135,38 @@ class IoUtils:
         hashDigest: typing.Optional[str] = None,
     ) -> typing.Dict:
 
-        logger.debug(
-            "repoType %r idCode %r contentType %r partNumber %r contentFormat %r version %r copyMode %r", repoType, idCode, contentType, partNumber, contentFormat, version, copyMode
-        )
+        # logger.warning(
+        #     "repoType %r idCode %r contentType %r partNumber %r contentFormat %r version %r copyMode %r", repoType, idCode, contentType, partNumber, contentFormat, version, copyMode
+        # )
+        # logger.warning(
+        #     "slice index %s slice offset %s slice total %s upload id %s", sliceIndex, sliceOffset, sliceTotal, uploadId
+        # )
 
         if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
             return {"success": False, "statusCode": 405, "statusMessage": "Bad content type and/or format - upload rejected"}
 
-        # does versioned path require file lock?
-        outPath = self.__pathU.getVersionedPath(repoType, idCode, contentType, partNumber, contentFormat, version)
-        if not outPath:
-            return {"success": False, "statusCode": 405,
-                    "statusMessage": "Bad content type metadata - cannot build a valid path"}
-        if os.path.exists(outPath) and not allowOverWrite:
-            logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
-            return {"success": False, "statusCode": 405,
-                    "statusMessage": "Encountered existing file - overwrite prohibited"}
-
         # validate sequential slice index
-        filename = os.path.basename(outPath)
-        key = str(sessionId)
-        val = filename
-        currentIndex = self.__kV.get(key, val)  # initializes to zero
+        # versioned_filename = os.path.basename(outPath)
+        non_versioned_filename = self.__pathU.getBaseFileName(idCode, contentType, partNumber, contentFormat)
+        key = str(uploadId)
+        val = "uploadIndex"
+        # initializes to zero
+        currentIndex = self.__kV.getSession(key, val)
+        # on first chunk upload, set expected count, record uid in log table
+        if sliceIndex == 0:
+            self.__kV.setSession(key, "expectedCount", sliceTotal)
+            self.__kV.setLog(non_versioned_filename, uploadId)
         if currentIndex + 1 > sliceTotal:
             return {"success": False, "statusCode": 500,
                     "statusMessage": f"Error - index {sliceIndex} kv index {currentIndex} exceeds expected slice count {sliceTotal}"}
-        if sliceIndex < currentIndex:
-            return {"success": False, "statusCode": 500,
-                    "statusMessage": f"Error - redundant slice {sliceIndex} of {sliceTotal} for id {sessionId} is less than {currentIndex}"}
+        if sliceIndex < currentIndex:  # resumed upload...already saved
+            return {"success": True, "statusCode": 200, "uploadId": uploadId,
+                    "statusMessage": f"Error - redundant slice {sliceIndex} of {sliceTotal} for id {uploadId} is less than {currentIndex}"}
         if sliceIndex > currentIndex + 1:
             return {"success": False, "statusCode": 500,
                     "statusMessage": f"Error - slice {sliceIndex} of {sliceTotal} is out of order from previous index {currentIndex} for key {key} val {val}"}
-            # or busy wait
-            # count = 0
-            # timeout = 30
-            # while sliceIndex > self.__kV.get(key, val) + 1:
-            #     await asyncio.sleep(1)
-            #     count += 1
-            #     if count > timeout:
-            #         return {"success": False, "statusCode": 500, "statusMessage": "Error - slices out of order"}
-
+        # get path for saving file
+        outPath = None
         lockPath = self.__pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
         with FileLock(lockPath):
             outPath = self.__pathU.getVersionedPath(repoType, idCode, contentType, partNumber, contentFormat, version)
@@ -184,16 +176,18 @@ class IoUtils:
                 logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
                 return {"success": False, "statusCode": 405, "statusMessage": "Encountered existing file - overwrite prohibited"}
 
-            # logging.warning(f'writing slice {sliceIndex} of {sliceTotal} offset {sliceOffset} file {filename}')
-            ret = await self.writeUpload(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, sessionId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
+        ret = await self.writeUpload(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, uploadId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
 
-        if self.__kV.get(key, val) + 1 == sliceTotal:
-            self.__kV.clearVal(key, val)
+        # if last slice, otherwise increment slice count
+        if self.__kV.getSession(key, val) + 1 == sliceTotal:
+            pass  # should clear key except may want to save that for client to enable sessions and session status
+            # self.__kV.clearKey(key)
             # what if extra slice arrives after remove...starts a new entry for same file above...how to prevent?
         else:
             self.__kV.inc(key, val)
 
         ret["fileName"] = os.path.basename(outPath) if ret["success"] else None
+        ret["uploadId"] = uploadId  # except after last slice uploadId could get deleted
         return ret
 
     async def writeUpload(
@@ -203,7 +197,7 @@ class IoUtils:
         sliceIndex: int,
         sliceOffset: int,
         sliceTotal: int,
-        sessionId: int,
+        uploadId: int,
         key: str,
         val: str,
         mode: typing.Optional[str] = "wb",
@@ -219,7 +213,7 @@ class IoUtils:
             sliceIndex: index of present chunk
             sliceOffset: chunk byte offset
             sliceTotal (int): total number of chunks to be uploaded
-            sessionId: unique identifier after login
+            uploadId: unique identifier after login
             key: database key from previous function
             val: database val from previous function
             mode (str, optional): output file mode
@@ -254,12 +248,13 @@ class IoUtils:
         finally:
             ifh.close()
             ret = {"sliceIndex": sliceIndex, "sliceCount": sliceTotal, "success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
-            if (self.__kV.get(key, val) + 1) == sliceTotal:
+            # if last slice
+            if (self.__kV.getSession(key, val) + 1) == sliceTotal:
                 # logging.warning(f'{sliceTotal} slices complete')
                 ok = True
                 if hashDigest and hashType:
-                    # ok = self.checkHash(tempPath, hashDigest, hashType)
-                    ok = await self.__checkHashAsync(tempPath, hashDigest, hashType)
+                    ok = self.checkHash(tempPath, hashDigest, hashType)
+                    # ok = await self.__checkHashAsync(tempPath, hashDigest, hashType)
                     if not ok:
                         ret = {"success": False, "statusCode": 400, "statusMessage": f"{hashType} hash check failed"}
                     if ok:
@@ -279,12 +274,55 @@ class IoUtils:
 
         return ret
 
-    async def getSession(self):
+    async def getResumedUpload(self, repositoryType, idCode, contentType, partNumber, contentFormat, version):
+        filename = self.__pathU.getBaseFileName(idCode, contentType, partNumber, contentFormat)
+        # filename = self.__pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+        uploadId = self.__kV.getLog(filename)
+        # logging.warning("log for %s = %s", filename, uploadId)
+        return uploadId  # returns uploadId or None
+
+    async def getNewUploadId(self):#, repoType, idCode, contentType, partNumber, contentFormat, version):
+        # outPath = self.__pathU.getVersionedPath(repoType, idCode, contentType, str(partNumber), contentFormat, str(version))
+        # if not outPath:
+        #     return None
+        # return os.path.basename(outPath)
         return uuid.uuid4().hex
 
-    async def clearSession(self, sid: str):
+    async def findUploadId(self, repositoryType, idCode, partNumber, contentType, contentFormat):
+        filename = self.__pathU.getBaseFileName(idCode, contentType, str(partNumber), contentFormat)
+        if not filename:
+            return None
+        filename = os.path.basename(filename)
+        uploadId = self.__kV.getLog(filename)
+        return None if not uploadId else uploadId
+
+    async def clearUploadId(self, uid: str):
+        response = None
         try:
-            self.__kV.clearKey(sid)
+            response = self.__kV.clearSessionKey(uid)
         except Exception:
             return False
-        return True
+        return response
+
+    def uploadStatus(self, uploadId):
+        return self.__kV.getAll(uploadId, self.__kV.sessionTable)
+
+    # not yet implemented, supposed to have sessionId rather than uploadId
+    async def serverStatus(self, uploadIds: list) -> list:
+        return [self.__kV.getAll(uid, self.__kV.sessionTable) for uid in uploadIds]
+
+    async def clearSession(self, uploadIds: list):
+        response = True
+        try:
+            for uid in uploadIds:
+                res = self.__kV.clearSessionKey(uid)
+                if not res:
+                    response = False
+                res = self.__kV.clearLogVal(uid)
+        except Exception as exc:
+            return False
+        return response
+
+    async def clearKv(self):
+        self.__kV.clearTable(self.__kV.sessionTable)
+        self.__kV.clearTable(self.__kV.logTable)

@@ -27,6 +27,7 @@ from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 import httpx
 import requests
+import json
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -73,8 +74,9 @@ class ClientUtils:
         one file is treated as a subset of multiple files
     """
 
-    async def upload(self, data: list):
-        # data is a list of dictionaries
+    async def upload(self, data: list) -> list:
+        # data is a list of dictionaries, return value is a list of multi-file results
+        # for one file upload, returns a list of size 1
         tasks = []
         for _d in data:
             tasks.append(self.uploadFile(**_d))
@@ -125,8 +127,8 @@ class ClientUtils:
         version: str,
         copyMode: str,
         allowOverWrite: bool,
-        sessionId: str = None,
         sliceSize: int = None,
+        uploadId: str = None,
     ):
 
         # print(f'upload {idCode} part {partNumber} path {filePath}')
@@ -151,15 +153,15 @@ class ClientUtils:
         sliceIndex = 0
         sliceOffset = 0
 
-        if sessionId is None:
-            print("creating new session id")
-            sessionId = self.getSession()
+        # if uploadId is None:
+            # print("creating new upload id")
+            # uploadId = await self.getNewUploadId()#repositoryType, idCode, contentType, partNumber, contentFormat, version)
 
         mD = {
             "sliceIndex": sliceIndex,
             "sliceOffset": sliceOffset,
             "sliceTotal": sliceTotal,
-            "sessionId": sessionId,
+            "uploadId": uploadId,
             "idCode": idCode,
             "repositoryType": repositoryType,
             "contentType": contentType,
@@ -176,7 +178,7 @@ class ClientUtils:
         tmp = io.BytesIO()
         try:
             with open(filePath, "rb") as upLoad:
-                for i in range(0, mD["sliceTotal"]):
+                for i in range(0, sliceTotal):
                     packetSize = min(
                         fileSize - (mD["sliceIndex"] * sliceSize),
                         sliceSize,
@@ -199,9 +201,14 @@ class ClientUtils:
                         break
                     mD["sliceIndex"] += 1
                     mD["sliceOffset"] = mD["sliceIndex"] * sliceSize
+                    # time.sleep(1)
+                    # text = json.loads(response.text)
+                    # mD["uploadId"] = text["uploadId"]
         except asyncio.CancelledError as exc:
             logger.exception("error in sliced upload %s", exc)
-        return None if not response else response.status_code
+
+        # return response from last slice uploaded (if all slices were uploaded)
+        return None if not response else response
 
     async def download(
         self,
@@ -279,12 +286,27 @@ class ClientUtils:
         except Exception as e:
             logger.exception("Failing with %s", str(e))
 
-    async def getSession(self):
-        return await self.__ioU.getSession()
+    async def getNewUploadId(self):#, repositoryType, idCode, contentType, partNumber, contentFormat, version):
+        return await self.__ioU.getNewUploadId()#repositoryType, idCode, contentType, partNumber, contentFormat, version)
 
-    async def clearSession(self, sid):
-        ok = await self.__ioU.clearSession(sid)
-        if not ok:
-            logging.warning("error - could not delete session %s", sid)
+    async def clearUploadId(self, uid):
+        url = os.path.join(self.__hostAndPort, "file-v2", "clearUploadId")
+        response = requests.post(url, data={"uid": uid}, headers=self.__headerD, timeout=None)
+        # ok = await self.__ioU.clearUploadId(uid)
+        if response.status_code != 200:
+            logging.warning("error - could not delete upload id %s", uid)
             return False
         return True
+
+    async def clearSession(self, uploadIds: list):
+        url = os.path.join(self.__hostAndPort, "file-v2", "clearSession")
+        response = requests.post(url, data={"uploadIds": uploadIds}, headers=self.__headerD, timeout=None)
+        # ok = await self.__ioU.clearSession(uploadIds)
+        if response.status_code != 200:
+            logging.warning("error - could not delete session")
+            return False
+        return True
+
+    async def clearKv(self):
+        url = os.path.join(self.__hostAndPort, "file-v2", "clearKv")
+        response = requests.post(url, data={}, headers=self.__headerD, timeout=None)

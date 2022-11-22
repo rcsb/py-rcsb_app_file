@@ -39,7 +39,7 @@ class JWTAuthToken:
         if expiresDelta:
             expire = now + expiresDelta
         else:
-            expire = now + datetime.timedelta(minutes=15)
+            expire = now + datetime.timedelta(minutes=150)
         payload.update({"exp": expire, "iat": now, "sub": subject})
         jwtToken = jwt.encode(payload, self.__jwtSecret, algorithm=self.__jwtAlgorithm)
 

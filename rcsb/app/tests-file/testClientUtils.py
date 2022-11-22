@@ -25,7 +25,7 @@ import resource
 import time
 import unittest
 import asyncio
-
+import json
 from rcsb.app.file import __version__
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.app.file.ClientUtils import ClientUtils
@@ -92,12 +92,14 @@ class ClientUtilsTests(unittest.TestCase):
     def testClientUtils(self):
         """Test - file upload, multipart upload, and file download"""
         try:
-            # Test single-file single-part upload
+            asyncio.run(self.__cU.clearKv())
+            # Test single-file multi-part upload
             logger.info("Starting upload of file %s", self.__testFilePath)
-            sessionId = asyncio.run(self.__cU.getSession())
+            # sessionId = asyncio.run(self.__cU.getSession())
+            uploadIds = []
             sliceSize = 2500
             startTime = time.time()
-            asyncio.run(
+            responses = asyncio.run(
                 self.__cU.upload(
                     [
                         {
@@ -107,16 +109,22 @@ class ClientUtilsTests(unittest.TestCase):
                             "contentType": "model",
                             "contentFormat": "pdbx",
                             "partNumber": 1,
-                            "version": 9,
+                            "version": "9",
                             "copyMode": "native",
                             "allowOverWrite": True,
-                            "sessionId": sessionId,
-                            "sliceSize": sliceSize,
+                            "sliceSize": sliceSize
                         }
                     ]
                 )
             )
             logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
+            """ even for one file, upload function returns a list of size one with one response 
+                since same function is reused for multi-file uploads
+            """
+            for res in responses:
+                text = json.loads(res.text)
+                uploadIds.append(text["uploadId"])
+            # return
             #
             # Test *concurrency* for multiple single-file single-part uploads
             logger.info("Starting concurrent single-file uploads")
@@ -135,8 +143,7 @@ class ClientUtilsTests(unittest.TestCase):
                         "version": "9",
                         "copyMode": "native",
                         "allowOverWrite": True,
-                        "sessionId": sessionId,
-                        "sliceSize": sliceSize,
+                        "sliceSize": sliceSize
                     }
                 )
             taskL = asyncio.run(self.__cU.upload(tL))
@@ -144,11 +151,14 @@ class ClientUtilsTests(unittest.TestCase):
             logger.info(
                 "Completed concurrent upload (%.4f seconds)", time.time() - startTime
             )
+            for task in taskL:
+                text = json.loads(task.text)
+                uploadIds.append(text["uploadId"])
             #
             # Test single-file multipart upload
             logger.info("Starting multipart-upload of file %s", self.__testFilePath)
             startTime = time.time()
-            response = asyncio.run(
+            responses = asyncio.run(
                 self.__cU.upload(
                     [
                         {
@@ -158,10 +168,9 @@ class ClientUtilsTests(unittest.TestCase):
                             "contentType": "model",
                             "contentFormat": "pdbx",
                             "partNumber": 1,
-                            "version": "1",
+                            "version": "9",
                             "copyMode": "native",
                             "allowOverWrite": True,
-                            "sessionId": sessionId,
                             "sliceSize": sliceSize,
                         }
                     ]
@@ -171,8 +180,11 @@ class ClientUtilsTests(unittest.TestCase):
             logger.info(
                 "Completed multipart upload (%.4f seconds) %s",
                 time.time() - startTime,
-                str(response),
+                str(responses),
             )
+            for res in responses:
+                text = json.loads(res.text)
+                uploadIds.append(text["uploadId"])
             #
             # Test multi-file multipart upload
             logger.info(
@@ -184,21 +196,22 @@ class ClientUtilsTests(unittest.TestCase):
                 data.append(
                     {
                         "filePath": self.__testFilePath,
-                        "idCode": "5000000001",
+                        "idCode": "D_5000000001",
                         "repositoryType": "onedep-archive",
                         "contentType": "model",
                         "contentFormat": "pdbx",
                         "partNumber": part,
-                        "version": 1,
+                        "version": "9",
                         "copyMode": "native",
                         "allowOverWrite": True,
-                        "sessionId": sessionId,
                         "sliceSize": sliceSize,
                     }
                 )
             results = asyncio.run(self.__cU.upload(data))
             for result in results:
                 print(f"multi-file multipart result {result}")
+                text = json.loads(result.text)
+                uploadIds.append(text["uploadId"])
             #
             logger.info(
                 "Completed multi-file multipart upload (%.4f seconds)",
@@ -223,8 +236,8 @@ class ClientUtilsTests(unittest.TestCase):
                 )
             )
             logger.info("Completed download (%.4f seconds)", time.time() - startTime)
-            ok = asyncio.run(self.__cU.clearSession(sessionId))
-            logger.info("Removed session %s with status %r", sessionId, ok)
+            ok = asyncio.run(self.__cU.clearSession(uploadIds))
+            logger.info("Removed session with status %r", ok)
 
         except Exception as e:
             logger.exception("Failing with %s", str(e))

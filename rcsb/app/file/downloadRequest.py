@@ -41,6 +41,16 @@ class HashType(str, Enum):
     SHA256 = "SHA256"
 
 
+@router.get("/downloadSize")
+async def downloadSize(repositoryType, idCode, contentType, partNumber, contentFormat, version, hashType):
+    cachePath = os.environ.get("CACHE_PATH")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+    pathU = PathUtils(cP)
+    filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    return os.path.getsize(filePath)
+
+
 @router.get("/download/{repositoryType}")
 async def download(
     idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),

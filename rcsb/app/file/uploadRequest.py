@@ -23,6 +23,8 @@ from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
+from rcsb.app.file.PathUtils import PathUtils
+from rcsb.utils.io.FileLock import FileLock
 
 logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
@@ -60,18 +62,52 @@ class UploadResult(BaseModel):
 
 
 @router.post("/uploadStatus")
-async def getUploadStatus(sessionId, filePath):
-    return None
+async def getUploadStatus(uploadId) -> list:
+    return await IoUtils.uploadStatus(uploadId)
 
 
+# not yet implemented, have no session id per user
 @router.post("/serverStatus")
-async def getServerStatus():
-    return None
+async def getServerStatus(sessionId: int) -> list:
+    return await IoUtils.serverStatus(sessionId)
 
 
-@router.post("/upload", response_model=UploadResult)
+@router.post("/findUploadId")
+async def findUploadId(repositoryType: str = Form(...), idCode: str = Form(...), partNumber: int = Form(...), contentType: str = Form(...), contentFormat: str = Form(...)) -> int:
+    return await IoUtils.findUploadId(repositoryType, idCode, partNumber, contentType, contentFormat)
+
+
+# create new upload id
+@router.post("/getNewUploadId")
+async def getNewUploadId():
+    return await IoUtils.getNewUploadId()
+
+
+@router.post("/clearSession")
+async def clearSession(uploadIds: list = Form(...)):
+    cachePath = os.environ.get("CACHE_PATH")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+    ioU = IoUtils(cP)
+    return await ioU.clearSession(uploadIds)
+
+@router.post("/clearKv")
+async def clearKv():
+    cachePath = os.environ.get("CACHE_PATH")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+    ioU = IoUtils(cP)
+    return await ioU.clearKv()
+
+@router.post("/upload")  # , response_model=UploadResult)
 async def upload(
     uploadFile: UploadFile = File(...),
+    sliceSize: int = Form(
+        None,
+        title="Size of one slice",
+        description="Size of one slice",
+        example="1024"
+    ),
     sliceIndex: int = Form(
         1,
         title="Index of the current chunk",
@@ -87,7 +123,13 @@ async def upload(
         description="Total number of chunks in the session",
         example="5",
     ),
-    sessionId: str = Form(
+    fileSize: int = Form(
+        None,
+        title="Length of entire file",
+        description="Length of entire file",
+        example="4194304"
+    ),
+    uploadId: str = Form(
         None,
         title="Session identifier",
         description="Unique identifier for the current session",
@@ -145,7 +187,6 @@ async def upload(
         example="'0394a2ede332c9a13eb82e9b24631604c31df978b4e2f0fbd2c549944f9d79a5'",
     ),
 ):
-    # logging.warning(f'upload {idCode} {version} slice {sliceIndex}')
     fn = None
     ct = None
     try:
@@ -164,12 +205,34 @@ async def upload(
         #
         logger.debug("hashType.name %r hashDigest %r", hashType, hashDigest)
         ioU = IoUtils(cP)
+        """ get upload id
+            avoid problem of new id for each chunk
+            user should pass None for upload id
+            could return id and have user set parameter for subsequent chunk uploads
+            however, not possible for concurrent chunks, which could not use return values
+            to enable possible concurrent chunk functions in future, all uploads treated as resumed uploads
+            upload id parameter is always None, then found from KV if it already exists
+        """
+        if uploadId is None:  # and sliceIndex == 0 and sliceOffset == 0:
+            # check for resumed upload
+            # if find resumed upload then set uid = previous uid? (would get redundant chunk error)
+            # lock so that even for concurrent chunks the first chunk will write an upload id that subsequent chunks will use
+            pathU = PathUtils(cP)
+            lockPath = pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
+            with FileLock(lockPath):
+                uploadId = await ioU.getResumedUpload(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+                if not uploadId:
+                    # logging.warning("generating new id at slice %s", sliceIndex)
+                    uploadId = await ioU.getNewUploadId()#repositoryType, idCode, contentType, partNumber, contentFormat, version)
+                else:
+                    pass
+                    # logging.warning("found previous id at slice %s", sliceIndex)
         ret = await ioU.storeUpload(
             uploadFile.file,
             sliceIndex,
             sliceOffset,
             sliceTotal,
-            sessionId,
+            uploadId,
             idCode,
             repositoryType,
             contentType,
@@ -192,5 +255,4 @@ async def upload(
     if not ret["success"]:
         raise HTTPException(status_code=405, detail=ret["statusMessage"])
     #
-    # logging.warning(f'returning {str(ret)}')
     return ret

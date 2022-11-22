@@ -71,6 +71,7 @@ class PathUtils:
         try:
             repoPath = self.getRepositoryDirPath(repositoryType)
             fnBase = self.__getBaseFileName(idCode, contentType, partNumber, contentFormat) + ".V"
+            # logging.warning(f'repo path {repoPath} fn base {fnBase}')
             filePattern = os.path.join(repoPath, idCode, fnBase)
             if version.isdigit():
                 filePath = filePattern + str(version)
@@ -130,19 +131,19 @@ class PathUtils:
                 if contentType in self.__contentTypeInfoD:
                     if contentFormat:
                         if contentFormat in self.__contentTypeInfoD[contentType][0]:
-                            logger.info("System supports %s contentType with %s contentFormat.", contentType, contentFormat)
+                            # logger.info("System supports %s contentType with %s contentFormat.", contentType, contentFormat)
                             ok = True
                         else:
                             logger.info("System does not support %s contentType with %s contentFormat.", contentType, contentFormat)
                     else:
-                        logger.info("System supports %s contentType.", contentType)
+                        # logger.info("System supports %s contentType.", contentType)
                         ok = True
                 else:
                     logger.info("System does not support %s contentType.", contentType)
                 #
             elif contentFormat:
                 if contentFormat in self.__fileFormatExtensionD:
-                    logger.info("System supports %s contentFormat.", contentFormat)
+                    # logger.info("System supports %s contentFormat.", contentFormat)
                     ok = True
                 else:
                     logger.info("System does not support %s contentFormat.", contentFormat)
@@ -175,6 +176,9 @@ class PathUtils:
             mt = "text/plain"
         #
         return mt
+
+    def getBaseFileName(self, idCode: str, contentType: str, partNumber: int, contentFormat: str) -> str:
+        return self.__getBaseFileName(idCode, contentType, partNumber, contentFormat)
 
     def __getBaseFileName(self, idCode: str, contentType: str, partNumber: int, contentFormat: str) -> str:
         return f"{idCode}_{self.__contentTypeInfoD[contentType][1]}_P{partNumber}.{self.__fileFormatExtensionD[contentFormat]}"

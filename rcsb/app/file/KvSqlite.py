@@ -1,69 +1,6 @@
-import sqlite3
 import typing
-import logging
 from rcsb.app.file.ConfigProvider import ConfigProvider
-
-
-class Kv:
-    def __init__(self, filepath, tL):
-        self.filePath = filepath
-        self.table = tL
-        try:
-            with self.getConnection() as connection:
-                connection.cursor().execute(
-                    "CREATE TABLE IF NOT EXISTS sessions (key, val)"
-                )
-        except Exception as exc:
-            raise Exception(f"exception in Kv, {type(exc)} {exc}")
-
-    def getConnection(self):
-        connection = sqlite3.connect(self.filePath)
-        return connection
-
-    def get(self, key):
-        res = None
-        try:
-            with self.getConnection() as connection:
-                res = (
-                    connection.cursor()
-                    .execute(f"SELECT val FROM sessions WHERE key = '{key}'")
-                    .fetchone()[0]
-                )
-        except Exception:
-            pass
-            # logging.warning(f'warning in Kv get, {type(exc)} {exc}')
-        return res
-
-    def set(self, key, val):
-        try:
-            with self.getConnection() as connection:
-                res = (
-                    connection.cursor()
-                    .execute(f"SELECT val FROM sessions WHERE key = '{key}'")
-                    .fetchone()
-                )
-                if res is None:
-                    res = connection.cursor().execute(
-                        f"INSERT INTO sessions VALUES ('{key}', \"{val}\")"
-                    )
-                    connection.commit()
-                else:
-                    res = connection.cursor().execute(
-                        f"UPDATE sessions SET val = \"{val}\" WHERE key = '{key}'"
-                    )
-                    connection.commit()
-        except Exception as exc:
-            logging.warning(
-                "possible error in Kv set for %s = %s, %s %s", key, val, type(exc), exc
-            )
-
-    def clear(self, key):
-        try:
-            with self.getConnection() as connection:
-                connection.cursor().execute(f"DELETE FROM sessions WHERE key = '{key}'")
-                connection.commit()
-        except Exception as exc:
-            logging.warning("possible error in Kv clear, %s %s", type(exc), exc)
+from rcsb.app.file.KvConnection import KvConnection
 
 
 class KvSqlite:
@@ -72,11 +9,12 @@ class KvSqlite:
         self.__cP = cP
         # fix mount point
         self.filePath = self.__cP.get("KV_FILE_PATH")
-        self.table = self.__cP.get("KV_TABLE_NAME")
+        self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
+        self.logTable = self.__cP.get("KV_LOG_TABLE_NAME")
         # create database if not exists
         # create table if not exists
         try:
-            self.kV = Kv(self.filePath, self.table)
+            self.kV = KvConnection(self.filePath, self.sessionTable, self.logTable)
         except Exception:
             # table already exists
             pass
@@ -90,59 +28,86 @@ class KvSqlite:
     def deconvert(self, _s):
         return eval(_s)
 
-    def get(self, key, val):
-        _s = self.kV.get(key)
+    def getAll(self, key, table):
+        return self.kV.get(key, table)
+
+    def getSession(self, key, val):
+        table = self.sessionTable
+        _s = self.kV.get(key, table)
         if _s is None:
-            self.kV.set(key, self.convert({}))
-            _s = self.kV.get(key)
+            self.kV.set(key, self.convert({}), table)
+            _s = self.kV.get(key, table)
         _d = self.deconvert(_s)
         if val not in _d:
             _d[val] = 0
-            self.kV.set(key, self.convert(_d))
-            _s = self.kV.get(key)
+            self.kV.set(key, self.convert(_d), table)
+            _s = self.kV.get(key, table)
             _d = self.deconvert(_s)
         try:
             return _d[val]
         except Exception:
-            raise Exception(f"error in KV get, {_d}")
+            raise Exception(f"error in KV get for table {table}, {_d}")
 
-    def set(self, key, val, vval):
-        _s = self.kV.get(key)
+    def setSession(self, key, val, vval):
+        table = self.sessionTable
+        _s = self.kV.get(key, table)
         if _s is None:
-            self.kV.set(key, self.convert({}))
-            _s = self.kV.get(key)
+            self.kV.set(key, self.convert({}), table)
+            _s = self.kV.get(key, table)
         _d = self.deconvert(_s)
         if val not in _d:
             _d[val] = 0
-            self.kV.set(key, self.convert(_d))
-            _s = self.kV.get(key)
+            self.kV.set(key, self.convert(_d), table)
+            _s = self.kV.get(key, table)
             _d = self.deconvert(_s)
         _d[val] = vval
-        self.kV.set(key, self.convert(_d))
+        self.kV.set(key, self.convert(_d), table)
 
     def inc(self, key, val):
-        _s = self.kV.get(key)
+        table = self.sessionTable
+        _s = self.kV.get(key, table)
         if _s is None:
-            self.kV.set(key, self.convert({}))
-            _s = self.kV.get(key)
+            self.kV.set(key, self.convert({}), table)
+            _s = self.kV.get(key, table)
         _d = self.deconvert(_s)
         if val not in _d:
             _d[val] = 0
-            self.kV.set(key, self.convert(_d))
-            _s = self.kV.get(key)
+            self.kV.set(key, self.convert(_d), table)
+            _s = self.kV.get(key, table)
             _d = self.deconvert(_s)
         _d[val] += 1
-        self.kV.set(key, self.convert(_d))
+        self.kV.set(key, self.convert(_d), table)
 
-    def clearVal(self, key, val):
-        _s = self.kV.get(key)
+    def getLog(self, key):
+        table = self.logTable
+        return self.kV.get(key, table)
+
+    def setLog(self, key, val):
+        table = self.logTable
+        self.kV.set(key, val, table)
+
+    def clearLogVal(self, val):
+        table = self.logTable
+        self.kV.deleteRowWithVal(val, table)
+
+    def clearSessionVal(self, key, val):
+        table = self.sessionTable
+        _s = self.kV.get(key, table)
         if _s is not None:
             _d = self.deconvert(_s)
             if val in _d:
                 del _d[val]
-                self.kV.set(key, self.convert(_d))
+                self.kV.set(key, self.convert(_d), table)
+                return True
+        return False
 
-    def clearKey(self, key):
-        _s = self.kV.get(key)
+    def clearSessionKey(self, key):
+        table = self.sessionTable
+        _s = self.kV.get(key, table)
         if _s is not None:
-            self.kV.clear(key)
+            self.kV.clear(key, table)
+            return True
+        return False
+
+    def clearTable(self, table):
+        self.kV.clearTable(table)
