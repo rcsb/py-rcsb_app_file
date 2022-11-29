@@ -24,15 +24,16 @@ import platform
 import resource
 import time
 import unittest
-# import random
-# import string
 
 # pylint: disable=wrong-import-position
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output"))
-os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "tests-file", "test-data", "config", "config.yml"))
+# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output"))
+# os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "tests-file", "test-data", "config", "config.yml"))
+# Use custom cache and config path for this set of tests
+os.environ["CACHE_PATH"] = os.path.join(HERE, "test-output")
+os.environ["CONFIG_FILE"] = os.path.join(TOPDIR, "rcsb", "app", "tests-file", "test-data", "config", "config.yml")
 
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
@@ -52,22 +53,14 @@ class PathRequestTests(unittest.TestCase):
         """Fixture to create file test data"""
         cls.__dataPath = os.path.join(HERE, "test-data")
         cls.__cachePath = os.environ.get("CACHE_PATH")
-        # sessionPath = os.path.join(cls.__cachePath, "sessions")
         cls.__repoTestPath = os.path.join(cls.__cachePath, "data", "repository", "archive")
         logger.info("cls.__repoTestPath %s", cls.__repoTestPath)
 
         fU = FileUtil()
-        # fU.mkdir(sessionPath)
         cls.__testFilePath = os.path.join(cls.__dataPath, "example-data.cif")
         for fn in ["example-data.cif"]:  # Only needed for ConfigProvider init
             fU.put(cls.__testFilePath, os.path.join(cls.__cachePath, fn))
         #
-        # nB = 2500000
-        # testFilePath = os.path.join(sessionPath, "testFile.dat")
-        # with open(testFilePath, "w", encoding="utf-8") as ofh:
-        #     ofh.write("".join(random.choices(string.ascii_uppercase + string.digits, k=nB)))
-        # #
-        # cls.__testFilePath = os.path.join(cls.__dataPath, "example-data.cif")
         PathRequestTests.__repoFixture()
 
     @classmethod
@@ -144,7 +137,6 @@ class PathRequestTests(unittest.TestCase):
             }
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
-                # print("RESPONSE", response.text, response.status_code)
                 logger.info("file status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 404)
@@ -183,22 +175,31 @@ class PathRequestTests(unittest.TestCase):
 
     def testDirExists(self):
         """Test - dir exists"""
-        endPoint = "dir-exists"
         startTime = time.time()
         try:
-            # First test for dir that actually exists (created in fixture above)
+            # First test for dir that actually exists using explicit dirPath (created in fixture above)
+            endPoint = "path-exists"
             path = os.path.join(self.__repoTestPath, "D_2000000001")
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                response = client.post("/file-v1/%s" % endPoint, params={"path": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
-            # Next test for dir that DOESN'T exists
-            path = os.path.join(self.__repoTestPath, "D_1234567890")
+            # Next test for dir that actually exists using standard params
+            endPoint = "dir-exists"
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                response = client.post("/file-v1/%s" % endPoint, params={"idCode": "D_2000000001", "repositoryType": "archive"}, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                self.assertTrue(response.status_code == 200)
+                logger.info("Content length (%d)", len(response.content))
+            #
+            # Next test for dir that DOESN'T exists using standard params
+            endPoint = "dir-exists"
+            with TestClient(app) as client:
+                response = client.post("/file-v1/%s" % endPoint, params={"idCode": "D_1234567890", "repositoryType": "archive"}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 404)
@@ -210,10 +211,10 @@ class PathRequestTests(unittest.TestCase):
 
     def testListDir(self):
         """Test - list dir"""
-        endPoint = "list-dir"
         startTime = time.time()
         try:
             # First test for dir that actually exists (created in fixture above), given a specific dirPath
+            endPoint = "list-dirpath"
             path = os.path.join(self.__repoTestPath, "D_2000000001")
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
@@ -222,16 +223,8 @@ class PathRequestTests(unittest.TestCase):
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
-            # Next test for dir that actually exists (created in fixture above), given a specific filePath
-            path = os.path.join(self.__repoTestPath, "D_2000000001", "D_2000000001_model_P1.cif.V1")
-            with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"filePath": path}, headers=self.__headerD)
-                logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
-                self.assertTrue(response.status_code == 200)
-                logger.info("Content length (%d)", len(response.content))
-            
             # Next test for dir that actually exists (created in fixture above), given idCode and repositoryType
+            endPoint = "list-dir"
             mD = {
                 "idCode": "D_2000000001",
                 "repositoryType": "onedep-archive",
@@ -244,6 +237,7 @@ class PathRequestTests(unittest.TestCase):
                 logger.info("Content length (%d)", len(response.content))
             #
             # Next test for dir that DOESN'T exists
+            endPoint = "list-dirpath"
             path = os.path.join(self.__repoTestPath, "D_1234567890")
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)

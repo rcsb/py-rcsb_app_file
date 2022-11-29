@@ -4,12 +4,11 @@
 #
 # To Do:
 # - Add Endpoints:
-#   - Move files between directories
 #   - getFileHash
 # - Remove unnecessary params where appropriate (here and in tests)
 # - Remove default setting for select params where appropriate (here and in tests), to make them required
 # - Make 'repositoryType' an enumerated parameter
-# - better way to determine latest version (use subroutine)
+# - better way to determine latest version? (use subroutine)
 ##
 __docformat__ = "google en"
 __author__ = "Dennis Piehl"
@@ -83,16 +82,17 @@ class CopyFileResult(BaseModel):
 
 @router.post("/file-exists", response_model=FileResult)
 async def fileExists(
-    idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Query(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
-    contentType: str = Query(None, title="Content type", description="OneDep content type", example="model, structure-factors, val-report-full"),
-    contentFormat: str = Query(None, title="Content format", description="OneDep content format", example="pdb, pdbx, mtz, pdf"),
+    idCode: str = Query(title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Query(title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
+    contentType: str = Query(title="Content type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    contentFormat: str = Query(title="Content format", description="OneDep content format", example="pdb, pdbx, mtz, pdf"),
     partNumber: int = Query(1, title="Content part", description="OneDep part number", example="1,2,3"),
-    fileName: str = Query(None, title="Filename", description="Filename", example="example.cif.gz"),
-    dirPath: str = Query(None, title="File directory", description="File directory", example="/non_standard/directory/"),
-    filePath: str = Query(None, title="File path", description="Full file path", example="/non_standard/directory/example.cif.gz"),
+    # fileName: str = Query(None, title="Filename", description="Filename", example="example.cif.gz"),
+    # dirPath: str = Query(None, title="File directory", description="File directory", example="/non_standard/directory/"),
     version: str = Query("latest", title="Version string", description="OneDep version number or description", example="1,2,3, latest, previous"),
 ):
+    """Check if a file exists provided standard file parameters.
+    """
     success = False
     try:
         fU = FileUtil()
@@ -101,15 +101,13 @@ async def fileExists(
         cP = ConfigProvider(cachePath, configFilePath)
         pathU = PathUtils(cP)
         #
-        if not filePath:
-            if dirPath and fileName:
-                logger.info("Checking dirPath %r fileName %r", dirPath, fileName)
-                filePath = os.path.join(dirPath, fileName)
-            else:
-                logger.info("Checking repositoryType %r idCode %r contentType %r format %r version %r", repositoryType, idCode, contentType, contentFormat, version)
-                filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
-        else:
-            logger.info("Checking filePath %r", filePath)
+        # if dirPath and fileName:
+        #     logger.info("Checking dirPath %r fileName %r", dirPath, fileName)
+        #     filePath = os.path.join(dirPath, fileName)
+        # else:
+        logger.info("Checking repositoryType %r idCode %r contentType %r format %r version %r", repositoryType, idCode, contentType, contentFormat, version)
+        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+        logger.info("Checking filePath %r", filePath)
         fileName = fU.getFileName(filePath)
         # fileEnd = fileName.split(".")[-1]
         # if "V" in fileEnd:
@@ -134,10 +132,11 @@ async def fileExists(
 
 @router.post("/dir-exists", response_model=PathResult)
 async def dirExists(
-    idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Query(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
-    dirPath: str = Query(None, title="File directory", description="File directory path", example="/non_standard/directory/"),
+    idCode: str = Query(title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Query(title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
 ):
+    """Check if a file exists provided standard directory parameters.
+    """
     success = False
     try:
         fU = FileUtil()
@@ -146,11 +145,8 @@ async def dirExists(
         cP = ConfigProvider(cachePath, configFilePath)
         pathU = PathUtils(cP)
         #
-        if not dirPath:
-            logger.info("Checking repositoryType %r idCode %r", repositoryType, idCode)
-            dirPath = pathU.getDirPath(repositoryType, idCode)
-        else:
-            logger.info("Checking dirPath %r", dirPath)
+        logger.info("Checking repositoryType %r idCode %r", repositoryType, idCode)
+        dirPath = pathU.getDirPath(repositoryType, idCode)
         #
         success = fU.exists(dirPath)
         logger.info("success %r dirPath %r", success, dirPath)
@@ -172,9 +168,11 @@ async def dirExists(
 
 @router.post("/path-exists", response_model=PathResult)
 async def pathExists(
-    path: str = Query(None, title="File path", description="Full file or directory path", example="non_standard/directory/D_2000000001/D_2000000001_model_P1.cif.V1"),
+    path: str = Query(title="File or directory path", description="Full file or directory path", example="non_standard/directory/D_2000000001/D_2000000001_model_P1.cif.V1"),
 
 ):
+    """Check if a file exists provided a custom path, as opposed to standard input paramaters.
+    """
     success = False
     try:
         fU = FileUtil()
@@ -185,6 +183,7 @@ async def pathExists(
     except Exception as e:
         logger.exception("Failing with %s", str(e))
         ret = {"path": path, "success": False, "statusCode": 400, "statusMessage": "File checking fails with %s" % str(e)}
+        # raise HTTPException(status_code=400, detail="File checking fails with %s" % str(e))
     #
     if not success:
         if path:
@@ -199,10 +198,10 @@ async def pathExists(
 
 @router.get("/latest-file-version", response_model=FileResult)
 async def latestFileVersion(
-    idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Query(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
-    contentType: str = Query(None, title="Content type", description="OneDep content type", example="model, structure-factors, val-report-full"),
-    contentFormat: str = Query(None, title="Content format", description="OneDep content format", example="pdb, pdbx, mtz, pdf"),
+    idCode: str = Query(title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Query(title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
+    contentType: str = Query(title="Content type", description="OneDep content type", example="model, structure-factors, val-report-full"),
+    contentFormat: str = Query(title="Content format", description="OneDep content format", example="pdb, pdbx, mtz, pdf"),
     partNumber: int = Query(1, title="Content part", description="OneDep part number", example="1,2,3"),
 ):
     success = False
@@ -249,26 +248,22 @@ async def latestFileVersion(
 
 @router.post("/copy-file", response_model=CopyFileResult)
 async def copyFile(
-    idCodeSource: str = Query(None, title="Source ID Code", description="Identifier code of file to copy", example="D_0000000001"),
-    repositoryTypeSource: str = Query(None, title="Source Repository Type", description="OneDep repository type of file to copy", example="onedep-archive, onedep-deposit"),
-    contentTypeSource: str = Query(None, title="Source Content type", description="OneDep content type of file to copy", example="model, structure-factors, val-report-full"),
-    contentFormatSource: str = Query(None, title="Input Content format", description="OneDep content format of file to copy", example="pdb, pdbx, mtz, pdf"),
+    idCodeSource: str = Query(title="Source ID Code", description="Identifier code of file to copy", example="D_0000000001"),
+    repositoryTypeSource: str = Query(title="Source Repository Type", description="OneDep repository type of file to copy", example="onedep-archive, onedep-deposit"),
+    contentTypeSource: str = Query(title="Source Content type", description="OneDep content type of file to copy", example="model, structure-factors, val-report-full"),
+    contentFormatSource: str = Query(title="Input Content format", description="OneDep content format of file to copy", example="pdb, pdbx, mtz, pdf"),
     partNumberSource: int = Query(1, title="Source Content part", description="OneDep part number of file to copy", example="1,2,3"),
-    fileNameSource: str = Query(None, title="Source Filename", description="Filename of file to copy", example="example.cif.gz"),
-    dirPathSource: str = Query(None, title="Source File directory", description="File directory of file to copy", example="/non_standard/directory/"),
-    filePathSource: str = Query(None, title="Source File path", description="Full file path of file to copy", example="/non_standard/directory/example.cif.gz"),
     versionSource: str = Query("latest", title="Source Version string", description="OneDep version number or description of file to copy", example="1,2,3, latest, previous, next"),
     #
-    idCodeTarget: str = Query(None, title="Target ID Code", description="Identifier code of destination file", example="D_0000000001"),
-    repositoryTypeTarget: str = Query(None, title="Target Repository Type", description="OneDep repository type of destination file", example="onedep-archive, onedep-deposit"),
-    contentTypeTarget: str = Query(None, title="Target Content type", description="OneDep content type of destination file", example="model, structure-factors, val-report-full"),
-    contentFormatTarget: str = Query(None, title="Input Content format", description="OneDep content format of destination file", example="pdb, pdbx, mtz, pdf"),
+    idCodeTarget: str = Query(title="Target ID Code", description="Identifier code of destination file", example="D_0000000001"),
+    repositoryTypeTarget: str = Query(title="Target Repository Type", description="OneDep repository type of destination file", example="onedep-archive, onedep-deposit"),
+    contentTypeTarget: str = Query(title="Target Content type", description="OneDep content type of destination file", example="model, structure-factors, val-report-full"),
+    contentFormatTarget: str = Query(title="Input Content format", description="OneDep content format of destination file", example="pdb, pdbx, mtz, pdf"),
     partNumberTarget: int = Query(1, title="Target Content part", description="OneDep part number of destination file", example="1,2,3"),
-    fileNameTarget: str = Query(None, title="Target Filename", description="Filename of destination file", example="example.cif.gz"),
-    dirPathTarget: str = Query(None, title="Target File directory", description="File directory of destination file", example="/non_standard/directory/"),
-    filePathTarget: str = Query(None, title="Target File path", description="Full file path of destination file", example="/non_standard/directory/example.cif.gz"),
     versionTarget: str = Query(None, title="Target Version string", description="OneDep version number or description of destination file", example="1,2,3, latest, previous, next"),
 ):
+    """Copy a file given standard input paramaters for both the source and destination of the file.
+    """
     success = False
     try:
         fU = FileUtil()
@@ -277,36 +272,31 @@ async def copyFile(
         cP = ConfigProvider(cachePath, configFilePath)
         pathU = PathUtils(cP)
         #
-        if not filePathSource:
-            if dirPathSource and fileNameSource:
-                logger.info("Copying dirPath %r fileName %r", dirPathSource, fileNameSource)
-                filePathSource = os.path.join(dirPathSource, fileNameSource)
-            else:
-                logger.info(
-                    "Copying repositoryType %r idCode %r contentType %r format %r version %r",
-                    repositoryTypeSource, idCodeSource, contentTypeSource, contentFormatSource, versionSource
-                )
-                filePathSource = pathU.getVersionedPath(repositoryTypeSource, idCodeSource, contentTypeSource, partNumberSource, contentFormatSource, versionSource)
-                logger.info("filePathSource %r", filePathSource)
-        if not filePathTarget:
-            if dirPathTarget and fileNameTarget:
-                logger.info("Destination dirPath %r fileName %r", dirPathTarget, fileNameTarget)
-                filePathTarget = os.path.join(dirPathTarget, fileNameTarget)
-            else:
-                if not versionTarget:
-                    sourceFileEnd = filePathSource.split(".")[-1]
-                    if "V" in sourceFileEnd:
-                        # set target version to the same as source version
-                        versionTarget = sourceFileEnd.split("V")[1]
-                    else:
-                        # set target version to "next" increment in target repo (if file doesn't already exist in the target repo, then it will start at "V1")
-                        versionTarget = "next"
-                logger.info(
-                    "Destination repositoryType %r idCode %r contentType %r format %r version %r",
-                    repositoryTypeTarget, idCodeTarget, contentTypeTarget, contentFormatTarget, versionTarget
-                )
-                filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, idCodeTarget, contentTypeTarget, partNumberTarget, contentFormatTarget, versionTarget)
-                logger.info("filePathTarget %r", filePathTarget)
+        logger.info(
+            "Copying repositoryType %r idCode %r contentType %r format %r version %r",
+            repositoryTypeSource, idCodeSource, contentTypeSource, contentFormatSource, versionSource
+        )
+        filePathSource = pathU.getVersionedPath(repositoryTypeSource, idCodeSource, contentTypeSource, partNumberSource, contentFormatSource, versionSource)
+        logger.info("filePathSource %r", filePathSource)
+        if not versionTarget:
+            # if versionSource == "latest":
+            #     versionTarget = latestFileVersion(
+            #         idCode=idCodeSource,
+            #         repositoryType=repositoryTypeSource,
+            #         contentType=contentTypeSource,
+            #         contentFormat=contentFormatSource,
+            #         partNumber=partNumberSource,
+            #     )
+            sourceFileEnd = filePathSource.split(".")[-1]
+            if "V" in sourceFileEnd:
+                # set target version to the same as source version
+                versionTarget = sourceFileEnd.split("V")[1]
+        logger.info(
+            "Destination repositoryType %r idCode %r contentType %r format %r version %r",
+            repositoryTypeTarget, idCodeTarget, contentTypeTarget, contentFormatTarget, versionTarget
+        )
+        filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, idCodeTarget, contentTypeTarget, partNumberTarget, contentFormatTarget, versionTarget)
+        logger.info("filePathTarget %r", filePathTarget)
 
         if not filePathSource or not filePathTarget:
             raise ValueError("Source (%r) or target (%r) filepath not defined" % (filePathSource, filePathTarget))
@@ -328,28 +318,55 @@ async def copyFile(
     return ret
 
 
+@router.post("/copy-filepath", response_model=CopyFileResult)
+async def copyFilePath(
+    # fileNameSource: str = Query(None, title="Source Filename", description="Filename of file to copy", example="example.cif.gz"),
+    # dirPathSource: str = Query(None, title="Source File directory", description="File directory of file to copy", example="/non_standard/directory/"),
+    filePathSource: str = Query(title="Source File path", description="Full file path of file to copy", example="/non_standard/directory/example.cif.gz"),
+    #
+    # fileNameTarget: str = Query(None, title="Target Filename", description="Filename of destination file", example="example.cif.gz"),
+    # dirPathTarget: str = Query(None, title="Target File directory", description="File directory of destination file", example="/non_standard/directory/"),
+    filePathTarget: str = Query(title="Target File path", description="Full file path of destination file", example="/non_standard/directory/example.cif.gz"),
+):
+    """Copy a file given its explicit source and destination path (as opposed to using standard input paramaters).
+    """
+    success = False
+    try:
+        fU = FileUtil()
+        logger.info("Copying filePath %r to %r", filePathSource, filePathTarget)
+        success = fU.put(filePathSource, filePathTarget)
+        logger.info("success %r filePathSource %r filePathTarget %r", success, filePathSource, filePathTarget)
+        #
+    except Exception as e:
+        logger.exception("Failing with %s", str(e))
+        raise HTTPException(status_code=400, detail="File checking fails with %s" % str(e))
+    #
+    if not success:
+        raise HTTPException(status_code=400, detail="Bad or incomplete request parameters")
+    else:
+        ret = {"success": success, "filePathSource": filePathSource, "filePathTarget": filePathTarget, "statusCode": 200, "statusMessage": "File copy success"}
+
+    return ret
+
+
 @router.post("/move-file", response_model=CopyFileResult)
 async def moveFile(
-    idCodeSource: str = Query(None, title="Source ID Code", description="Identifier code of file to move", example="D_0000000001"),
-    repositoryTypeSource: str = Query(None, title="Source Repository Type", description="OneDep repository type of file to move", example="onedep-archive, onedep-deposit"),
-    contentTypeSource: str = Query(None, title="Source Content type", description="OneDep content type of file to move", example="model, structure-factors, val-report-full"),
-    contentFormatSource: str = Query(None, title="Input Content format", description="OneDep content format of file to move", example="pdb, pdbx, mtz, pdf"),
+    idCodeSource: str = Query(title="Source ID Code", description="Identifier code of file to move", example="D_0000000001"),
+    repositoryTypeSource: str = Query(title="Source Repository Type", description="OneDep repository type of file to move", example="onedep-archive, onedep-deposit"),
+    contentTypeSource: str = Query(title="Source Content type", description="OneDep content type of file to move", example="model, structure-factors, val-report-full"),
+    contentFormatSource: str = Query(title="Input Content format", description="OneDep content format of file to move", example="pdb, pdbx, mtz, pdf"),
     partNumberSource: int = Query(1, title="Source Content part", description="OneDep part number of file to move", example="1,2,3"),
-    fileNameSource: str = Query(None, title="Source Filename", description="Filename of file to move", example="example.cif.gz"),
-    dirPathSource: str = Query(None, title="Source File directory", description="File directory of file to move", example="/non_standard/directory/"),
-    filePathSource: str = Query(None, title="Source File path", description="Full file path of file to move", example="/non_standard/directory/example.cif.gz"),
     versionSource: str = Query("latest", title="Source Version string", description="OneDep version number or description of file to move", example="1,2,3, latest, previous, next"),
     #
-    idCodeTarget: str = Query(None, title="Target ID Code", description="Identifier code of destination file", example="D_0000000001"),
-    repositoryTypeTarget: str = Query(None, title="Target Repository Type", description="OneDep repository type of destination file", example="onedep-archive, onedep-deposit"),
-    contentTypeTarget: str = Query(None, title="Target Content type", description="OneDep content type of destination file", example="model, structure-factors, val-report-full"),
-    contentFormatTarget: str = Query(None, title="Input Content format", description="OneDep content format of destination file", example="pdb, pdbx, mtz, pdf"),
+    idCodeTarget: str = Query(title="Target ID Code", description="Identifier code of destination file", example="D_0000000001"),
+    repositoryTypeTarget: str = Query(title="Target Repository Type", description="OneDep repository type of destination file", example="onedep-archive, onedep-deposit"),
+    contentTypeTarget: str = Query(title="Target Content type", description="OneDep content type of destination file", example="model, structure-factors, val-report-full"),
+    contentFormatTarget: str = Query(title="Input Content format", description="OneDep content format of destination file", example="pdb, pdbx, mtz, pdf"),
     partNumberTarget: int = Query(1, title="Target Content part", description="OneDep part number of destination file", example="1,2,3"),
-    fileNameTarget: str = Query(None, title="Target Filename", description="Filename of destination file", example="example.cif.gz"),
-    dirPathTarget: str = Query(None, title="Target File directory", description="File directory of destination file", example="/non_standard/directory/"),
-    filePathTarget: str = Query(None, title="Target File path", description="Full file path of destination file", example="/non_standard/directory/example.cif.gz"),
     versionTarget: str = Query(None, title="Target Version string", description="OneDep version number or description of destination file", example="1,2,3, latest, previous, next"),
 ):
+    """Move a file given standard input paramaters for both the source and destination of the file.
+    """
     success = False
     try:
         fU = FileUtil()
@@ -358,36 +375,23 @@ async def moveFile(
         cP = ConfigProvider(cachePath, configFilePath)
         pathU = PathUtils(cP)
         #
-        if not filePathSource:
-            if dirPathSource and fileNameSource:
-                logger.info("Moving dirPath %r fileName %r", dirPathSource, fileNameSource)
-                filePathSource = os.path.join(dirPathSource, fileNameSource)
-            else:
-                logger.info(
-                    "Moving repositoryType %r idCode %r contentType %r format %r version %r",
-                    repositoryTypeSource, idCodeSource, contentTypeSource, contentFormatSource, versionSource
-                )
-                filePathSource = pathU.getVersionedPath(repositoryTypeSource, idCodeSource, contentTypeSource, partNumberSource, contentFormatSource, versionSource)
-                logger.info("filePathSource %r", filePathSource)
-        if not filePathTarget:
-            if dirPathTarget and fileNameTarget:
-                logger.info("Destination dirPath %r fileName %r", dirPathTarget, fileNameTarget)
-                filePathTarget = os.path.join(dirPathTarget, fileNameTarget)
-            else:
-                if not versionTarget:
-                    sourceFileEnd = filePathSource.split(".")[-1]
-                    if "V" in sourceFileEnd:
-                        # set target version to the same as source version
-                        versionTarget = sourceFileEnd.split("V")[1]
-                    else:
-                        # set target version to "next" increment in target repo (if file doesn't already exist in the target repo, then it will start at "V1")
-                        versionTarget = "next"
-                logger.info(
-                    "Destination repositoryType %r idCode %r contentType %r format %r version %r",
-                    repositoryTypeTarget, idCodeTarget, contentTypeTarget, contentFormatTarget, versionTarget
-                )
-                filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, idCodeTarget, contentTypeTarget, partNumberTarget, contentFormatTarget, versionTarget)
-                logger.info("filePathTarget %r", filePathTarget)
+        logger.info(
+            "Moving repositoryType %r idCode %r contentType %r format %r version %r",
+            repositoryTypeSource, idCodeSource, contentTypeSource, contentFormatSource, versionSource
+        )
+        filePathSource = pathU.getVersionedPath(repositoryTypeSource, idCodeSource, contentTypeSource, partNumberSource, contentFormatSource, versionSource)
+        logger.info("filePathSource %r", filePathSource)
+        if not versionTarget:
+            sourceFileEnd = filePathSource.split(".")[-1]
+            if "V" in sourceFileEnd:
+                # set target version to the same as source version
+                versionTarget = sourceFileEnd.split("V")[1]
+        logger.info(
+            "Destination repositoryType %r idCode %r contentType %r format %r version %r",
+            repositoryTypeTarget, idCodeTarget, contentTypeTarget, contentFormatTarget, versionTarget
+        )
+        filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, idCodeTarget, contentTypeTarget, partNumberTarget, contentFormatTarget, versionTarget)
+        logger.info("filePathTarget %r", filePathTarget)
 
         if not filePathSource or not filePathTarget:
             raise ValueError("Source (%r) or target (%r) filepath not defined" % (filePathSource, filePathTarget))
@@ -411,13 +415,47 @@ async def moveFile(
     return ret
 
 
+@router.post("/move-filepath", response_model=CopyFileResult)
+async def moveFilePath(
+    # fileNameSource: str = Query(None, title="Source Filename", description="Filename of file to move", example="example.cif.gz"),
+    # dirPathSource: str = Query(None, title="Source File directory", description="File directory of file to move", example="/non_standard/directory/"),
+    filePathSource: str = Query(title="Source File path", description="Full file path of file to move", example="/non_standard/directory/example.cif.gz"),
+    #
+    # fileNameTarget: str = Query(None, title="Target Filename", description="Filename of destination file", example="example.cif.gz"),
+    # dirPathTarget: str = Query(None, title="Target File directory", description="File directory of destination file", example="/non_standard/directory/"),
+    filePathTarget: str = Query(title="Target File path", description="Full file path of destination file", example="/non_standard/directory/example.cif.gz"),
+):
+    """Move a file given its explicit source and destination path (as opposed to using standard input paramaters).
+    """
+    success = False
+    try:
+        fU = FileUtil()
+        logger.info("Moving filePath %r to %r", filePathSource, filePathTarget)
+        ok1 = fU.mkdirForFile(filePathTarget)
+        ok2 = fU.replace(filePathSource, filePathTarget)
+        success = ok1 and ok2
+
+        logger.info("success %r (make dest dir %r, move file %r) filePathSource %r filePathTarget %r", success, ok1, ok2, filePathSource, filePathTarget)
+        #
+    except Exception as e:
+        logger.exception("Failing with %s", str(e))
+        raise HTTPException(status_code=400, detail="File checking fails with %s" % str(e))
+    #
+    if not success:
+        raise HTTPException(status_code=400, detail="Bad or incomplete request parameters")
+    else:
+        ret = {"success": success, "filePathSource": filePathSource, "filePathTarget": filePathTarget, "statusCode": 200, "statusMessage": "File move success"}
+
+    return ret
+
+
 @router.post("/list-dir", response_model=DirResult)
 async def listDir(
-    idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Query(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
-    dirPath: str = Query(None, title="File directory", description="File directory", example="/non_standard/directory/"),
-    filePath: str = Query(None, title="File path", description="Full file path", example="/non_standard/directory/example.cif.gz"),
+    idCode: str = Query(title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Query(title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
 ):
+    """List files in directory of requested idCode and repositoryType (using standard input paramaters).
+    """
     success = False
     dirList = []
     dirExistsCheck = None
@@ -428,17 +466,43 @@ async def listDir(
         cP = ConfigProvider(cachePath, configFilePath)
         pathU = PathUtils(cP)
         #
-        if not dirPath:
-            if filePath:
-                # List the parent directory of the requested filePath
-                dirPath = os.path.abspath(os.path.dirname(filePath))
-                logger.info("Listing dirPath %r for filePath %r", dirPath, filePath)
-            else:
-                # List directory of requested repositoryType and idCode
-                dirPath = pathU.getDirPath(repositoryType, idCode)
-                logger.info("Listing dirPath %r for repositoryType %r idCode %r", dirPath, repositoryType, idCode)
+        # List directory of requested repositoryType and idCode
+        dirPath = pathU.getDirPath(repositoryType, idCode)
+        logger.info("Listing dirPath %r for repositoryType %r idCode %r", dirPath, repositoryType, idCode)
+        dirExistsCheck = fU.exists(dirPath)
+        if dirExistsCheck:
+            dirList = os.listdir(dirPath)
+            logger.info("dirList (len %d): %r", len(dirList), dirList)
+            success = True
+    #
+    except Exception as e:
+        logger.exception("Failing with %s", str(e))
+        raise HTTPException(status_code=400, detail="Directory listing fails with %s" % str(e))
+    #
+    if not success:
+        if dirExistsCheck is False:
+            logger.info("dirExistsCheck is %r", dirExistsCheck)
+            raise HTTPException(status_code=404, detail="Requested directory does not exist %s" % dirPath)
         else:
-            logger.info("Listing dirPath %r", dirPath)
+            raise HTTPException(status_code=400, detail="Failed to list directory for given request parameters")
+    else:
+        ret = {"success": success, "dirPath": dirPath, "dirList": dirList, "statusCode": 200, "statusMessage": "Directory contents"}
+
+    return ret
+
+
+@router.post("/list-dirpath", response_model=DirResult)
+async def listDirPath(
+    dirPath: str = Query(title="Directory path", description="Full directory path", example="non_standard/directory/D_2000000001/"),
+):
+    """List files in requested path, as opposed to standard input paramaters.
+    """
+    success = False
+    dirList = []
+    dirExistsCheck = None
+    try:
+        fU = FileUtil()
+        logger.info("Listing dirPath %r", dirPath)
         dirExistsCheck = fU.exists(dirPath)
         if dirExistsCheck:
             dirList = os.listdir(dirPath)
@@ -463,15 +527,11 @@ async def listDir(
 
 @router.post("/compress-dir", response_model=CompressResult)
 async def compressDir(
-    idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-    repositoryType: str = Query(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
-    dirPath: str = Query(None, title="File directory", description="File directory", example="/non_standard/directory/"),
+    idCode: str = Query(title="ID Code", description="Identifier code", example="D_0000000001"),
+    repositoryType: str = Query(title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
 ):
-    # Check arguments
-    if idCode is None or repositoryType is None:
-        if dirPath is None:
-            raise HTTPException(status_code=400, detail="Must either provide both 'idCode' and 'respositoryType' arguments, or 'dirPath' argument.")
-
+    """Compress directory of requested idCode and repositoryType (using standard input paramaters).
+    """
     success = False
     compressPath = None
     dirExistsCheck = None
@@ -483,12 +543,53 @@ async def compressDir(
         cP = ConfigProvider(cachePath, configFilePath)
         pathU = PathUtils(cP)
         #
-        if dirPath:
-            logger.info("Compressing dirPath %r", dirPath)
+        # Compress directory of requested repositoryType and idCode
+        dirPath = pathU.getDirPath(repositoryType, idCode)
+        logger.info("Compressing dirPath %r for repositoryType %r idCode %r", dirPath, repositoryType, idCode)
+        dirExistsCheck = fU.exists(dirPath)
+        if dirExistsCheck:
+            compressPath = os.path.abspath(dirPath)+".tar.gz"
+            ok = fU.bundleTarfile(compressPath, [os.path.abspath(dirPath)])
+            if ok:
+                logger.info("created compressPath %s from dirPath %s", compressPath, dirPath)
+                fU.remove(dirPath)
+                dirRemovedBool = not fU.exists(dirPath)
+                logger.info("removal status %r for dirPath %s", dirRemovedBool, dirPath)
+                if not dirRemovedBool:
+                    logger.error("unable to remove dirPath %s after compression", dirPath)
+                success = ok and dirRemovedBool
+        #
+    except Exception as e:
+        logger.exception("Failing with %s", str(e))
+        raise HTTPException(status_code=400, detail="Directory compression fails with %s" % str(e))
+    #
+    if not success:
+        if dirExistsCheck is False:
+            raise HTTPException(status_code=404, detail="Requested directory does not exist %s" % dirPath)
+        if dirRemovedBool is False:
+            raise HTTPException(status_code=400, detail="Failed to remove directory after compression %s" % dirPath)
         else:
-            # Compress directory of requested repositoryType and idCode
-            dirPath = pathU.getDirPath(repositoryType, idCode)
-            logger.info("Compressing dirPath %r for repositoryType %r idCode %r", dirPath, repositoryType, idCode)
+            raise HTTPException(status_code=400, detail="Failed to compress directory")
+    else:
+        ret = {"success": success, "dirPath": dirPath, "compressPath": compressPath, "statusCode": 200, "statusMessage": "Directory compressed"}
+
+    return ret
+
+
+@router.post("/compress-dirpath", response_model=CompressResult)
+async def compressDirPath(
+    dirPath: str = Query(title="File directory", description="File directory", example="/non_standard/directory/"),
+):
+    """Compress directory at given dirPath, as opposed to standard input paramaters.
+    """
+    success = False
+    compressPath = None
+    dirExistsCheck = None
+    dirRemovedBool = None
+    try:
+        fU = FileUtil()
+        #
+        logger.info("Compressing dirPath %r", dirPath)
         dirExistsCheck = fU.exists(dirPath)
         if dirExistsCheck:
             compressPath = os.path.abspath(dirPath)+".tar.gz"
