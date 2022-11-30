@@ -5,9 +5,8 @@
 # To Do:
 # - Add Endpoints:
 #   - getFileHash
-# - Remove unnecessary params where appropriate (here and in tests)
 # - Remove default setting for select params where appropriate (here and in tests), to make them required
-# - Make 'repositoryType' an enumerated parameter
+# - Make 'repositoryType' an enumerated parameter (not possible with Query() parameter)
 # - better way to determine latest version? (use subroutine)
 ##
 __docformat__ = "google en"
@@ -87,8 +86,6 @@ async def fileExists(
     contentType: str = Query(title="Content type", description="OneDep content type", example="model, structure-factors, val-report-full"),
     contentFormat: str = Query(title="Content format", description="OneDep content format", example="pdb, pdbx, mtz, pdf"),
     partNumber: int = Query(1, title="Content part", description="OneDep part number", example="1,2,3"),
-    # fileName: str = Query(None, title="Filename", description="Filename", example="example.cif.gz"),
-    # dirPath: str = Query(None, title="File directory", description="File directory", example="/non_standard/directory/"),
     version: str = Query("latest", title="Version string", description="OneDep version number or description", example="1,2,3, latest, previous"),
 ):
     """Check if a file exists provided standard file parameters.
@@ -101,17 +98,10 @@ async def fileExists(
         cP = ConfigProvider(cachePath, configFilePath)
         pathU = PathUtils(cP)
         #
-        # if dirPath and fileName:
-        #     logger.info("Checking dirPath %r fileName %r", dirPath, fileName)
-        #     filePath = os.path.join(dirPath, fileName)
-        # else:
         logger.info("Checking repositoryType %r idCode %r contentType %r format %r version %r", repositoryType, idCode, contentType, contentFormat, version)
         filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
         logger.info("Checking filePath %r", filePath)
         fileName = fU.getFileName(filePath)
-        # fileEnd = fileName.split(".")[-1]
-        # if "V" in fileEnd:
-        #     fileVersion = fileEnd.split("V")[1]
         success = fU.exists(filePath)
         logger.info("success %r fileName %r filepath %r", success, fileName, filePath)
         #
@@ -320,12 +310,7 @@ async def copyFile(
 
 @router.post("/copy-filepath", response_model=CopyFileResult)
 async def copyFilePath(
-    # fileNameSource: str = Query(None, title="Source Filename", description="Filename of file to copy", example="example.cif.gz"),
-    # dirPathSource: str = Query(None, title="Source File directory", description="File directory of file to copy", example="/non_standard/directory/"),
     filePathSource: str = Query(title="Source File path", description="Full file path of file to copy", example="/non_standard/directory/example.cif.gz"),
-    #
-    # fileNameTarget: str = Query(None, title="Target Filename", description="Filename of destination file", example="example.cif.gz"),
-    # dirPathTarget: str = Query(None, title="Target File directory", description="File directory of destination file", example="/non_standard/directory/"),
     filePathTarget: str = Query(title="Target File path", description="Full file path of destination file", example="/non_standard/directory/example.cif.gz"),
 ):
     """Copy a file given its explicit source and destination path (as opposed to using standard input paramaters).
@@ -417,12 +402,7 @@ async def moveFile(
 
 @router.post("/move-filepath", response_model=CopyFileResult)
 async def moveFilePath(
-    # fileNameSource: str = Query(None, title="Source Filename", description="Filename of file to move", example="example.cif.gz"),
-    # dirPathSource: str = Query(None, title="Source File directory", description="File directory of file to move", example="/non_standard/directory/"),
     filePathSource: str = Query(title="Source File path", description="Full file path of file to move", example="/non_standard/directory/example.cif.gz"),
-    #
-    # fileNameTarget: str = Query(None, title="Target Filename", description="Filename of destination file", example="example.cif.gz"),
-    # dirPathTarget: str = Query(None, title="Target File directory", description="File directory of destination file", example="/non_standard/directory/"),
     filePathTarget: str = Query(title="Target File path", description="Full file path of destination file", example="/non_standard/directory/example.cif.gz"),
 ):
     """Move a file given its explicit source and destination path (as opposed to using standard input paramaters).
@@ -495,7 +475,7 @@ async def listDir(
 async def listDirPath(
     dirPath: str = Query(title="Directory path", description="Full directory path", example="non_standard/directory/D_2000000001/"),
 ):
-    """List files in requested path, as opposed to standard input paramaters.
+    """List files in requested explicit path, as opposed to standard input paramaters.
     """
     success = False
     dirList = []
@@ -548,7 +528,7 @@ async def compressDir(
         logger.info("Compressing dirPath %r for repositoryType %r idCode %r", dirPath, repositoryType, idCode)
         dirExistsCheck = fU.exists(dirPath)
         if dirExistsCheck:
-            compressPath = os.path.abspath(dirPath)+".tar.gz"
+            compressPath = os.path.abspath(dirPath) + ".tar.gz"
             ok = fU.bundleTarfile(compressPath, [os.path.abspath(dirPath)])
             if ok:
                 logger.info("created compressPath %s from dirPath %s", compressPath, dirPath)
@@ -592,7 +572,7 @@ async def compressDirPath(
         logger.info("Compressing dirPath %r", dirPath)
         dirExistsCheck = fU.exists(dirPath)
         if dirExistsCheck:
-            compressPath = os.path.abspath(dirPath)+".tar.gz"
+            compressPath = os.path.abspath(dirPath) + ".tar.gz"
             ok = fU.bundleTarfile(compressPath, [os.path.abspath(dirPath)])
             if ok:
                 logger.info("created compressPath %s from dirPath %s", compressPath, dirPath)

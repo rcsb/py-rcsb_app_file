@@ -10,3 +10,4 @@
 27-Jun-2022  - V0.18 Fix ClientUtils timeout issue
 30-Sep-2022  - V0.19 Fixed asynchronous upload issue
 25-Oct-2022  - V0.20 Add additional file/directory path request endpoints (file-exists, dir-exists, list-dir, copy-file)
+30-Nov-2022  - V0.21 Add additional file/directory path request endpoints (path-exists, copy-filepath, compress-dir, compress-dirpath)
