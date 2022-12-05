@@ -67,6 +67,14 @@ class KvConnection:
         except Exception as exc:
             logging.warning("possible error in Kv clear table {table}, %s %s", type(exc), exc)
 
+    def deleteRowWithKey(self, key, table):
+        try:
+            with self.getConnection() as connection:
+                connection.cursor().execute(f"DELETE FROM {table} WHERE key = '{key}'")
+                connection.commit()
+        except Exception as exc:
+            logging.warning("error in Kv delete from %s, %s %s", table, type(exc), exc)
+
     def deleteRowWithVal(self, val, table):
         try:
             with self.getConnection() as connection:

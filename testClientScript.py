@@ -5,10 +5,14 @@ import io
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 import requests
+import json
+import asyncio
+import sys
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.FileUtil import FileUtil
+from rcsb.app.file.IoUtils import IoUtils
 
 os.environ["CACHE_PATH"] = os.path.join(
     ".", "rcsb", "app", "tests-file", "test-data", "data"
@@ -38,7 +42,7 @@ base_url = "http://0.0.0.0:80"
 
 # create file for download
 # select size of file here (in bytes)
-nB = 1000
+nB = 10000
 with open(filePath, "wb") as ofh:
     ofh.write(os.urandom(nB))
 
@@ -51,24 +55,28 @@ headerD = {
     + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)
 }
 
-sessionId = uuid.uuid4().hex
+url = os.path.join(base_url, "file-v2", "clearKv")
+requests.post(url, data={}, headers=headerD, timeout=None)
 
+# sessionId = uuid.uuid4().hex
+
+uploadIds = []
 
 # non-sliced upload
-
 
 partNumber = 1
 copyMode = "native"
 allowOverWrite = True
 
 # uploads the file x times
+
 for version in range(1, 9):
 
     mD = {
         "sliceIndex": 0,
         "sliceOffset": 0,
         "sliceTotal": 1,
-        "sessionId": sessionId,
+        "uploadId": None,
         "idCode": "D_1000000001",
         "repositoryType": "onedep-archive",
         "contentType": "model",
@@ -90,6 +98,10 @@ for version in range(1, 9):
             url, files=files, data=mD, headers=headerD, timeout=None
         )
     print(response.text)
+    for res in response:
+        text = json.loads(response.text)
+        uploadIds.append(text["uploadId"])
+
 
 # download
 
@@ -151,7 +163,7 @@ mD = {
     "sliceIndex": sliceIndex,
     "sliceOffset": sliceOffset,
     "sliceTotal": sliceTotal,
-    "sessionId": sessionId,
+    "uploadId": None,
     "idCode": "D_1000000001",
     "repositoryType": "onedep-archive",
     "contentType": "model",
@@ -165,6 +177,7 @@ mD = {
 }
 
 tmp = io.BytesIO()
+response = None
 with open(filePath, "rb") as to_upload:
     for i in range(0, mD["sliceTotal"]):
         packet_size = min(
@@ -191,15 +204,17 @@ with open(filePath, "rb") as to_upload:
         print(f"chunk {i} upload result {response.text}")
         mD["sliceIndex"] += 1
         mD["sliceOffset"] = mD["sliceIndex"] * slice_size
+        # mD["uploadId"] = json.loads(response.text)["uploadId"]
+    text = json.loads(response.text)
+    uploadIds.append(text["uploadId"])
 
 # multifile sliced upload
 
 url = os.path.join(base_url, "file-v2", "upload")
 
 FILES_TO_UPLOAD = [
-    "./rcsb/app/tests-file/test-data/data/repository/archive/D_00000000/D_00000000_model_P1.cif.V1",
-    "./rcsb/app/tests-file/test-data/data/repository/archive/D_00000000/D_00000000_model_P1.cif.V2",
-    "./rcsb/app/tests-file/test-data/data/repository/archive/D_00000000/D_00000000_model_P1.cif.V3",
+    "./rcsb/app/tests-file/test-data/example-data.cif",
+    "./rcsb/app/tests-file/test-data/example-large.cif",
 ]
 
 
@@ -224,12 +239,12 @@ def asyncUpload(filePath):
     else:
         sliceTotal = 1
     sliceOffset = 0
-    sessionId = uuid.uuid4().hex
+    # sessionId = uuid.uuid4().hex
     mD = {
         "sliceIndex": sliceIndex,
         "sliceOffset": sliceOffset,
         "sliceTotal": sliceTotal,
-        "sessionId": sessionId,
+        "uploadId": None,
         "idCode": "D_00000000",
         "repositoryType": "onedep-archive",
         "contentType": "model",
@@ -268,6 +283,8 @@ def asyncUpload(filePath):
             responses.append(response)
             mD["sliceIndex"] += 1
             mD["sliceOffset"] = mD["sliceIndex"] * slice_size
+            text = json.loads(response.text)
+            # mD["uploadId"] = text["uploadId"]
     return responses
 
 
@@ -280,3 +297,15 @@ with ThreadPoolExecutor(max_workers=10) as executor:
     print("multi-file sliced upload result")
     for result in results:
         print([response.text for response in result])
+        for response in result:
+            res = json.loads(response.text)
+            uploadIds.append(res["uploadId"])
+
+
+# for id in uploadIds:
+#     print(f'clearing upload id {id}')
+# ioU = IoUtils(cP)
+# url = os.path.join(base_url, "file-v2", "clearSession")
+# response = requests.post(url, data={"uploadIds": uploadIds}, headers=headerD, timeout=None)
+# ok = response.status_code
+# print("cleared session with status %r" % ok)

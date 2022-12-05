@@ -22,6 +22,7 @@ class JWTAuthToken:
         self.__jwtSecret = cP.get("JWT_SECRET")
         self.__jwtAlgorithm = cP.get("JWT_ALGORITHM")
         self.__jwtSubject = cP.get("JWT_SUBJECT")
+        self.__jwtDuration = cP.get("JWT_DURATION")
         #
 
     def decodeToken(self, token: str) -> dict:
@@ -39,7 +40,7 @@ class JWTAuthToken:
         if expiresDelta:
             expire = now + expiresDelta
         else:
-            expire = now + datetime.timedelta(minutes=150)
+            expire = now + datetime.timedelta(minutes=self.__jwtDuration)
         payload.update({"exp": expire, "iat": now, "sub": subject})
         jwtToken = jwt.encode(payload, self.__jwtSecret, algorithm=self.__jwtAlgorithm)
 

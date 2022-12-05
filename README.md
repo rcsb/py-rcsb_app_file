@@ -88,3 +88,16 @@ Edit url variables to match server url in testClientScript.py
 python3 testClientScript.py
 
 ```
+
+# Example client.py
+
+```
+
+python3 client.py
+[-h (help)]
+[--upload source_file repo_type id content_type milestone part format version overwritable]
+[--download target_file repo_type id content_type milestone part format version]
+[-c source target (compress)]
+
+```
+

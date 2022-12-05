@@ -26,17 +26,21 @@ cP = ConfigProvider(cachePath)
 cP.getConfig()
 subject = cP.get("JWT_SUBJECT")
 ioU = IoUtils(cP)
-base_url = "http://132.249.213.217:80"
+base_url = "http://0.0.0.0:8000"
 headerD = {
     "Authorization": "Bearer "
     + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)
 }
+# headerD = {
+#     "Authorization": "Bearer " + cP.get("JWT_DISABLE")
+# }
 uploadIds = []
 uploadResults = []
 uploadTexts = []
 downloadResults = []
 hashType = "MD5"
 maxSliceSize = 1024 * 1024 * 8
+minSliceSize = 1024  # for development
 SLEEP = False  # testing with small files
 signature = """
     --------------------------------------------------------
@@ -49,11 +53,43 @@ def asyncUpload(filePath, mD, comp):
     global headerD
     global ioU
     global SLEEP
-    url = os.path.join(base_url, "file-v2", "upload")
     responses = []
+
+    uploadId = mD["uploadId"]
+    url = os.path.join(base_url, "file-v2", "uploadStatus")
+    parameters = {"repositoryType": mD["repositoryType"],
+              "idCode": mD["idCode"],
+              "contentType": mD["contentType"],
+              "milestone": None,
+              "partNumber": str(mD["partNumber"]),
+              "contentFormat": mD["contentFormat"]
+              }
+    response = requests.get(
+        url,
+        params=parameters,
+        headers=headerD,
+        timeout=None
+    )
+    offsetIndex = 0
+    offset = 0
+    if response.status_code == 200:
+        result = json.loads(response.text)
+        if result:
+            result = eval(result)
+            offsetIndex = result["uploadCount"]
+            packet_size = min(
+                mD["fileSize"] - (mD["sliceIndex"] * mD["sliceSize"]),
+                mD["sliceSize"],
+            )
+            offset = offsetIndex * packet_size
+            mD["sliceIndex"] = offsetIndex
+            mD["sliceOffset"] = offset
     tmp = io.BytesIO()
     with open(filePath, "rb") as to_upload:
-        for i in tqdm(range(0, mD["sliceTotal"]), leave=False, desc=os.path.basename(filePath)):
+        # print(f'starting from offset {offset} at index {offsetIndex}')
+        to_upload.seek(offset)
+        url = os.path.join(base_url, "file-v2", "upload")
+        for x in tqdm(range(offsetIndex, mD["sliceTotal"]), leave=False, desc=os.path.basename(filePath)):
             packet_size = min(
                 mD["fileSize"] - (mD["sliceIndex"] * mD["sliceSize"]),
                 mD["sliceSize"],
@@ -80,9 +116,9 @@ def asyncUpload(filePath, mD, comp):
             # text = json.loads(response.text)
             # mD["uploadId"] = text["uploadId"]
             # session = eval(ioU.uploadStatus(mD["uploadId"]))
-            # uploadIndex = session["uploadIndex"]
+            # uploadCount = session["uploadCount"]
             # expectedCount = session["expectedCount"]
-            # percentage = (uploadIndex / expectedCount) * 100
+            # percentage = (uploadCount / expectedCount) * 100
             # print(percentage)
             if SLEEP:
                 time.sleep(1)
@@ -123,15 +159,16 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--compress', nargs=2, help='***** compress input files with gzip *****', metavar=('read-path', 'new-name'))
     parser.add_argument('-t', '--test', action='store_true',
                         help='***** slow motion mode for testing with small files ******')
-    parser.add_argument('-u', '--upload', nargs=8, action='append',
-                        metavar=('file-path', 'dep-id', 'part-number', 'version', 'repo-type', 'content-type', 'content-format', 'allow-overwrite'),
+    parser.add_argument('-u', '--upload', nargs=9, action='append',
+                        metavar=('file-path', 'repo-type', 'dep-id', 'content-type', 'milestone', 'part-number', 'content-format', 'version', 'allow-overwrite'),
                         help='***** multiple uploads allowed *****')
-    parser.add_argument('-d', '--download', nargs=7, action='append',
-                        metavar=('file-path', 'dep-id', 'part-number', 'version', 'repo-type', 'content-type', 'content-format'),
+    parser.add_argument('-d', '--download', nargs=8, action='append',
+                        metavar=('file-path', 'repo-type', 'dep-id', 'content-type', 'milestone', 'part-number', 'content-format', 'version'),
                         help='***** multiple downloads allowed *****')
     args = parser.parse_args()
     if args.test:
         SLEEP = True
+        maxSliceSize = minSliceSize
     uploads = []
     uploadIds = []
     downloads = []
@@ -150,18 +187,21 @@ if __name__ == "__main__":
                 w.write(gzip.compress(r.read()))
     if args.upload:
         for arglist in args.upload:
-            if len(arglist) < 8:
-                sys.exit(f'wrong number of args to upload {len(arglist)}')
+            if len(arglist) < 9:
+                sys.exit(f'error - wrong number of args to upload: {len(arglist)}')
             filePath = arglist[0]
             if not os.path.exists(filePath):
-                sys.exit(f'error - file does not exist {filePath}')
-            depId = arglist[1]
-            part = arglist[2]
-            version = arglist[3]  # ?
-            repositoryType = arglist[4]
-            contentType = arglist[5]
+                sys.exit(f'error - file does not exist: {filePath}')
+            repositoryType = arglist[1]
+            depId = arglist[2]
+            contentType = arglist[3]
+            milestone = arglist[4]
+            if milestone.lower() == "none":
+                milestone = ""
+            part = arglist[5]
             contentFormat = arglist[6]
-            allowOverwrite = arglist[7]
+            version = arglist[7]
+            allowOverwrite = arglist[8]
             hD = CryptUtils().getFileHash(filePath, hashType=hashType)
             fullTestHash = hD["hashDigest"]
             sliceSize = maxSliceSize
@@ -175,6 +215,11 @@ if __name__ == "__main__":
                 sliceTotal = 1
             sliceIndex = 0
             sliceOffset = 0
+            # url = os.path.join(base_url, "file-v2", "getNewUploadId")
+            # response = requests.get(url, headers=headerD, timeout=None)
+            # uploadId = json.loads(response.text)
+            # if not uploadId:
+            #     sys.exit('error - could not get new upload id')
             uploads.append(
                 (filePath,
                     {
@@ -185,30 +230,35 @@ if __name__ == "__main__":
                         "sliceTotal": sliceTotal,
                         "fileSize": fileSize,
                         "uploadId": None,
-                        "idCode": depId,
                         "repositoryType": repositoryType,
+                        "idCode": depId,
                         "contentType": contentType,
-                        "contentFormat": contentFormat,
+                        "milestone": milestone,
                         "partNumber": part,
+                        "contentFormat": contentFormat,
                         "version": version,
                         "copyMode": "native",
                         "allowOverWrite": allowOverwrite,
                         "hashType": hashType,
-                        "hashDigest": fullTestHash
+                        "hashDigest": fullTestHash,
+                        "chunkMode": "sequential"
                     }
                 )
             )
     if args.download:
         for arglist in args.download:
-            if len(arglist) < 7:
+            if len(arglist) < 8:
                 sys.exit(f'error - wrong number of args to download {len(arglist)}')
             downloadFilePath = arglist[0]
-            depId = arglist[1]
-            partNumber = arglist[2]
-            version = arglist[3]
-            repositoryType = arglist[4]
-            contentType = arglist[5]
+            repositoryType = arglist[1]
+            depId = arglist[2]
+            contentType = arglist[3]
+            milestone = arglist[4]
+            if milestone.lower() == "none":
+                milestone = ""
+            partNumber = arglist[5]
             contentFormat = arglist[6]
+            version = arglist[7]
             downloadDict = {
                 "idCode": depId,
                 "repositoryType": repositoryType,
@@ -217,6 +267,7 @@ if __name__ == "__main__":
                 "partNumber": partNumber,
                 "version": str(version),
                 "hashType": hashType,
+                "milestone": milestone
             }
             downloads.append((downloadFilePath, downloadDict))
     if len(uploads) > 0:
@@ -239,9 +290,9 @@ if __name__ == "__main__":
                 results.append(future.result())
             for status_code in results:
                 downloadResults.append(status_code)
-    if len(uploadIds) > 0:
-        url = os.path.join(base_url, "file-v2", "clearSession")
-        response = requests.post(url, data={"uploadIds": uploadIds}, headers=headerD, timeout=None)
+    # if len(uploadIds) > 0:
+    #     url = os.path.join(base_url, "file-v2", "clearSession")
+    #     response = requests.post(url, data={"uploadIds": uploadIds}, headers=headerD, timeout=None)
     if len(uploadResults) > 0:
         print(f'upload results {uploadResults}')
     if len(downloadResults) > 0:

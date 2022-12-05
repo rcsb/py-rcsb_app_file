@@ -6,6 +6,8 @@ configuration:
   JWT_SUBJECT: aTestSubject
   JWT_ALGORITHM: HS256
   JWT_SECRET: aTestSecret
+  JWT_DURATION: 300
+  JWT_DISABLE: jwtDisable
   SESSION_DIR_PATH: rcsb/app/tests-file/test-data/data/sessions
   REPOSITORY_DIR_PATH: rcsb/app/tests-file/test-data/data/repository
   SHARED_LOCK_PATH: rcsb/app/tests-file/test-data/data/shared-locks

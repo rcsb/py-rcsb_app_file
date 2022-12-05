@@ -10,9 +10,11 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
+import re
 from enum import Enum
+from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Path, Query
 from fastapi import Depends
 from fastapi import File
 from fastapi import Form
@@ -25,6 +27,7 @@ from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.utils.io.FileLock import FileLock
+from rcsb.app.file.pathRequest import latestFileVersion
 
 logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
@@ -57,32 +60,63 @@ class UploadResult(BaseModel):
     )
 
 
-# Add Endpoints:
-# - getUploadStatus
+# return kv entry from upload id
+@router.get("/uploadStatus/{uploadId}")
+async def getUploadStatus(uploadId: str = Path(...)):
+    cachePath = os.environ.get("CACHE_PATH")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+    ioU = IoUtils(cP)
+    status = await ioU.getSession(uploadId)
+    return status
 
 
-@router.post("/uploadStatus")
-async def getUploadStatus(uploadId) -> list:
-    return await IoUtils.uploadStatus(uploadId)
+# return kv entry from file parameters
+@router.get("/uploadStatus")
+async def getUploadStatus(repositoryType: str = Query(...), idCode: str = Query(...), contentType: str = Query(...), milestone: Optional[str] = Query(default=""), partNumber: int = Query(...), contentFormat: str = Query(...), version: str = Query(default="next")):
+    cachePath = os.environ.get("CACHE_PATH")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+    ioU = IoUtils(cP)
+    if version is None or not re.match(r'\d+', version):
+        version = await ioU.findVersion(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
+        # version = await latestFileVersion(idCode, repositoryType, contentType, contentFormat, partNumber, milestone)
+    uploadId = await ioU.findUploadId(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
+    status = await ioU.getSession(uploadId)
+    return status
 
 
-# not yet implemented, have no session id per user
-@router.post("/serverStatus")
-async def getServerStatus(sessionId: int) -> list:
-    return await IoUtils.serverStatus(sessionId)
+# user ids for session id not yet implemented, have no session id per user
+# @router.post("/uploadStatuses")
+# async def getUploadStatuses(uids: list) -> list:
+#     cachePath = os.environ.get("CACHE_PATH")
+#     configFilePath = os.environ.get("CONFIG_FILE")
+#     cP = ConfigProvider(cachePath, configFilePath)
+#     ioU = IoUtils(cP)
+#     return await ioU.uploadStatuses(uids)
 
 
+# find upload id from file parameters
 @router.post("/findUploadId")
-async def findUploadId(repositoryType: str = Form(...), idCode: str = Form(...), partNumber: int = Form(...), contentType: str = Form(...), contentFormat: str = Form(...)) -> int:
-    return await IoUtils.findUploadId(repositoryType, idCode, partNumber, contentType, contentFormat)
+async def findUploadId(repositoryType: str = Form(), idCode: str = Form(...), contentType: str = Form(...), milestone: str = Form(...), partNumber: int = Form(...), contentFormat: str = Form(...), version: str = Form(...)):
+    cachePath = os.environ.get("CACHE_PATH")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+    ioU = IoUtils(cP)
+    return await ioU.findUploadId(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
 
 
-# create new upload id
-@router.post("/getNewUploadId")
-async def getNewUploadId():
-    return await IoUtils.getNewUploadId()
+# create new id
+@router.get("/getNewUploadId")
+async def getNewUploadId() -> str:
+    cachePath = os.environ.get("CACHE_PATH")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+    ioU = IoUtils(cP)
+    return await ioU.getNewUploadId()
 
 
+# clear kv entries from one user
 @router.post("/clearSession")
 async def clearSession(uploadIds: list = Form(...)):
     cachePath = os.environ.get("CACHE_PATH")
@@ -91,6 +125,8 @@ async def clearSession(uploadIds: list = Form(...)):
     ioU = IoUtils(cP)
     return await ioU.clearSession(uploadIds)
 
+
+# purge kv before testing
 @router.post("/clearKv")
 async def clearKv():
     cachePath = os.environ.get("CACHE_PATH")
@@ -98,6 +134,7 @@ async def clearKv():
     cP = ConfigProvider(cachePath, configFilePath)
     ioU = IoUtils(cP)
     return await ioU.clearKv()
+
 
 @router.post("/upload")  # , response_model=UploadResult)
 async def upload(
@@ -186,6 +223,15 @@ async def upload(
         description="Hash digest",
         example="'0394a2ede332c9a13eb82e9b24631604c31df978b4e2f0fbd2c549944f9d79a5'",
     ),
+    milestone: str = Form(
+        None,
+        title="milestone",
+        description="milestone",
+        example="release"
+    ),
+    chunkMode: str = Form(
+        'async'
+    )
 ):
     fn = None
     ct = None
@@ -215,12 +261,12 @@ async def upload(
         """
         if uploadId is None:  # and sliceIndex == 0 and sliceOffset == 0:
             # check for resumed upload
-            # if find resumed upload then set uid = previous uid? (would get redundant chunk error)
+            # if find resumed upload then set uid = previous uid
             # lock so that even for concurrent chunks the first chunk will write an upload id that subsequent chunks will use
             pathU = PathUtils(cP)
-            lockPath = pathU.getFileLockPath(idCode, contentType, partNumber, contentFormat)
+            lockPath = pathU.getFileLockPath(idCode, contentType, milestone, partNumber, contentFormat)
             with FileLock(lockPath):
-                uploadId = await ioU.getResumedUpload(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+                uploadId = await ioU.getResumedUpload(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
                 if not uploadId:
                     # logging.warning("generating new id at slice %s", sliceIndex)
                     uploadId = await ioU.getNewUploadId()#repositoryType, idCode, contentType, partNumber, contentFormat, version)
@@ -239,10 +285,12 @@ async def upload(
             contentFormat,
             partNumber,
             version,
+            milestone,
             copyMode=copyMode,
             allowOverWrite=allowOverWrite,
             hashType=hashType,
             hashDigest=hashDigest,
+            chunkMode=chunkMode
         )
     except Exception as e:
         logger.exception("Failing for %r %r with %s", fn, ct, str(e))

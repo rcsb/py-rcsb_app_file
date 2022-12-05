@@ -124,7 +124,6 @@ class ClientUtilsTests(unittest.TestCase):
             for res in responses:
                 text = json.loads(res.text)
                 uploadIds.append(text["uploadId"])
-            # return
             #
             # Test *concurrency* for multiple single-file single-part uploads
             logger.info("Starting concurrent single-file uploads")
@@ -235,9 +234,9 @@ class ClientUtilsTests(unittest.TestCase):
                     version="9",
                 )
             )
-            logger.info("Completed download (%.4f seconds)", time.time() - startTime)
-            ok = asyncio.run(self.__cU.clearSession(uploadIds))
-            logger.info("Removed session with status %r", ok)
+            # logger.info("Completed download (%.4f seconds)", time.time() - startTime)
+            # ok = asyncio.run(self.__cU.clearSession(uploadIds))
+            # logger.info("Removed session with status %r", ok)
 
         except Exception as e:
             logger.exception("Failing with %s", str(e))

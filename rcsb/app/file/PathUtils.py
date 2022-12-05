@@ -48,11 +48,15 @@ class PathUtils:
             return os.path.join(self.__repositoryDirPath, "archive")
         elif repositoryType.lower() in ["onedep-deposit", "deposit"]:
             return os.path.join(self.__repositoryDirPath, "deposit")
+        elif repositoryType.lower() in ["onedep-session", "session"]:
+            return os.path.join(self.__repositoryDirPath, "session")
+        elif repositoryType.lower() in ["onedep-workflow", "workflow"]:
+            return os.path.join(self.__repositoryDirPath, "workflow")
         return None
 
-    def getFileLockPath(self, idCode: str, contentType: str, partNumber: int, contentFormat: str) -> str:
+    def getFileLockPath(self, idCode: str, contentType: str, milestone: str, partNumber: int, contentFormat: str) -> str:
         lockPath = self.getSharedLockDirPath()
-        fnBase = self.__getBaseFileName(idCode, contentType, partNumber, contentFormat)
+        fnBase = self.__getBaseFileName(idCode, contentType, milestone, partNumber, contentFormat)
         return os.path.join(lockPath, fnBase + ".lock")
 
     def getSliceFilePath(self, sessionId: str, sliceIndex: int, sliceTotal: int) -> str:
@@ -65,12 +69,13 @@ class PathUtils:
         fnBase = f"{sessionId}_{sliceIndex}.{sliceTotal}"
         return os.path.join(lockPath, fnBase + ".lock")
 
-    def getVersionedPath(self, repositoryType: str, idCode: str, contentType: str, partNumber: int, contentFormat: str, version: str) -> typing.Optional[str]:
+    def getVersionedPath(self, repositoryType: str, idCode: str, contentType: str, milestone: str, partNumber: str, contentFormat: str, version: str) -> typing.Optional[str]:
         fTupL = []
         filePath = None
+        filePattern = None
         try:
             repoPath = self.getRepositoryDirPath(repositoryType)
-            fnBase = self.__getBaseFileName(idCode, contentType, partNumber, contentFormat) + ".V"
+            fnBase = self.__getBaseFileName(idCode, contentType, milestone, partNumber, contentFormat) + ".V"
             # logging.warning(f'repo path {repoPath} fn base {fnBase}')
             filePattern = os.path.join(repoPath, idCode, fnBase)
             if version.isdigit():
@@ -109,6 +114,7 @@ class PathUtils:
                 #
             #
         except Exception as e:
+            logger.info(filePattern)
             logger.exception("Failing with %s", str(e))
         return filePath
 
@@ -177,8 +183,13 @@ class PathUtils:
         #
         return mt
 
-    def getBaseFileName(self, idCode: str, contentType: str, partNumber: int, contentFormat: str) -> str:
-        return self.__getBaseFileName(idCode, contentType, partNumber, contentFormat)
+    def __validateMilestone(self, milestone):
+        if milestone and milestone in ["deposit", "upload", "annotated", "release"]:
+            return '-' + milestone
+        return ""
 
-    def __getBaseFileName(self, idCode: str, contentType: str, partNumber: int, contentFormat: str) -> str:
-        return f"{idCode}_{self.__contentTypeInfoD[contentType][1]}_P{partNumber}.{self.__fileFormatExtensionD[contentFormat]}"
+    def getBaseFileName(self, idCode: str, contentType: str, milestone: typing.Optional[str], partNumber: int, contentFormat: str) -> str:
+        return self.__getBaseFileName(idCode, contentType, milestone, partNumber, contentFormat)
+
+    def __getBaseFileName(self, idCode: str, contentType: str, milestone: str, partNumber: int, contentFormat: str) -> str:
+        return f"{idCode}_{self.__contentTypeInfoD[contentType][1]}{self.__validateMilestone(milestone)}_P{partNumber}.{self.__fileFormatExtensionD[contentFormat]}"

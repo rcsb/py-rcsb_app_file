@@ -75,31 +75,23 @@ class ClientUtils:
     """
 
     async def upload(self, data: list) -> list:
-        # data is a list of dictionaries, return value is a list of multi-file results
-        # for one file upload, returns a list of size 1
+        """Multi-file upload
+
+        Args:
+            data: a list of dictionaries
+
+        Returns:
+            a list of multi-file upload results, with one json response for each file
+            for a one-file upload, returns a list of size 1
+        """
         tasks = []
         for _d in data:
             tasks.append(self.uploadFile(**_d))
         return await asyncio.gather(*tasks)
 
-    """ requires Python >= 3.11 
-        couldn't install mmcif after switching interpreter to 3.11
-    """
-    # async def uploadv2(self, data: list):
-    #     # data is a list of dictionaries
-    #     try:
-    #         tasks = []
-    #         async with asyncio.TaskGroup() as group:
-    #             for _d in data:
-    #                 tasks.append(group.create_task(self.uploadFile(**_d)))
-    #         return [t.result() for t in tasks]
-    #     except Exception as exc:
-    #         logging.warning(f'error in upload {type(exc)} {exc}')
-    #         return None
-
-    """ has slight problem with return values """
 
     async def uploadv3(self, data: list):
+        # has slight problem with return values
         # data is a list of dictionaries
         results = []
         with ThreadPoolExecutor(max_workers=10) as executor:

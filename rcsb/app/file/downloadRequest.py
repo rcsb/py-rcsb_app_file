@@ -42,12 +42,12 @@ class HashType(str, Enum):
 
 
 @router.get("/downloadSize")
-async def downloadSize(repositoryType, idCode, contentType, partNumber, contentFormat, version, hashType):
+async def downloadSize(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version, hashType):
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
     pathU = PathUtils(cP)
-    filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
     return os.path.getsize(filePath)
 
 
@@ -60,6 +60,7 @@ async def download(
     partNumber: int = Query(1, title="Content part", description="Content part", example="1,2,3"),
     version: str = Query("1", title="Version string", description="Version number or description", example="1,2,3, latest, previous"),
     hashType: HashType = Query(None, title="Hash type", description="Hash type", example="SHA256"),
+    milestone: str = Query("", title="milestone", description="milestone", example="release")
 ):
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
@@ -69,7 +70,7 @@ async def download(
     success = False
     tD = {}
     try:
-        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
         success = FileUtil().exists(filePath)
 
         mimeType = pathU.getMimeType(contentFormat)

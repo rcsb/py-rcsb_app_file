@@ -26,11 +26,10 @@ from . import ConfigProvider
 from . import LogFilterUtils
 from . import downloadRequest  # This triggers JWTAuthBearer
 from . import serverStatus
-from . import uploadRequest_v1
 from . import uploadRequest
 from . import pathRequest
 from . import mergeRequest
-from .JWTAuthBearer import JWTAuthBearer
+from . import JWTAuthBearer
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -75,11 +74,6 @@ def shutdownEvent():
 
 
 app.include_router(
-    uploadRequest_v1.router,
-    prefix="/file-v1",
-)
-
-app.include_router(
     downloadRequest.router,
     prefix="/file-v1",
 )
@@ -110,7 +104,8 @@ async def checkToken(request: Request, callNext):
     scheme, credentials = get_authorization_scheme_param(authorization)
     if scheme != "Bearer":
         return Response(status_code=403, content=b'{"detail":"Missing Bearer details"}', headers={"content-type": "application/json"})
-    valid = JWTAuthBearer().validateToken(credentials)
+    auth = JWTAuthBearer.JWTAuthBearer()
+    valid = auth.validateToken(credentials)
     if not valid:
         return Response(status_code=403, content=b'{"detail":"Invalid or expired token"}', headers={"content-type": "application/json"})
         # logger.info("HTTPException %r ",  HTTPException(status_code=403, detail="Invalid or expired token"))  # How to get this to log in the main app output?

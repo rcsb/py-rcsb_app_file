@@ -85,6 +85,7 @@ async def fileExists(
     dirPath: str = Query(None, title="File directory", description="File directory", example="/non_standard/directory/"),
     filePath: str = Query(None, title="File path", description="Full file path", example="/non_standard/directory/example.cif.gz"),
     version: str = Query("latest", title="Version string", description="OneDep version number or description", example="1,2,3, latest, previous"),
+    milestone: str = Query("", title="milestone", description="milestone", example="release")
 ):
     success = False
     try:
@@ -100,7 +101,7 @@ async def fileExists(
                 filePath = os.path.join(dirPath, fileName)
             else:
                 logger.info("Checking repositoryType %r idCode %r contentType %r format %r version %r", repositoryType, idCode, contentType, contentFormat, version)
-                filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+                filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
         else:
             logger.info("Checking filePath %r", filePath)
         fileName = fU.getFileName(filePath)
@@ -196,12 +197,13 @@ async def latestFileVersion(
     repositoryType: str = Query(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
     contentType: str = Query(None, title="Content type", description="OneDep content type", example="model, structure-factors, val-report-full"),
     contentFormat: str = Query(None, title="Content format", description="OneDep content format", example="pdb, pdbx, mtz, pdf"),
-    partNumber: int = Query(1, title="Content part", description="OneDep part number", example="1,2,3"),
+    partNumber: str = Query(1, title="Content part", description="OneDep part number", example="1,2,3"),
+    milestone: str = Query("", title="milestone", description="milestone", example="release")
 ):
     success = False
     fileName = None
     filePath = None
-    version = "latest"
+    version = "next"
     fileVersion = None
     try:
         fU = FileUtil()
@@ -211,15 +213,18 @@ async def latestFileVersion(
         pathU = PathUtils(cP)
         #
         logger.info(
-            "Getting latest file version for repositoryType %r idCode %r contentType %r format %r",
+            "Getting latest file version for repositoryType %r idCode %r contentType %r milestone %r partNumber %r format %r",
             repositoryType,
             idCode,
             contentType,
+            milestone,
+            partNumber,
             contentFormat,
         )
         #
-        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
         if not fU.exists(filePath):
+            logger.info(filePath)
             raise HTTPException(status_code=404, detail="Requested file does not exist")
         fileName = fU.getFileName(filePath)
         fileEnd = fileName.split(".")[-1]
@@ -261,6 +266,7 @@ async def fileCopy(
     dirPathTarget: str = Query(None, title="Target File directory", description="File directory of destination file", example="/non_standard/directory/"),
     filePathTarget: str = Query(None, title="Target File path", description="Full file path of destination file", example="/non_standard/directory/example.cif.gz"),
     versionTarget: str = Query(None, title="Target Version string", description="OneDep version number or description of destination file", example="1,2,3, latest, previous, next"),
+    milestone: str = Query("", title="milestone", description="milestone", example="release")
 ):
     success = False
     try:
@@ -279,7 +285,7 @@ async def fileCopy(
                     "Copying repositoryType %r idCode %r contentType %r format %r version %r",
                     repositoryTypeSource, idCodeSource, contentTypeSource, contentFormatSource, versionSource
                 )
-                filePathSource = pathU.getVersionedPath(repositoryTypeSource, idCodeSource, contentTypeSource, partNumberSource, contentFormatSource, versionSource)
+                filePathSource = pathU.getVersionedPath(repositoryTypeSource, idCodeSource, contentTypeSource, milestone, partNumberSource, contentFormatSource, versionSource)
                 logger.info("filePathSource %r", filePathSource)
         if not filePathTarget:
             if dirPathTarget and fileNameTarget:
@@ -298,7 +304,7 @@ async def fileCopy(
                     "Destination repositoryType %r idCode %r contentType %r format %r version %r",
                     repositoryTypeTarget, idCodeTarget, contentTypeTarget, contentFormatTarget, versionTarget
                 )
-                filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, idCodeTarget, contentTypeTarget, partNumberTarget, contentFormatTarget, versionTarget)
+                filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, idCodeTarget, contentTypeTarget, milestone, partNumberTarget, contentFormatTarget, versionTarget)
                 logger.info("filePathTarget %r", filePathTarget)
 
         if not filePathSource or not filePathTarget:

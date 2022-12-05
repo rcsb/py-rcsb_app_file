@@ -171,7 +171,7 @@ class FileDownloadTests(unittest.TestCase):
                 with TestClient(app) as client:
                     response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                     logger.info("download response status code %r", response.status_code)
-                    logger.debug("response %r %r %r", response.status_code, response.reason, response.content)
+                    # logger.debug("response %r %r %r", response.status_code, response.reason, response.content)
                     self.assertTrue(response.status_code == 200)
                     logger.info("Content length (%d)", len(response.content))
                     rspHashType = response.headers["rcsb_hash_type"]
