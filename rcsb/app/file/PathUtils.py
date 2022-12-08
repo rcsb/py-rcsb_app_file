@@ -76,7 +76,6 @@ class PathUtils:
         try:
             repoPath = self.getRepositoryDirPath(repositoryType)
             fnBase = self.__getBaseFileName(idCode, contentType, milestone, partNumber, contentFormat) + ".V"
-            # logging.warning(f'repo path {repoPath} fn base {fnBase}')
             filePattern = os.path.join(repoPath, idCode, fnBase)
             if version.isdigit():
                 filePath = filePattern + str(version)
@@ -184,7 +183,7 @@ class PathUtils:
         return mt
 
     def __validateMilestone(self, milestone):
-        if milestone and milestone in ["deposit", "upload", "annotated", "release"]:
+        if milestone and milestone != "":
             return '-' + milestone
         return ""
 

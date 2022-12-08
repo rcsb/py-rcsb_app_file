@@ -29,6 +29,8 @@ class KvSqlite:
         return eval(_s)
 
     def getSession(self, key, val):
+        if not key:
+            return None
         table = self.sessionTable
         return self.__getDictionary(key, val, table)
 
@@ -49,6 +51,8 @@ class KvSqlite:
             raise Exception(f"error in KV get for table {table}, {_d}")
 
     def setSession(self, key, val, vval):
+        if not key:
+            return None
         table = self.sessionTable
         return self.__setDictionary(key, val, vval, table)
 
@@ -117,10 +121,14 @@ class KvSqlite:
         self.kV.clearTable(table)
 
     def getLog(self, key):
+        if not key:
+            return None
         table = self.logTable
         return self.kV.get(key, table)
 
     def setLog(self, key, val):
+        if not key:
+            return
         table = self.logTable
         self.kV.set(key, val, table)
 

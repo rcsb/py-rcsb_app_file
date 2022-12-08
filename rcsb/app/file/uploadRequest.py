@@ -40,15 +40,6 @@ class HashType(str, Enum):
 
 
 class UploadResult(BaseModel):
-    sliceIndex: int = Field(
-        None, title="Slice index", description="Slice index", example=1
-    )
-    sliceCount: int = Field(
-        None,
-        title="Slice count",
-        description="Number of slices currently uploaded (if applicable)",
-        example=2,
-    )
     success: bool = Field(
         None, title="Success status", description="Success status", example=True
     )
@@ -58,6 +49,27 @@ class UploadResult(BaseModel):
     statusMessage: str = Field(
         None, title="Status message", description="Status message", example="Success"
     )
+    uploadId: str = Field(
+        None, title="uploadId", description="uploadId", example="asdf4as56df4657sd4f57"
+    )
+    fileName: str = Field(
+        None, title="fileName", description="fileName", example="D_10000_model_P1.cif.V1"
+    )
+
+
+# return kv entry from file parameters, or None
+@router.get("/uploadStatus")
+async def getUploadStatus(repositoryType: str = Query(...), idCode: str = Query(...), contentType: str = Query(...), milestone: Optional[str] = Query(default=""), partNumber: int = Query(...), contentFormat: str = Query(...), version: str = Query(default="next")):
+    cachePath = os.environ.get("CACHE_PATH")
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(cachePath, configFilePath)
+    ioU = IoUtils(cP)
+    if version is None or not re.match(r'\d+', version):
+        version = await ioU.findVersion(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
+        # version = await latestFileVersion(idCode, repositoryType, contentType, contentFormat, partNumber, milestone)
+    uploadId = await ioU.getResumedUpload(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
+    status = await ioU.getSession(uploadId)
+    return status
 
 
 # return kv entry from upload id
@@ -71,31 +83,6 @@ async def getUploadStatus(uploadId: str = Path(...)):
     return status
 
 
-# return kv entry from file parameters
-@router.get("/uploadStatus")
-async def getUploadStatus(repositoryType: str = Query(...), idCode: str = Query(...), contentType: str = Query(...), milestone: Optional[str] = Query(default=""), partNumber: int = Query(...), contentFormat: str = Query(...), version: str = Query(default="next")):
-    cachePath = os.environ.get("CACHE_PATH")
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
-    ioU = IoUtils(cP)
-    if version is None or not re.match(r'\d+', version):
-        version = await ioU.findVersion(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
-        # version = await latestFileVersion(idCode, repositoryType, contentType, contentFormat, partNumber, milestone)
-    uploadId = await ioU.findUploadId(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
-    status = await ioU.getSession(uploadId)
-    return status
-
-
-# user ids for session id not yet implemented, have no session id per user
-# @router.post("/uploadStatuses")
-# async def getUploadStatuses(uids: list) -> list:
-#     cachePath = os.environ.get("CACHE_PATH")
-#     configFilePath = os.environ.get("CONFIG_FILE")
-#     cP = ConfigProvider(cachePath, configFilePath)
-#     ioU = IoUtils(cP)
-#     return await ioU.uploadStatuses(uids)
-
-
 # find upload id from file parameters
 @router.post("/findUploadId")
 async def findUploadId(repositoryType: str = Form(), idCode: str = Form(...), contentType: str = Form(...), milestone: str = Form(...), partNumber: int = Form(...), contentFormat: str = Form(...), version: str = Form(...)):
@@ -103,7 +90,7 @@ async def findUploadId(repositoryType: str = Form(), idCode: str = Form(...), co
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
     ioU = IoUtils(cP)
-    return await ioU.findUploadId(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
+    return await ioU.getResumedUpload(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
 
 
 # create new id
@@ -136,7 +123,7 @@ async def clearKv():
     return await ioU.clearKv()
 
 
-@router.post("/upload")  # , response_model=UploadResult)
+@router.post("/upload", response_model=UploadResult)
 async def upload(
     uploadFile: UploadFile = File(...),
     sliceSize: int = Form(
@@ -230,7 +217,7 @@ async def upload(
         example="release"
     ),
     chunkMode: str = Form(
-        'async'
+        'sequential'
     )
 ):
     fn = None
@@ -251,28 +238,7 @@ async def upload(
         #
         logger.debug("hashType.name %r hashDigest %r", hashType, hashDigest)
         ioU = IoUtils(cP)
-        """ get upload id
-            avoid problem of new id for each chunk
-            user should pass None for upload id
-            could return id and have user set parameter for subsequent chunk uploads
-            however, not possible for concurrent chunks, which could not use return values
-            to enable possible concurrent chunk functions in future, all uploads treated as resumed uploads
-            upload id parameter is always None, then found from KV if it already exists
-        """
-        if uploadId is None:  # and sliceIndex == 0 and sliceOffset == 0:
-            # check for resumed upload
-            # if find resumed upload then set uid = previous uid
-            # lock so that even for concurrent chunks the first chunk will write an upload id that subsequent chunks will use
-            pathU = PathUtils(cP)
-            lockPath = pathU.getFileLockPath(idCode, contentType, milestone, partNumber, contentFormat)
-            with FileLock(lockPath):
-                uploadId = await ioU.getResumedUpload(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
-                if not uploadId:
-                    # logging.warning("generating new id at slice %s", sliceIndex)
-                    uploadId = await ioU.getNewUploadId()#repositoryType, idCode, contentType, partNumber, contentFormat, version)
-                else:
-                    pass
-                    # logging.warning("found previous id at slice %s", sliceIndex)
+
         ret = await ioU.storeUpload(
             uploadFile.file,
             sliceIndex,

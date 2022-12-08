@@ -16,6 +16,7 @@ __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
 import asyncio
+import datetime
 import functools
 import gzip
 import hashlib
@@ -26,6 +27,7 @@ import typing
 import uuid
 import aiofiles
 import re
+import datetime
 
 from fastapi import HTTPException
 
@@ -148,10 +150,11 @@ class IoUtils:
         #     "slice index %s slice offset %s slice total %s upload id %s", sliceIndex, sliceOffset, sliceTotal, uploadId
         # )
 
+        # validate parameters
         if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
             return {"success": False, "statusCode": 405, "statusMessage": "Bad content type and/or format - upload rejected"}
 
-        # get path for saving file, test if file exists and is not overwritable
+        # get path for saving file, test if file exists and is overwritable
         outPath = None
         lockPath = self.__pathU.getFileLockPath(idCode, contentType, milestone, partNumber, contentFormat)
         with FileLock(lockPath):
@@ -161,8 +164,16 @@ class IoUtils:
             if os.path.exists(outPath) and not allowOverWrite:
                 logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
                 return {"success": False, "statusCode": 405, "statusMessage": "Encountered existing file - overwrite prohibited"}
+            # test if file name in log table (resumed upload)
+            # if find resumed upload then set uid = previous uid, otherwise new uid
+            # lock so that even for concurrent chunks the first chunk will write an upload id that subsequent chunks will use
+            if uploadId is None:
+                uploadId = await self.getResumedUpload(repoType, idCode, contentType, milestone, partNumber, contentFormat, version)
+                if not uploadId:
+                    uploadId = await self.getNewUploadId()#repositoryType, idCode, contentType, partNumber, contentFormat, version)
+                else:
+                    pass
 
-        # validate sequential slice index
         versioned_filename = os.path.basename(outPath)
         # non_versioned_filename = self.__pathU.getBaseFileName(idCode, contentType, milestone, partNumber, contentFormat)
         key = uploadId
@@ -176,45 +187,36 @@ class IoUtils:
             self.__kV.setLog(pk, uploadId)
             chunksSaved = "0" * sliceTotal
             self.__kV.setSession(key, "chunksSaved", chunksSaved)
+            self.__kV.setSession(key, "timestamp", datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc)))
         chunksSaved = self.__kV.getSession(key, "chunksSaved")
         chunksSaved = list(chunksSaved)
+
         # do nothing if already have that chunk
         if chunksSaved[sliceIndex] == "1":
             return {"success": True, "statusCode": 200, "uploadId": uploadId, "statusMessage": f"Error - redundant slice {sliceIndex} of {sliceTotal} for id {uploadId} is less than {currentCount}"}
-        # mark as saved
+        # otherwise mark as saved
         chunksSaved[sliceIndex] = "1"  # currentCount
         chunksSaved = "".join(chunksSaved)
         self.__kV.setSession(key, "chunksSaved", chunksSaved)
 
-        # if currentCount + 1 > sliceTotal:
-        #     return {"success": False, "statusCode": 500,
-        #             "statusMessage": f"Error - index {sliceIndex} kv index {currentCount} exceeds expected slice count {sliceTotal}"}
-        # if sliceIndex < currentCount:  # resumed upload...already saved
-        #     return {"success": True, "statusCode": 200, "uploadId": uploadId,
-        #             "statusMessage": f"Error - redundant slice {sliceIndex} of {sliceTotal} for id {uploadId} is less than {currentCount}"}
-        # if sliceIndex > currentCount + 1:
-        #     return {"success": False, "statusCode": 500,
-        #             "statusMessage": f"Error - slice {sliceIndex} of {sliceTotal} is out of order from previous index {currentCount} for key {key} val {val}"}
-
         ret = None
-        if chunkMode == "sequential":
+        if chunkMode in ["sequential", "in-place", "synchronous"]:
             ret = await self.sequentialUpload(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, uploadId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
-        elif chunkMode in ["async", "asynchronous"]:
+        elif chunkMode in ["parallel", "async", "asynchronous"]:
             ret = await self.asyncUpload(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, uploadId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
         else:
             return {"success": False, "statusCode": 405,
                     "statusMessage": "error - unknown chunk mode"}
+
         # if last slice, clear session, otherwise increment slice count
         if currentCount + 1 == sliceTotal:
-            # should clear key except may want to save that for client to enable sessions and session status
-            # self.__kV.clearSessionKey(key)
-            # what if extra slice arrives after remove...starts a new entry for same file above...how to prevent?
+            # session cleared from other function
             pass
         else:
             self.__kV.inc(key, val)
 
         ret["fileName"] = os.path.basename(outPath) if ret["success"] else None
-        ret["uploadId"] = uploadId  # except after last slice uploadId could get deleted
+        ret["uploadId"] = uploadId  # except after last slice uploadId gets deleted
         return ret
 
     async def sequentialUpload(
@@ -232,30 +234,11 @@ class IoUtils:
         hashType: typing.Optional[str] = None,
         hashDigest: typing.Optional[str] = None
     ) -> typing.Dict:
-        """Store data in the input file handle in the specified output path.
-
-        Args:
-            ifh (file-like-object): input file object containing target data
-            outPath (str): output file path
-            sliceIndex: index of present chunk
-            sliceOffset: chunk byte offset
-            sliceTotal (int): total number of chunks to be uploaded
-            uploadId: unique identifier after login
-            key: database key from previous function
-            val: database val from previous function
-            mode (str, optional): output file mode
-            copyMode (str, optional): concrete copy mode (native|shell). Defaults to 'native'.
-            hashType (str, optional): hash type (MD5|SHA1|SHA256). Defaults to 'MD5'.
-            hashDigest (str, optional): hash digest. Defaults to None.
-
-        Returns:
-            (dict): {"success": True|False, "statusMessage": <text>}
-        """
         ok = False
         ret = {"success": False, "statusMessage": None}
         try:
             dirPath, fn = os.path.split(outPath)
-            tempPath = os.path.join(dirPath, "." + fn)
+            tempPath = self.getTempFilePath(uploadId, dirPath, fn)
             await self.__makedirs(dirPath, mode=0o755, exist_ok=True)
 
             async with aiofiles.open(tempPath, mode) as ofh:
@@ -274,10 +257,9 @@ class IoUtils:
             ret = {"success": False, "statusCode": 400, "statusMessage": f"Store fails with {str(e)}"}
         finally:
             ifh.close()
-            ret = {"sliceIndex": sliceIndex, "sliceCount": sliceTotal, "success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
+            ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
             # if last slice, check hash, finalize
             if (self.__kV.getSession(key, val) + 1) == sliceTotal:
-                # logging.warning(f'{sliceTotal} slices complete')
                 ok = True
                 if hashDigest and hashType:
                     ok = self.checkHash(tempPath, hashDigest, hashType)
@@ -286,13 +268,10 @@ class IoUtils:
                         ret = {"success": False, "statusCode": 400, "statusMessage": f"{hashType} hash check failed"}
                     if ok:
                         await self.__replace(tempPath, outPath)
-                        ret = {"sliceIndex": sliceIndex, "sliceCount": sliceTotal, "success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
-                        # logging.warning(f'renamed {outPath}')
-                        # logger.info("Uploaded %r (%d)", outPath, os.path.getsize(outPath))
+                        ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
                     if os.path.exists(tempPath):
                         try:
                             os.unlink(tempPath)
-                            # logging.warning(f'deleted {tempPath}')
                         except Exception:
                             logging.warning("could not delete %s", tempPath)
                 else:
@@ -316,30 +295,12 @@ class IoUtils:
         hashType: typing.Optional[str] = None,
         hashDigest: typing.Optional[str] = None
     ) -> typing.Dict:
-        """Store data in the input file handle in the specified output path.
 
-        Args:
-            ifh (file-like-object): input file object containing target data
-            outPath (str): output file path
-            sliceIndex: index of present chunk
-            sliceOffset: chunk byte offset
-            sliceTotal (int): total number of chunks to be uploaded
-            uploadId: unique identifier after login
-            key: database key from previous function
-            val: database val from previous function
-            mode (str, optional): output file mode
-            copyMode (str, optional): concrete copy mode (native|shell). Defaults to 'native'.
-            hashType (str, optional): hash type (MD5|SHA1|SHA256). Defaults to 'MD5'.
-            hashDigest (str, optional): hash digest. Defaults to None.
-
-        Returns:
-            (dict): {"success": True|False, "statusMessage": <text>}
-        """
         ok = False
         ret = {"success": False, "statusMessage": None}
         try:
             dirPath, fn = os.path.split(outPath)
-            tempDir = os.path.join(dirPath, "_" + fn)
+            tempDir = self.getTempDirPath(uploadId, dirPath, fn)
             await self.__makedirs(dirPath, mode=0o755, exist_ok=True)
             await self.__makedirs(tempDir, mode=0o755, exist_ok=True)
             chunkPath = os.path.join(tempDir, str(sliceIndex))
@@ -359,11 +320,10 @@ class IoUtils:
             ret = {"success": False, "statusCode": 400, "statusMessage": f"Store fails with {str(e)}"}
         finally:
             ifh.close()
-            ret = {"sliceIndex": sliceIndex, "sliceCount": sliceTotal, "success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
+            ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
             # if last slice, check hash, finalize
             if (self.__kV.getSession(key, val) + 1) == sliceTotal:
-                # logging.warning(f'{sliceTotal} slices complete')
-                tempPath = await self.joinFiles(dirPath, fn, tempDir)
+                tempPath = await self.joinFiles(uploadId, dirPath, fn, tempDir)
                 if not tempPath:
                     return {"success": False, "statusCode": 400, "statusMessage": f"error saving {fn}"}
                 ok = True
@@ -374,13 +334,10 @@ class IoUtils:
                         ret = {"success": False, "statusCode": 400, "statusMessage": f"{hashType} hash check failed"}
                     if ok:
                         await self.__replace(tempPath, outPath)
-                        ret = {"sliceIndex": sliceIndex, "sliceCount": sliceTotal, "success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
-                        # logging.warning(f'renamed {outPath}')
-                        # logger.info("Uploaded %r (%d)", outPath, os.path.getsize(outPath))
+                        ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
                     if os.path.exists(tempPath):
                         try:
                             os.unlink(tempPath)
-                            # logging.warning(f'deleted {tempPath}')
                         except Exception:
                             logging.warning("could not delete %s", tempPath)
                 else:
@@ -389,8 +346,8 @@ class IoUtils:
                 await self.clearSession(key)
         return ret
 
-    async def joinFiles(self, dirPath, fn, tempDir):
-        tempPath = os.path.join(dirPath, "." + fn)
+    async def joinFiles(self, uploadId, dirPath, fn, tempDir):
+        tempPath = self.getTempFilePath(uploadId, dirPath, fn)
         try:
             files = sorted([f for f in os.listdir(tempDir) if re.match(r'[0-9]+', f)], key=lambda x: int(x))
             previous = 0
@@ -418,23 +375,42 @@ class IoUtils:
         filename = repositoryType + "_" + filename
         return filename
 
+    # must be different from getTempDirPath
+    def getTempFilePath(self, uploadId, dirPath, fileName):
+        return os.path.join(dirPath, "." + uploadId)
+
+    # must be different from getTempFilePath
+    def getTempDirPath(self, uploadId, dirPath, fileName):
+        return os.path.join(dirPath, "._" + uploadId + "_")
+
+    # find upload id using file parameters
     async def getResumedUpload(self, repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version):
         filename = self.getPrimaryLogKey(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
         uploadId = self.__kV.getLog(filename)
-        # logging.warning("log for %s = %s", filename, uploadId)
+        if not uploadId:
+            return None
+        timestamp = self.__kV.getSession(uploadId, "timestamp")
+        now = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))
+        duration = now - timestamp
+        max_duration = self.__cP.get("KV_MAX_SECONDS")
+        if duration > max_duration:
+            # remove expired entry and temp files
+            self.__kV.clearSessionKey(uploadId)
+            dirPath = self.__pathU.getDirPath(repositoryType, idCode)
+            try:
+                # don't know which save mode (temp file or temp dir) so remove both
+                tempFile = self.getTempFilePath(uploadId, dirPath, filename)
+                os.unlink(tempFile)
+                tempDir = self.getTempDirPath(uploadId, dirPath, filename)
+                shutil.rmtree(tempDir, ignore_errors=True)
+            except Exception:
+                # either tempFile or tempDir was not found
+                pass
+            return None
         return uploadId  # returns uploadId or None
 
-    async def getNewUploadId(self) -> str:#, repoType, idCode, contentType, partNumber, contentFormat, version):
-        # outPath = self.__pathU.getVersionedPath(repoType, idCode, contentType, str(partNumber), contentFormat, str(version))
-        # if not outPath:
-        #     return None
-        # return os.path.basename(outPath)
+    async def getNewUploadId(self) -> str:
         return uuid.uuid4().hex
-
-    async def findUploadId(self, repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version) -> typing.Optional[str]:
-        filename = self.getPrimaryLogKey(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
-        uploadId = self.__kV.getLog(filename)
-        return None if not uploadId else uploadId
 
     async def getSession(self, uploadId: str):
         return self.__kV.getKey(uploadId, self.__kV.sessionTable)
@@ -447,13 +423,6 @@ class IoUtils:
             return False
         return response
 
-    # async def uploadStatus(self, uploadId: str):
-    #     return self.__kV.getKey(uploadId, self.__kV.sessionTable)
-
-    # not yet implemented, supposed to have sessionId rather than uploadId
-    # async def uploadStatuses(self, uploadIds: list) -> list:
-    #     return [self.__kV.getKey(uid, self.__kV.sessionTable) for uid in uploadIds]
-
     async def clearSession(self, uid: str):
         response = True
         try:
@@ -461,18 +430,6 @@ class IoUtils:
             if not res:
                 response = False
             res = self.__kV.clearLogVal(uid)
-        except Exception as exc:
-            return False
-        return response
-
-    async def clearSessions(self, uploadIds: list):
-        response = True
-        try:
-            for uid in uploadIds:
-                res = self.__kV.clearSessionKey(uid)
-                if not res:
-                    response = False
-                res = self.__kV.clearLogVal(uid)
         except Exception as exc:
             return False
         return response

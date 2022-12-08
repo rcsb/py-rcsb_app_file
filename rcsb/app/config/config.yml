@@ -15,6 +15,7 @@ configuration:
   KV_FILE_PATH: ./kv.sqlite
   KV_SESSION_TABLE_NAME: sessions
   KV_LOG_TABLE_NAME: log
+  KV_MAX_SECONDS: 14400
   ACCESS_KEY: awsKey
   SECRET_KEY: awsSecret
   AWS_REGION: awsRegion
