@@ -327,7 +327,7 @@ async def fileCopy(
     return ret
 
 
-@router.post("/list-dir", response_model=DirResult)
+@router.get("/list-dir", response_model=DirResult)
 async def listDir(
     idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Query(None, title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),

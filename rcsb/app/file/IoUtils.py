@@ -27,7 +27,6 @@ import typing
 import uuid
 import aiofiles
 import re
-import datetime
 
 from fastapi import HTTPException
 
@@ -35,6 +34,7 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.utils.io.FileLock import FileLock
 from rcsb.app.file.KvSqlite import KvSqlite
+from rcsb.app.file.KvRedis import KvRedis
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -74,7 +74,10 @@ class IoUtils:
 
     def __init__(self, cP: typing.Type[ConfigProvider]):
         self.__cP = cP
-        self.__kV = KvSqlite(self.__cP)
+        if self.__cP.get('KV_MODE') == 'sqlite':
+            self.__kV = KvSqlite(self.__cP)
+        elif self.__cP.get('KV_MODE') == 'redis':
+            self.__kV = KvRedis(self.__cP)
         self.__pathU = PathUtils(self.__cP)
         self.__makedirs = wrapAsync(os.makedirs)
         self.__rmtree = wrapAsync(shutil.rmtree)
@@ -140,7 +143,9 @@ class IoUtils:
         allowOverWrite: bool = True,
         hashType: str = "MD5",
         hashDigest: typing.Optional[str] = None,
-        chunkMode: str = "sequential"
+        chunkMode: str = "sequential",
+        fileName: str = None,
+        mimeType: str = None
     ) -> typing.Dict:
 
         # logger.warning(
@@ -154,6 +159,10 @@ class IoUtils:
         if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
             return {"success": False, "statusCode": 405, "statusMessage": "Bad content type and/or format - upload rejected"}
 
+        if fileName and mimeType:
+            if fileName.endswith(".gz") or mimeType == "application/gzip":
+                copyMode = "gzip_decompress"
+
         # get path for saving file, test if file exists and is overwritable
         outPath = None
         lockPath = self.__pathU.getFileLockPath(idCode, contentType, milestone, partNumber, contentFormat)
@@ -164,30 +173,33 @@ class IoUtils:
             if os.path.exists(outPath) and not allowOverWrite:
                 logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
                 return {"success": False, "statusCode": 405, "statusMessage": "Encountered existing file - overwrite prohibited"}
-            # test if file name in log table (resumed upload)
+            # test if file name in log table (resumed upload or later chunk)
             # if find resumed upload then set uid = previous uid, otherwise new uid
             # lock so that even for concurrent chunks the first chunk will write an upload id that subsequent chunks will use
             if uploadId is None:
-                uploadId = await self.getResumedUpload(repoType, idCode, contentType, milestone, partNumber, contentFormat, version)
+                uploadId = await self.getResumedUpload(repoType, idCode, contentType, milestone, partNumber, contentFormat, version, hashDigest)
                 if not uploadId:
-                    uploadId = await self.getNewUploadId()#repositoryType, idCode, contentType, partNumber, contentFormat, version)
+                    uploadId = await self.getNewUploadId()
                 else:
                     pass
+        # versioned path already found, so don't find again
+        logKey = self.getPremadeLogKey(repoType, outPath)
 
-        versioned_filename = os.path.basename(outPath)
+        # versioned_filename = os.path.basename(outPath)
         # non_versioned_filename = self.__pathU.getBaseFileName(idCode, contentType, milestone, partNumber, contentFormat)
         key = uploadId
         val = "uploadCount"
         # initializes to zero
-        currentCount = self.__kV.getSession(key, val) # for sequential chunks, current index = current count
+        currentCount = int(self.__kV.getSession(key, val)) # for sequential chunks, current index = current count
+
         # on first chunk upload, set expected count, record uid in log table
         if currentCount == 0:  # for async, use kv uploadCount rather than parameter sliceIndex == 0:
             self.__kV.setSession(key, "expectedCount", sliceTotal)
-            pk = self.getPrimaryLogKey(repoType, idCode, contentType, milestone, partNumber, contentFormat, version)
-            self.__kV.setLog(pk, uploadId)
+            self.__kV.setLog(logKey, uploadId)
             chunksSaved = "0" * sliceTotal
             self.__kV.setSession(key, "chunksSaved", chunksSaved)
-            self.__kV.setSession(key, "timestamp", datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc)))
+            self.__kV.setSession(key, "timestamp", int(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))))
+            self.__kV.setSession(key, "fileHash", hashDigest)
         chunksSaved = self.__kV.getSession(key, "chunksSaved")
         chunksSaved = list(chunksSaved)
 
@@ -201,9 +213,9 @@ class IoUtils:
 
         ret = None
         if chunkMode in ["sequential", "in-place", "synchronous"]:
-            ret = await self.sequentialUpload(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, uploadId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
+            ret = await self.sequentialUpload(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, uploadId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest, logKey=logKey)
         elif chunkMode in ["parallel", "async", "asynchronous"]:
-            ret = await self.asyncUpload(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, uploadId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest)
+            ret = await self.asyncUpload(ifh, outPath, sliceIndex, sliceOffset, sliceTotal, uploadId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest, logKey=logKey)
         else:
             return {"success": False, "statusCode": 405,
                     "statusMessage": "error - unknown chunk mode"}
@@ -232,7 +244,8 @@ class IoUtils:
         mode: typing.Optional[str] = "wb",
         copyMode: typing.Optional[str] = "native",
         hashType: typing.Optional[str] = None,
-        hashDigest: typing.Optional[str] = None
+        hashDigest: typing.Optional[str] = None,
+        logKey: str = None
     ) -> typing.Dict:
         ok = False
         ret = {"success": False, "statusMessage": None}
@@ -259,7 +272,7 @@ class IoUtils:
             ifh.close()
             ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
             # if last slice, check hash, finalize
-            if (self.__kV.getSession(key, val) + 1) == sliceTotal:
+            if (int(self.__kV.getSession(key, val)) + 1) == sliceTotal:
                 ok = True
                 if hashDigest and hashType:
                     ok = self.checkHash(tempPath, hashDigest, hashType)
@@ -277,7 +290,7 @@ class IoUtils:
                 else:
                     logging.warning('hash error')
                     ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
-                await self.clearSession(key)
+                await self.clearSession(key, logKey)
         return ret
 
     async def asyncUpload(
@@ -293,7 +306,8 @@ class IoUtils:
         mode: typing.Optional[str] = "wb",
         copyMode: typing.Optional[str] = "native",
         hashType: typing.Optional[str] = None,
-        hashDigest: typing.Optional[str] = None
+        hashDigest: typing.Optional[str] = None,
+        logKey: str = None
     ) -> typing.Dict:
 
         ok = False
@@ -322,7 +336,7 @@ class IoUtils:
             ifh.close()
             ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
             # if last slice, check hash, finalize
-            if (self.__kV.getSession(key, val) + 1) == sliceTotal:
+            if (int(self.__kV.getSession(key, val)) + 1) == sliceTotal:
                 tempPath = await self.joinFiles(uploadId, dirPath, fn, tempDir)
                 if not tempPath:
                     return {"success": False, "statusCode": 400, "statusMessage": f"error saving {fn}"}
@@ -343,7 +357,7 @@ class IoUtils:
                 else:
                     logging.warning('hash error')
                     ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
-                await self.clearSession(key)
+                await self.clearSession(key, logKey)
         return ret
 
     async def joinFiles(self, uploadId, dirPath, fn, tempDir):
@@ -367,11 +381,20 @@ class IoUtils:
         return tempPath
 
     def getPrimaryLogKey(self, repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version):
+        # requires lock?
         # filename = self.__pathU.getBaseFileName(idCode, contentType, milestone, partNumber, contentFormat)
         filename = self.__pathU.getVersionedPath(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
         if not filename:
             return None
         filename = os.path.basename(filename)
+        filename = repositoryType + "_" + filename
+        return filename
+
+    def getPremadeLogKey(self, repositoryType, versionedPath):
+        # does not require lock since versioned path is already found
+        if not versionedPath:
+            return None
+        filename = os.path.basename(versionedPath)
         filename = repositoryType + "_" + filename
         return filename
 
@@ -384,30 +407,46 @@ class IoUtils:
         return os.path.join(dirPath, "._" + uploadId + "_")
 
     # find upload id using file parameters
-    async def getResumedUpload(self, repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version):
+    async def getResumedUpload(self, repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version, fileHash):
+        # logging.warning(f'get resumed upload version {version} hash {fileHash}')
+        # requires lock?
         filename = self.getPrimaryLogKey(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
         uploadId = self.__kV.getLog(filename)
         if not uploadId:
             return None
-        timestamp = self.__kV.getSession(uploadId, "timestamp")
+        # remove expired entries
+        timestamp = int(self.__kV.getSession(uploadId, "timestamp"))
         now = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))
         duration = now - timestamp
         max_duration = self.__cP.get("KV_MAX_SECONDS")
         if duration > max_duration:
-            # remove expired entry and temp files
-            self.__kV.clearSessionKey(uploadId)
-            dirPath = self.__pathU.getDirPath(repositoryType, idCode)
-            try:
-                # don't know which save mode (temp file or temp dir) so remove both
-                tempFile = self.getTempFilePath(uploadId, dirPath, filename)
-                os.unlink(tempFile)
-                tempDir = self.getTempDirPath(uploadId, dirPath, filename)
-                shutil.rmtree(tempDir, ignore_errors=True)
-            except Exception:
-                # either tempFile or tempDir was not found
-                pass
+            await self.removeExpiredEntry(uploadId, filename, idCode, repositoryType)
             return None
+        # test if user resumes with same file as previously
+        if fileHash is not None:
+            hash = self.__kV.getSession(uploadId, 'fileHash')
+            if hash != fileHash:
+                await self.removeExpiredEntry(uploadId, filename, idCode, repositoryType)
+                return None
+        else:
+            logging.warning(f'error - no hash')
         return uploadId  # returns uploadId or None
+
+    async def removeExpiredEntry(self, uploadId, fileName, idCode, repositoryType):
+        # remove expired entry and temp files
+        self.__kV.clearSessionKey(uploadId)
+        # still must remove log table entry (key = file parameters)
+        self.__kV.clearLog(fileName)
+        dirPath = self.__pathU.getDirPath(repositoryType, idCode)
+        try:
+            # don't know which save mode (temp file or temp dir) so remove both
+            tempFile = self.getTempFilePath(uploadId, dirPath, fileName)
+            os.unlink(tempFile)
+            tempDir = self.getTempDirPath(uploadId, dirPath, fileName)
+            shutil.rmtree(tempDir, ignore_errors=True)
+        except Exception:
+            # either tempFile or tempDir was not found
+            pass
 
     async def getNewUploadId(self) -> str:
         return uuid.uuid4().hex
@@ -423,13 +462,16 @@ class IoUtils:
             return False
         return response
 
-    async def clearSession(self, uid: str):
+    async def clearSession(self, uid: str, logKey: typing.Optional):
         response = True
         try:
             res = self.__kV.clearSessionKey(uid)
             if not res:
                 response = False
-            res = self.__kV.clearLogVal(uid)
+            if self.__cP.get('KV_MODE') == 'sqlite':
+                res = self.__kV.clearLogVal(uid)
+            elif self.__cP.get('KV_MODE') == 'redis':
+                res = self.__kV.clearLog(logKey)
         except Exception as exc:
             return False
         return response
@@ -439,6 +481,7 @@ class IoUtils:
         self.__kV.clearTable(self.__kV.logTable)
 
     async def findVersion(self, repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version):
+        # requires lock?
         primaryKey = self.getPrimaryLogKey(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
         versions = primaryKey.split('.')
         version = versions[-1]

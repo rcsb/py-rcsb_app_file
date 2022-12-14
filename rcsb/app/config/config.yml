@@ -12,10 +12,11 @@ configuration:
   REPOSITORY_DIR_PATH: rcsb/app/tests-file/test-data/data/repository
   SHARED_LOCK_PATH: rcsb/app/tests-file/test-data/data/shared-locks
   PDBX_REPOSITORY: rcsb/app/tests-file/test-data/data/mmcif
-  KV_FILE_PATH: ./kv.sqlite
+  KV_MODE: sqlite
   KV_SESSION_TABLE_NAME: sessions
   KV_LOG_TABLE_NAME: log
   KV_MAX_SECONDS: 14400
+  KV_FILE_PATH: ./kv.sqlite
   ACCESS_KEY: awsKey
   SECRET_KEY: awsSecret
   AWS_REGION: awsRegion

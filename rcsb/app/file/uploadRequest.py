@@ -59,15 +59,19 @@ class UploadResult(BaseModel):
 
 # return kv entry from file parameters, or None
 @router.get("/uploadStatus")
-async def getUploadStatus(repositoryType: str = Query(...), idCode: str = Query(...), contentType: str = Query(...), milestone: Optional[str] = Query(default=""), partNumber: int = Query(...), contentFormat: str = Query(...), version: str = Query(default="next")):
+async def getUploadStatus(repositoryType: str = Query(...), idCode: str = Query(...), contentType: str = Query(...), milestone: Optional[str] = Query(default="next"), partNumber: int = Query(...), contentFormat: str = Query(...), version: str = Query(default="next"), fileHash: str = Query(default=None)):
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
     ioU = IoUtils(cP)
+    # logging.warning(f'upload status version {version} hash {fileHash}')
     if version is None or not re.match(r'\d+', version):
         version = await ioU.findVersion(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
         # version = await latestFileVersion(idCode, repositoryType, contentType, contentFormat, partNumber, milestone)
-    uploadId = await ioU.getResumedUpload(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
+    # logging.warning(f'upload status version {version} hash {fileHash}')
+    uploadId = await ioU.getResumedUpload(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version, fileHash)
+    if not uploadId:
+        return None
     status = await ioU.getSession(uploadId)
     return status
 
@@ -149,9 +153,9 @@ async def upload(
     ),
     fileSize: int = Form(
         None,
-        title="Length of entire file",
-        description="Length of entire file",
-        example="4194304"
+        title="Size of entire file",
+        description="Size of entire file",
+        example="8388608"
     ),
     uploadId: str = Form(
         None,

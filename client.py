@@ -62,7 +62,8 @@ def upload(mD):
               "contentType": mD["contentType"],
               "milestone": mD["milestone"],
               "partNumber": str(mD["partNumber"]),
-              "contentFormat": mD["contentFormat"]
+              "contentFormat": mD["contentFormat"],
+              "fileHash": mD["hashDigest"]
               }
     response = requests.get(
         url,
@@ -74,12 +75,16 @@ def upload(mD):
     offset = 0
     if response.status_code == 200:
         result = json.loads(response.text)
+        # print(f'result {result}')
         if result:
-            result = eval(result)
-            offsetIndex = result["uploadCount"]
+            # print(f'type {type(result)}')
+            if not isinstance(result, dict):
+                result = eval(result)
+            # print(f'type {result}')
+            offsetIndex = int(result["uploadCount"])
             packet_size = min(
-                mD["fileSize"] - (mD["sliceIndex"] * mD["sliceSize"]),
-                mD["sliceSize"],
+                int(mD["fileSize"]) - ( int(mD["sliceIndex"]) * int(mD["sliceSize"]) ),
+                int(mD["sliceSize"]),
             )
             offset = offsetIndex * packet_size
             mD["sliceIndex"] = offsetIndex
@@ -91,8 +96,8 @@ def upload(mD):
         url = os.path.join(base_url, "file-v2", "upload")
         for x in tqdm(range(offsetIndex, mD["sliceTotal"]), leave=False, desc=os.path.basename(mD["filePath"])):
             packet_size = min(
-                mD["fileSize"] - (mD["sliceIndex"] * mD["sliceSize"]),
-                mD["sliceSize"],
+                int(mD["fileSize"]) - ( int(mD["sliceIndex"]) * int(mD["sliceSize"]) ),
+                int(mD["sliceSize"]),
             )
             tmp.truncate(packet_size)
             tmp.seek(0)
@@ -147,7 +152,8 @@ async def asyncFile(mD):
               "contentType": mD["contentType"],
               "milestone": mD["milestone"],
               "partNumber": str(mD["partNumber"]),
-              "contentFormat": mD["contentFormat"]
+              "contentFormat": mD["contentFormat"],
+              "fileHash": mD["hashDigest"]
               }
     response = requests.get(
         url,
@@ -247,6 +253,7 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--download', nargs=8, action='append',
                         metavar=('file-path', 'repo-type', 'dep-id', 'content-type', 'milestone', 'part-number', 'content-format', 'version'),
                         help='***** multiple downloads allowed *****')
+    parser.add_argument('-l', '--list', nargs=2, metavar=('dep-id', 'repository-type'), help='***** list contents of requested directory *****')
     parser.add_argument('-p', '--parallel', action='store_true', help='***** upload parallel chunks *****')
     parser.add_argument('-c', '--compress', nargs=2, help='***** compress with gzip and output new file *****', metavar=('read-path', 'new-name'))
     parser.add_argument('-t', '--test', action='store_true',
@@ -312,11 +319,11 @@ if __name__ == "__main__":
             uploads.append(
                     {
                         "filePath": filePath,
+                        "fileSize": fileSize,
                         "sliceSize": sliceSize,
                         "sliceIndex": sliceIndex,
                         "sliceOffset": sliceOffset,
                         "sliceTotal": sliceTotal,
-                        "fileSize": fileSize,
                         "uploadId": None,
                         "repositoryType": repositoryType,
                         "idCode": depId,
@@ -388,4 +395,29 @@ if __name__ == "__main__":
         print(f'upload results {uploadResults}')
     if len(downloadResults) > 0:
         print(f'download results {downloadResults}')
+    if args.list:
+        arglist = args.list
+        if not len(arglist) == 2:
+            sys.exit('error - list takes two args')
+        idCode = arglist[0]
+        repoType = arglist[1]
+        parameters = {
+            "idCode": idCode,
+            "repositoryType": repoType
+        }
+        url = os.path.join(base_url, "file-v1", "list-dir")
+        responseCode = None
+        dirList = None
+        with requests.get(url, params=parameters, headers=headerD, timeout=None) as response:
+            responseCode = response.status_code
+            if responseCode == 200:
+                resp = response.text
+                if resp:
+                    if not isinstance(resp, dict):
+                        resp = json.loads(resp)
+                    dirList = resp["dirList"]
+        print(f'response {responseCode}')
+        if responseCode == 200:
+            for fi in dirList:
+                print(f'\t{fi}')
     print("time %.2f seconds" % (time.time() - t1))

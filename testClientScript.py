@@ -38,7 +38,7 @@ subject = cP.get("JWT_SUBJECT")
 
 
 filePath = "./rcsb/app/tests-file/test-data/testFile.dat"
-base_url = "http://0.0.0.0:80"
+base_url = "http://0.0.0.0:8000"
 
 # create file for download
 # select size of file here (in bytes)

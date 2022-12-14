@@ -18,8 +18,9 @@ aioboto3 >= 9.6
 boto3 >= 1.21.21
 httpx >= 0.23.0
 #
-
-
+redis
+redis-server
+#
 botocore~=1.27.59
 aiohttp~=3.8.3
 pydantic~=1.10.2
