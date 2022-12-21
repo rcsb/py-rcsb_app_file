@@ -16,5 +16,4 @@ mmcif >=0.71
 filechunkio >= 1.8
 aioboto3 >= 9.6
 boto3 >= 1.21.21
-# Upgrading httpx beyond 0.23.0 will require some breaking change adjustments
-httpx == 0.23.0
+httpx >= 0.23.0
