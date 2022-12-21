@@ -40,6 +40,29 @@ pip install .
 
 ### Testing without docker
 
+Set KV_MODE in rcsb/app/config/config.yml to either redis or sqlite.
+
+Install and start the Redis server
+```
+apt install redis
+apt install redis-server
+service redis start
+```
+
+Change Redis host to 'localhost' in rcsb/app/file/KvRedis.py
+```
+
+self.kV = redis.Redis(host='localhost', decode_responses=True)
+
+```
+
+Then, from the base directory, reinstall with pip
+```
+
+pip3 install .
+
+```
+
 From base repository directory (in `py-rcsb_app_file/`), start app with:
 ```bash
 
@@ -48,19 +71,73 @@ From base repository directory (in `py-rcsb_app_file/`), start app with:
 ```
 
 Then, in a separate shell (also from the base repository directory), run individual tests, e.g.:
-```bash
+```
 
-python3 ./rcsb/app/tests-file/testClientUtils.py
+python3 client.py
+[-h (help)]
+[--upload source_file repo_type id content_type milestone part format version overwritable]
+[--download target_file repo_type id content_type milestone part format version]
+[--list dep_id repo_type (list directory)]
+[-c source target (compress)]
+
+```
+
+To view Redis variables
+```
+
+apt install redis-tools
+redis-cli
+KEYS *
+exit
+
+```
+
+To remove all variables
+```
+
+redis-cli
+FLUSHALL
+exit
+
+```
+
+To view or remove Sqlite variables
+
+Find path in rcsb/app/config/config.yml
+
+Connect to sqlite and use SQL commands, then ctrl-d to exit
+```
+
+sqlite3 path/to/kv.sqlite
 
 ```
 
 
 ### Build Docker Container
 
+Set KV_MODE in rcsb/app/config/config.yml to either redis or sqlite.
+
+Download Redis image and start container
+
+```
+docker run --name redis-container -d redis
+```
+
+Change Redis host to 'redis' in rcsb/app/file/KvRedis.py
+```
+
+self.kV = redis.Redis(host='redis', decode_responses=True)
+
+```
+
 In directory that contains `Dockerfile.stage`:
 ```
 
 docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fileapp -f Dockerfile.stage .
+
+or, if mounting folders, change paths in rcsb/app/config/config.yml, enable permissions on folder, then
+
+docker build --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fileapp -f Dockerfile.stage . 
 
 ```
 
@@ -68,7 +145,7 @@ docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fi
 
 ```
 
-docker run --rm --name fileapp -p 80:8000 fileapp
+docker run --rm --name fileapp -p 8000:8000 --link redis-container:redis fileapp
 
 ```
 
@@ -78,13 +155,51 @@ docker run --rm --name fileapp -p 80:8000 fileapp
 
 `–-name` allows user to choose a name for the container
 
-`-p` allows user to choose a port, 80:8000 is used in this case, as the port 8000 is exposed in the current dockerfile
+`-p` allows user to choose a port, 8000:8000 is used in this case, as the port 8000 is exposed in the current dockerfile
 
-# Test upload and download using testClientScript.py
+`--link` connects to the Redis container that was created previously
 
-Edit url variables to match server url in testClientScript.py
+# Test upload and download using client.py
+
+Edit url variables to match server url in client.py
 ```
 
-python3 testClientScript.py
+python3 client.py
+[-h (help)]
+[--upload source_file repo_type id content_type milestone part format version overwritable]
+[--download target_file repo_type id content_type milestone part format version]
+[--list dep_id repo_type (list directory)]
+[-c source target (compress)]
+
+```
+
+To view Redis variables
+```
+
+docker run -it --name redis-viewer --link redis-container:redis --rm redis redis-cli -h redis -p 6379
+KEYS *
+exit
+
+```
+
+To remove all variables
+```
+
+docker run -it --name redis-viewer --link redis-container:redis --rm redis redis-cli -h redis -p 6379
+FLUSHALL
+exit
+
+```
+
+To view or remove Sqlite variables
+
+Sqlite will not save to path specified in config.yml
+
+Find kv.sqlite with find / -name kv.sqlite
+
+Connect to sqlite and use SQL commands, then ctrl-d to exit
+```
+
+sqlite3 path/to/kv.sqlite
 
 ```

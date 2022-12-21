@@ -57,7 +57,7 @@ COPY ./rcsb/app/tests-file/test-data/config/example-config.json /app/CACHE/confi
 
 RUN chown -R ubuntu /app
 
-EXPOSE 80
+EXPOSE 8000
 USER ubuntu
 
 ENV PYTHONDONTWRITEBYTECODE 1

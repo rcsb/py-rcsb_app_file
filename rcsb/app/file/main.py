@@ -19,7 +19,7 @@ from fastapi.security.utils import get_authorization_scheme_param
 # This environment must be set before JWTAuthBearer is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
+os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data"))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
 
 from . import ConfigProvider
@@ -29,7 +29,7 @@ from . import serverStatus
 from . import uploadRequest
 from . import pathRequest
 from . import mergeRequest
-from .JWTAuthBearer import JWTAuthBearer
+from . import JWTAuthBearer
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -74,11 +74,6 @@ def shutdownEvent():
 
 
 app.include_router(
-    uploadRequest.router,
-    prefix="/file-v1",
-)
-
-app.include_router(
     downloadRequest.router,
     prefix="/file-v1",
 )
@@ -93,6 +88,11 @@ app.include_router(
     prefix="/file-v1",
 )
 
+app.include_router(
+    uploadRequest.router,
+    prefix="/file-v2",
+)
+
 app.include_router(serverStatus.router)
 
 
@@ -104,7 +104,8 @@ async def checkToken(request: Request, callNext):
     scheme, credentials = get_authorization_scheme_param(authorization)
     if scheme != "Bearer":
         return Response(status_code=403, content=b'{"detail":"Missing Bearer details"}', headers={"content-type": "application/json"})
-    valid = JWTAuthBearer().validateToken(credentials)
+    auth = JWTAuthBearer.JWTAuthBearer()
+    valid = auth.validateToken(credentials)
     if not valid:
         return Response(status_code=403, content=b'{"detail":"Invalid or expired token"}', headers={"content-type": "application/json"})
         # logger.info("HTTPException %r ",  HTTPException(status_code=403, detail="Invalid or expired token"))  # How to get this to log in the main app output?

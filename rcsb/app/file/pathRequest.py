@@ -87,6 +87,7 @@ async def fileExists(
     contentFormat: str = Query(title="Content format", description="OneDep content format", example="pdb, pdbx, mtz, pdf"),
     partNumber: int = Query(1, title="Content part", description="OneDep part number", example="1,2,3"),
     version: str = Query("latest", title="Version string", description="OneDep version number or description", example="1,2,3, latest, previous"),
+    milestone: str = Query("", title="milestone", description="milestone", example="release"),
 ):
     """Check if a file exists provided standard file parameters.
     """
@@ -98,8 +99,8 @@ async def fileExists(
         cP = ConfigProvider(cachePath, configFilePath)
         pathU = PathUtils(cP)
         #
-        logger.info("Checking repositoryType %r idCode %r contentType %r format %r version %r", repositoryType, idCode, contentType, contentFormat, version)
-        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+        logger.info("Checking repositoryType %r idCode %r contentType %r milestone %r format %r version %r", repositoryType, idCode, contentType, milestone, contentFormat, version)
+        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
         logger.info("Checking filePath %r", filePath)
         fileName = fU.getFileName(filePath)
         success = fU.exists(filePath)
@@ -193,11 +194,12 @@ async def latestFileVersion(
     contentType: str = Query(title="Content type", description="OneDep content type", example="model, structure-factors, val-report-full"),
     contentFormat: str = Query(title="Content format", description="OneDep content format", example="pdb, pdbx, mtz, pdf"),
     partNumber: int = Query(1, title="Content part", description="OneDep part number", example="1,2,3"),
+    milestone: str = Query("", title="milestone", description="milestone", example="release"),
 ):
     success = False
     fileName = None
     filePath = None
-    version = "latest"
+    version = "next"
     fileVersion = None
     try:
         fU = FileUtil()
@@ -207,15 +209,18 @@ async def latestFileVersion(
         pathU = PathUtils(cP)
         #
         logger.info(
-            "Getting latest file version for repositoryType %r idCode %r contentType %r format %r",
+            "Getting latest file version for repositoryType %r idCode %r contentType %r milestone %r partNumber %r format %r",
             repositoryType,
             idCode,
             contentType,
+            milestone,
+            partNumber,
             contentFormat,
         )
         #
-        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
         if not fU.exists(filePath):
+            logger.info(filePath)
             raise HTTPException(status_code=404, detail="Requested file does not exist")
         fileName = fU.getFileName(filePath)
         fileEnd = fileName.split(".")[-1]
@@ -251,6 +256,7 @@ async def copyFile(
     contentFormatTarget: str = Query(title="Input Content format", description="OneDep content format of destination file", example="pdb, pdbx, mtz, pdf"),
     partNumberTarget: int = Query(1, title="Target Content part", description="OneDep part number of destination file", example="1,2,3"),
     versionTarget: str = Query(None, title="Target Version string", description="OneDep version number or description of destination file", example="1,2,3, latest, previous, next"),
+    milestone: str = Query("", title="milestone", description="milestone", example="release"),
 ):
     """Copy a file given standard input paramaters for both the source and destination of the file.
     """
@@ -263,10 +269,10 @@ async def copyFile(
         pathU = PathUtils(cP)
         #
         logger.info(
-            "Copying repositoryType %r idCode %r contentType %r format %r version %r",
-            repositoryTypeSource, idCodeSource, contentTypeSource, contentFormatSource, versionSource
+            "Copying repositoryType %r idCode %r contentType %r milestone %r format %r version %r",
+            repositoryTypeSource, idCodeSource, contentTypeSource, milestone, contentFormatSource, versionSource
         )
-        filePathSource = pathU.getVersionedPath(repositoryTypeSource, idCodeSource, contentTypeSource, partNumberSource, contentFormatSource, versionSource)
+        filePathSource = pathU.getVersionedPath(repositoryTypeSource, idCodeSource, contentTypeSource, milestone, partNumberSource, contentFormatSource, versionSource)
         logger.info("filePathSource %r", filePathSource)
         if not versionTarget:
             # if versionSource == "latest":
@@ -282,10 +288,10 @@ async def copyFile(
                 # set target version to the same as source version
                 versionTarget = sourceFileEnd.split("V")[1]
         logger.info(
-            "Destination repositoryType %r idCode %r contentType %r format %r version %r",
-            repositoryTypeTarget, idCodeTarget, contentTypeTarget, contentFormatTarget, versionTarget
+            "Destination repositoryType %r idCode %r contentType %r milestone %r format %r version %r",
+            repositoryTypeTarget, idCodeTarget, contentTypeTarget, milestone, contentFormatTarget, versionTarget
         )
-        filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, idCodeTarget, contentTypeTarget, partNumberTarget, contentFormatTarget, versionTarget)
+        filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, idCodeTarget, contentTypeTarget, milestone, partNumberTarget, contentFormatTarget, versionTarget)
         logger.info("filePathTarget %r", filePathTarget)
 
         if not filePathSource or not filePathTarget:
@@ -349,6 +355,7 @@ async def moveFile(
     contentFormatTarget: str = Query(title="Input Content format", description="OneDep content format of destination file", example="pdb, pdbx, mtz, pdf"),
     partNumberTarget: int = Query(1, title="Target Content part", description="OneDep part number of destination file", example="1,2,3"),
     versionTarget: str = Query(None, title="Target Version string", description="OneDep version number or description of destination file", example="1,2,3, latest, previous, next"),
+    milestone: str = Query("", title="milestone", description="milestone", example="release"),
 ):
     """Move a file given standard input paramaters for both the source and destination of the file.
     """
@@ -361,10 +368,10 @@ async def moveFile(
         pathU = PathUtils(cP)
         #
         logger.info(
-            "Moving repositoryType %r idCode %r contentType %r format %r version %r",
-            repositoryTypeSource, idCodeSource, contentTypeSource, contentFormatSource, versionSource
+            "Moving repositoryType %r idCode %r contentType %r milestone %r format %r version %r",
+            repositoryTypeSource, idCodeSource, contentTypeSource, milestone, contentFormatSource, versionSource
         )
-        filePathSource = pathU.getVersionedPath(repositoryTypeSource, idCodeSource, contentTypeSource, partNumberSource, contentFormatSource, versionSource)
+        filePathSource = pathU.getVersionedPath(repositoryTypeSource, idCodeSource, contentTypeSource, milestone, partNumberSource, contentFormatSource, versionSource)
         logger.info("filePathSource %r", filePathSource)
         if not versionTarget:
             sourceFileEnd = filePathSource.split(".")[-1]
@@ -372,10 +379,10 @@ async def moveFile(
                 # set target version to the same as source version
                 versionTarget = sourceFileEnd.split("V")[1]
         logger.info(
-            "Destination repositoryType %r idCode %r contentType %r format %r version %r",
-            repositoryTypeTarget, idCodeTarget, contentTypeTarget, contentFormatTarget, versionTarget
+            "Destination repositoryType %r idCode %r contentType %r milestone %r format %r version %r",
+            repositoryTypeTarget, idCodeTarget, contentTypeTarget, contentFormatTarget, milestone, versionTarget
         )
-        filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, idCodeTarget, contentTypeTarget, partNumberTarget, contentFormatTarget, versionTarget)
+        filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, idCodeTarget, contentTypeTarget, milestone, partNumberTarget, contentFormatTarget, versionTarget)
         logger.info("filePathTarget %r", filePathTarget)
 
         if not filePathSource or not filePathTarget:
@@ -429,7 +436,7 @@ async def moveFilePath(
     return ret
 
 
-@router.post("/list-dir", response_model=DirResult)
+@router.get("/list-dir", response_model=DirResult)
 async def listDir(
     idCode: str = Query(title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Query(title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
