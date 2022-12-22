@@ -81,13 +81,13 @@ class PathRequestTests(unittest.TestCase):
             ("sf", "cif"),
         ]
         # Example - D_1000258919_model_P1.cif.V1
-        for idCode in ["D_2000000001"]:
-            dirPath = os.path.join(repoPath, idCode)
+        for depId in ["D_2000000001"]:
+            dirPath = os.path.join(repoPath, depId)
             FileUtil().mkdir(dirPath)
             for pNo in ["P1", "P2"]:
                 for contentType, fmt in ctFmtTupL[:6]:
                     for vS in ["V1", "V2"]:
-                        fn = idCode + "_" + contentType + "_" + pNo + "." + fmt + "." + vS
+                        fn = depId + "_" + contentType + "_" + pNo + "." + fmt + "." + vS
                         pth = os.path.join(dirPath, fn)
                         FileUtil().put(testFilePath, pth)
 
@@ -128,7 +128,7 @@ class PathRequestTests(unittest.TestCase):
         try:
             # First test for file that actually exists (created in fixture above)
             mD = {
-                "idCode": "D_2000000001",
+                "depId": "D_2000000001",
                 "repositoryType": "onedep-archive",
                 "contentType": "model",
                 "contentFormat": "pdbx",
@@ -139,14 +139,14 @@ class PathRequestTests(unittest.TestCase):
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 # print("RESPONSE", response.text)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
                 #
             #
             # Next test for file that DOESN'T exists
             mD = {
-                "idCode": "D_1234567890",
+                "depId": "D_1234567890",
                 "repositoryType": "onedep-archive",
                 "contentType": "model",
                 "contentFormat": "pdbx",
@@ -157,7 +157,7 @@ class PathRequestTests(unittest.TestCase):
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 # print("RESPONSE", response.text, response.status_code)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 404)
                 #
             logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
@@ -175,7 +175,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"path": path}, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
@@ -184,7 +184,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"path": path}, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 404)
             #
             logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
@@ -202,7 +202,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
@@ -211,7 +211,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 404)
             #
             logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
@@ -224,42 +224,42 @@ class PathRequestTests(unittest.TestCase):
         endPoint = "list-dir"
         startTime = time.time()
         try:
-            # First test for dir that actually exists (created in fixture above), given a specific dirPath
+            print('First test for dir that actually exists (created in fixture above), given a specific dirPath')
             path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/"
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                response = client.get("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
-            # Next test for dir that actually exists (created in fixture above), given a specific filePath
+            print('Next test for dir that actually exists (created in fixture above), given a specific filePath')
             path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_2000000001/D_2000000001_model_P1.cif.V1"
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"filePath": path}, headers=self.__headerD)
+                response = client.get("/file-v1/%s" % endPoint, params={"filePath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
-            # Next test for dir that actually exists (created in fixture above), given idCode and repositoryType
+            print('Next test for dir that actually exists (created in fixture above), given depId and repositoryType')
             mD = {
-                "idCode": "D_2000000001",
+                "depId": "D_2000000001",
                 "repositoryType": "onedep-archive",
             }
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
+                response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
-            # Next test for dir that DOESN'T exists
+            print("Next test for dir that DOESN'T exists")
             path = "./rcsb/app/tests-file/test-data/data/repository/archive/D_1234567890/"
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                response = client.get("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 404)
             #
             logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
@@ -274,7 +274,7 @@ class PathRequestTests(unittest.TestCase):
         try:
             # First test for file that actually exists (created in fixture above)
             mD = {
-                "idCode": "D_1000000001",
+                "depId": "D_1000000001",
                 "repositoryType": "onedep-archive",
                 "contentType": "model",
                 "contentFormat": "pdbx",
@@ -284,7 +284,7 @@ class PathRequestTests(unittest.TestCase):
                 response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 # print("RESPONSE", response.text)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
                 #
@@ -300,13 +300,13 @@ class PathRequestTests(unittest.TestCase):
         try:
             # Copy file from one repositoryType to another
             mD = {
-                "idCodeSource": "D_1000000001",
+                "depIdSource": "D_1000000001",
                 "repositoryTypeSource": "onedep-archive",
                 "contentTypeSource": "model",
                 "contentFormatSource": "pdbx",
                 "partNumberSource": 1,
                 #
-                "idCodeTarget": "D_1000000001",
+                "depIdTarget": "D_1000000001",
                 "repositoryTypeTarget": "onedep-deposit",
                 "contentTypeTarget": "model",
                 "contentFormatTarget": "pdbx",
@@ -316,7 +316,7 @@ class PathRequestTests(unittest.TestCase):
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 # print("RESPONSE", response.text)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
                 #

@@ -75,29 +75,30 @@ class FileUpdateTests(unittest.TestCase):
         """Test - simple file download/upload"""
 
         refHashType = None
-#       useHash = True
-#       if useHash:
-#           refHashType = "MD5"
-#           hD = CryptUtils().getFileHash(testFilePath, hashType=refHashType)
-#           refHashDigest = hD["hashDigest"]
+        useHash = True
+        if useHash:
+            refHashType = "MD5"
+            # hD = CryptUtils().getFileHash(testFilePath, hashType=refHashType)
+            # refHashDigest = hD["hashDigest"]
 
         responseCode = 200
         for endPoint in ["download/onedep-archive"]:
             startTime = time.time()
             try:
                 mD = {
-                    "idCode": "D_8000210008",
+                    "depId": "D_8000210008",
                     "contentType": "model",
                     "contentFormat": "pdbx",
                     "partNumber": 1,
-                    "version": "latest",  # Download latest
+                    "version": 1,  # Download latest
                     "hashType": refHashType,
+                    "milestone": None
                 }
                 #
                 with TestClient(app) as client:
                     response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                     logger.info("download response status code %r", response.status_code)
-                    logger.debug("response %r %r %r", response.status_code, response.reason, response.content)
+                    # logger.debug("response %r %r %r", response.status_code, response.reason, response.content)
                     self.assertTrue(response.status_code == 200)
                     logger.info("Content length (%d)", len(response.content))
 #                   rspHashType = response.headers["rcsb_hash_type"]
@@ -131,7 +132,7 @@ class FileUpdateTests(unittest.TestCase):
         startTime = time.time()
         try:
             mD = {
-                "idCode": "D_8000210008",
+                "depId": "D_8000210008",
                 "repositoryType": "onedep-archive",  # First upload into "onedep-archive"
                 "contentType": "model",
                 "contentFormat": "pdbx",
@@ -146,10 +147,10 @@ class FileUpdateTests(unittest.TestCase):
             with TestClient(app) as client:
                 with open(self.__updatedFilePath, "rb") as ifh:
                     files = {"uploadFile": ifh}
-                    response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
+                    response = client.post("/file-v2/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
                 #
-                if response.status_code != responseCode:
-                    logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # if response.status_code != responseCode:
+                #     logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 #
                 self.assertTrue(response.status_code == responseCode)
                 rD = response.json()
@@ -167,7 +168,7 @@ class FileUpdateTests(unittest.TestCase):
         startTime = time.time()
         try:
             mD = {
-                "idCode": "D_8000210008",
+                "depId": "D_8000210008",
                 "repositoryType": "onedep-deposit",  # Second upload into "onedep-deposit"
                 "contentType": "model",
                 "contentFormat": "pdbx",
@@ -182,10 +183,10 @@ class FileUpdateTests(unittest.TestCase):
             with TestClient(app) as client:
                 with open(self.__updatedFilePath, "rb") as ifh:
                     files = {"uploadFile": ifh}
-                    response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
+                    response = client.post("/file-v2/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
                 #
-                if response.status_code != responseCode:
-                    logger.info("response %r %r %r", response.status_code, response.reason, response.content)
+                # if response.status_code != responseCode:
+                #     logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                 #
                 self.assertTrue(response.status_code == responseCode)
                 rD = response.json()

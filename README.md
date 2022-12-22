@@ -70,7 +70,11 @@ From base repository directory (in `py-rcsb_app_file/`), start app with:
 
 ```
 
-Then, in a separate shell (also from the base repository directory), run individual tests, e.g.:
+Then, in a separate shell (also from the base repository directory), test with client.py or gui.py
+
+Gui.py is launched from the shell
+
+Client.py usage
 ```
 
 python3 client.py
@@ -112,6 +116,7 @@ sqlite3 path/to/kv.sqlite
 
 ```
 
+### Testing with Docker
 
 ### Build Docker Container
 
@@ -159,9 +164,11 @@ docker run --rm --name fileapp -p 8000:8000 --link redis-container:redis fileapp
 
 `--link` connects to the Redis container that was created previously
 
-# Test upload and download using client.py
+Test upload and download using client.py or gui.py
 
-Edit url variables to match server url in client.py
+Edit url variables to match server url in client.py or gui.py
+
+Client.py usage
 ```
 
 python3 client.py

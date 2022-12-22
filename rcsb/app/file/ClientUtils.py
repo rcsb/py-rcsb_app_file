@@ -110,20 +110,24 @@ class ClientUtils:
 
     async def uploadFile(
         self,
-        filePath: str,
-        idCode: str,
-        repositoryType: str,
-        contentType: str,
-        contentFormat: str,
-        partNumber: int,
-        version: str,
-        copyMode: str,
-        allowOverWrite: bool,
-        sliceSize: int = None,
+        # upload file parameters
+        filePath: str = None,
         uploadId: str = None,
+        copyMode: str = None,
+        # chunk parameters
+        chunkSize: int = None,
+        # save file parameters
+        repositoryType: str = None,
+        depId: str = None,
+        contentType: str = None,
+        milestone: str = None,
+        partNumber: int = None,
+        contentFormat: str = None,
+        version: str = None,
+        allowOverWrite: bool = None
     ):
 
-        # print(f'upload {idCode} part {partNumber} path {filePath}')
+        # print(f'upload {depId} part {partNumber} path {filePath}')
 
         endpoint = "upload"
         url = os.path.join(self.__hostAndPort, "file-v2", endpoint)
@@ -132,48 +136,50 @@ class ClientUtils:
         hD = CryptUtils().getFileHash(filePath, hashType=hashType)
         fullTestHash = hD["hashDigest"]
 
-        if sliceSize is None:
-            sliceSize = 1024 * 1024 * 8
+        if chunkSize is None:
+            chunkSize = 1024 * 1024 * 8
         fileSize = os.path.getsize(filePath)
-        sliceTotal = 0
-        if sliceSize < fileSize:
-            sliceTotal = fileSize // sliceSize
-            if fileSize % sliceSize:
-                sliceTotal = sliceTotal + 1
+        expectedChunks = 0
+        if chunkSize < fileSize:
+            expectedChunks = fileSize // chunkSize
+            if fileSize % chunkSize:
+                expectedChunks = expectedChunks + 1
         else:
-            sliceTotal = 1
-        sliceIndex = 0
-        sliceOffset = 0
+            expectedChunks = 1
+        chunkIndex = 0
+        chunkOffset = 0
 
-        # if uploadId is None:
-            # print("creating new upload id")
-            # uploadId = await self.getNewUploadId()#repositoryType, idCode, contentType, partNumber, contentFormat, version)
+        # print(f'file path {filePath} file size {fileSize} chunk size {chunkSize} chunk total {expectedChunks}')
 
         mD = {
-            "sliceIndex": sliceIndex,
-            "sliceOffset": sliceOffset,
-            "sliceTotal": sliceTotal,
+            # upload file parameters
             "uploadId": uploadId,
-            "idCode": idCode,
-            "repositoryType": repositoryType,
-            "contentType": contentType,
-            "contentFormat": contentFormat,
-            "partNumber": partNumber,
-            "version": str(version),
-            "copyMode": copyMode,
-            "allowOverWrite": allowOverWrite,
             "hashType": hashType,
             "hashDigest": fullTestHash,
+            "copyMode": copyMode,
+            # chunk parameters
+            "chunkIndex": chunkIndex,
+            "chunkOffset": chunkOffset,
+            "expectedChunks": expectedChunks,
+            # save file parameters
+            "repositoryType": repositoryType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+            "version": str(version),
+            "allowOverWrite": allowOverWrite
         }
 
         response = None
         tmp = io.BytesIO()
         try:
             with open(filePath, "rb") as upLoad:
-                for i in range(0, sliceTotal):
+                for i in range(0, expectedChunks):
                     packetSize = min(
-                        fileSize - (mD["sliceIndex"] * sliceSize),
-                        sliceSize,
+                        fileSize - (mD["chunkIndex"] * chunkSize),
+                        chunkSize,
                     )
                     tmp.truncate(packetSize)
                     tmp.seek(0)
@@ -191,21 +197,21 @@ class ClientUtils:
                             f"error - status code {response.status_code} {response.text} url {url} file {filePath}"
                         )
                         break
-                    mD["sliceIndex"] += 1
-                    mD["sliceOffset"] = mD["sliceIndex"] * sliceSize
+                    mD["chunkIndex"] += 1
+                    mD["chunkOffset"] = mD["chunkIndex"] * chunkSize
                     # time.sleep(1)
                     # text = json.loads(response.text)
                     # mD["uploadId"] = text["uploadId"]
         except asyncio.CancelledError as exc:
-            logger.exception("error in sliced upload %s", exc)
+            logger.exception("error in chunkd upload %s", exc)
 
-        # return response from last slice uploaded (if all slices were uploaded)
+        # return response from last chunk uploaded (if all chunks were uploaded)
         return None if not response else response
 
     async def download(
         self,
         fileDownloadPath: typing.Optional[str],  # Location of where to download file
-        idCode: typing.Optional[str] = None,  # "D_1000000001"
+        depId: typing.Optional[str] = None,  # "D_1000000001"
         repositoryType: typing.Optional[str] = None,  # "onedep-archive"
         contentType: typing.Optional[str] = None,  # "model"
         contentFormat: typing.Optional[str] = None,  # "pdbx"
@@ -222,7 +228,7 @@ class ClientUtils:
         startTime = time.time()
         try:
             mD = {
-                "idCode": idCode,
+                "depId": depId,
                 "contentType": contentType,
                 "contentFormat": contentFormat,
                 "partNumber": partNumber,
@@ -278,8 +284,8 @@ class ClientUtils:
         except Exception as e:
             logger.exception("Failing with %s", str(e))
 
-    async def getNewUploadId(self):#, repositoryType, idCode, contentType, partNumber, contentFormat, version):
-        return await self.__ioU.getNewUploadId()#repositoryType, idCode, contentType, partNumber, contentFormat, version)
+    async def getNewUploadId(self):#, repositoryType, depId, contentType, partNumber, contentFormat, version):
+        return await self.__ioU.getNewUploadId()#repositoryType, depId, contentType, partNumber, contentFormat, version)
 
     async def clearUploadId(self, uid):
         url = os.path.join(self.__hostAndPort, "file-v2", "clearUploadId")

@@ -20,6 +20,7 @@ httpx >= 0.23.0
 #
 redis
 redis-server
+Pillow
 #
 botocore~=1.27.59
 aiohttp~=3.8.3
