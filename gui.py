@@ -1164,7 +1164,7 @@ class Gui(tk.Frame):
         contentType = self.download_content_type.get()
         milestone = self.download_mile_stone.get()
         convertedMilestone = None
-        if milestone:
+        if milestone and milestone.lower() != 'none':
             convertedMilestone = f'-{milestone}'
         else:
             convertedMilestone = ""
