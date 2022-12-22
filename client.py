@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 import sys
 import concurrent.futures
 import os
@@ -18,6 +19,20 @@ from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 
+""" modifiable variables
+"""
+base_url = "http://0.0.0.0:8000"
+maxChunkSize = 1024 * 1024 * 8
+
+""" test configuration variables
+    set sleep = false for slow motion testing of small files with min chunk size
+    modifiable from command line args
+"""
+SLEEP = False
+minChunkSize = 1024
+
+""" do not alter from here
+"""
 os.environ["CACHE_PATH"] = os.path.join(
     ".", "rcsb", "app", "tests-file", "test-data", "data"
 )
@@ -28,20 +43,17 @@ cP = ConfigProvider(cachePath)
 cP.getConfig()
 subject = cP.get("JWT_SUBJECT")
 ioU = IoUtils(cP)
-base_url = "http://0.0.0.0:8000"
 headerD = {
     "Authorization": "Bearer "
     + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)
 }
+hashType = "MD5"
 
 uploadIds = []
 uploadResults = []
 uploadTexts = []
 downloadResults = []
-hashType = "MD5"
-maxSliceSize = 1024 * 1024 * 8
-minSliceSize = 1024  # for development
-SLEEP = False  # slow motion testing with small files
+
 signature = """
     --------------------------------------------------------
              FILE ACCESS AND DEPOSITION APPLICATION
@@ -53,17 +65,18 @@ def upload(mD):
     global headerD
     global ioU
     global SLEEP
+
     responses = []
     # test for resumed upload
     uploadId = mD["uploadId"]
     url = os.path.join(base_url, "file-v2", "uploadStatus")
     parameters = {"repositoryType": mD["repositoryType"],
-              "idCode": mD["idCode"],
+              "depId": mD["depId"],
               "contentType": mD["contentType"],
               "milestone": mD["milestone"],
               "partNumber": str(mD["partNumber"]),
               "contentFormat": mD["contentFormat"],
-              "fileHash": mD["hashDigest"]
+              "hashDigest": mD["hashDigest"]
               }
     response = requests.get(
         url,
@@ -75,29 +88,26 @@ def upload(mD):
     offset = 0
     if response.status_code == 200:
         result = json.loads(response.text)
-        # print(f'result {result}')
         if result:
-            # print(f'type {type(result)}')
             if not isinstance(result, dict):
                 result = eval(result)
-            # print(f'type {result}')
             offsetIndex = int(result["uploadCount"])
             packet_size = min(
-                int(mD["fileSize"]) - ( int(mD["sliceIndex"]) * int(mD["sliceSize"]) ),
-                int(mD["sliceSize"]),
+                int(mD["fileSize"]) - ( int(mD["chunkIndex"]) * int(mD["chunkSize"]) ),
+                int(mD["chunkSize"]),
             )
             offset = offsetIndex * packet_size
-            mD["sliceIndex"] = offsetIndex
-            mD["sliceOffset"] = offset
+            mD["chunkIndex"] = offsetIndex
+            mD["chunkOffset"] = offset
     # chunk file and upload
     tmp = io.BytesIO()
     with open(mD["filePath"], "rb") as to_upload:
         to_upload.seek(offset)
         url = os.path.join(base_url, "file-v2", "upload")
-        for x in tqdm(range(offsetIndex, mD["sliceTotal"]), leave=False, desc=os.path.basename(mD["filePath"])):
+        for x in tqdm(range(offsetIndex, mD["expectedChunks"]), leave=False, desc=os.path.basename(mD["filePath"])):
             packet_size = min(
-                int(mD["fileSize"]) - ( int(mD["sliceIndex"]) * int(mD["sliceSize"]) ),
-                int(mD["sliceSize"]),
+                int(mD["fileSize"]) - ( int(mD["chunkIndex"]) * int(mD["chunkSize"]) ),
+                int(mD["chunkSize"]),
             )
             tmp.truncate(packet_size)
             tmp.seek(0)
@@ -116,8 +126,8 @@ def upload(mD):
                 )
                 break
             responses.append(response)
-            mD["sliceIndex"] += 1
-            mD["sliceOffset"] = mD["sliceIndex"] * mD["sliceSize"]
+            mD["chunkIndex"] += 1
+            mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
             # text = json.loads(response.text)
             # mD["uploadId"] = text["uploadId"]
             # session = eval(ioU.uploadStatus(mD["uploadId"]))
@@ -148,12 +158,12 @@ async def asyncFile(mD):
     uploadId = mD["uploadId"]
     url = os.path.join(base_url, "file-v2", "uploadStatus")
     parameters = {"repositoryType": mD["repositoryType"],
-              "idCode": mD["idCode"],
+              "depId": mD["depId"],
               "contentType": mD["contentType"],
               "milestone": mD["milestone"],
               "partNumber": str(mD["partNumber"]),
               "contentFormat": mD["contentFormat"],
-              "fileHash": mD["hashDigest"]
+              "hashDigest": mD["hashDigest"]
               }
     response = requests.get(
         url,
@@ -161,7 +171,7 @@ async def asyncFile(mD):
         headers=headerD,
         timeout=None
     )
-    chunksSaved = "0" * mD["sliceTotal"]
+    chunksSaved = "0" * mD["expectedChunks"]
     if response.status_code == 200:
         result = json.loads(response.text)
         if result:
@@ -170,7 +180,7 @@ async def asyncFile(mD):
     tasks = []
     for index in range(0, len(chunksSaved)):
         if chunksSaved[index] == "0":
-            tasks.append(asyncSlice(index, mD))
+            tasks.append(asyncChunk(index, mD))
     responses = await asyncio.gather(*tasks)
     results = []
     for response in responses:
@@ -181,10 +191,10 @@ async def asyncFile(mD):
     return results
 
 
-async def asyncSlice(index, mD):
+async def asyncChunk(index, mD):
     filePath = mD["filePath"]
-    offset = index * mD["sliceSize"]
-    mD["sliceIndex"] = index
+    offset = index * mD["chunkSize"]
+    mD["chunkIndex"] = index
     response = None
     # chunk file and upload
     tmp = io.BytesIO()
@@ -192,8 +202,8 @@ async def asyncSlice(index, mD):
         to_upload.seek(offset)
         url = os.path.join(base_url, "file-v2", "upload")
         packet_size = min(
-            mD["fileSize"] - (mD["sliceIndex"] * mD["sliceSize"]),
-            mD["sliceSize"],
+            mD["fileSize"] - (mD["chunkIndex"] * mD["chunkSize"]),
+            mD["chunkSize"],
         )
         tmp.truncate(packet_size)
         tmp.seek(0)
@@ -211,27 +221,47 @@ async def asyncSlice(index, mD):
                 f"error - status code {response.status_code} {response.text}...terminating"
             )
         else:
-            mD["sliceIndex"] += 1
-            mD["sliceOffset"] = mD["sliceIndex"] * mD["sliceSize"]
+            mD["chunkIndex"] += 1
+            mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
     return response
 
 
 def download(downloadFilePath, downloadDict):
     global headerD
-    global maxSliceSize
+    global maxChunkSize
+    global minChunkSize
     global SLEEP
     url = os.path.join(base_url, "file-v1", "downloadSize")
-    fileSize = int(requests.get(url, params=downloadDict, headers=headerD, timeout=None).text)
-    chunks = math.ceil(fileSize / maxSliceSize)
-    url = os.path.join(base_url, "file-v1", "download", "onedep-archive")
+    fileSize = requests.get(url, params=downloadDict, headers=headerD, timeout=None).text
+    if not fileSize.isnumeric():
+        print(f'error - no response for {downloadDict}')
+        return None
+    fileSize = int(fileSize)
+    chunkSize = maxChunkSize
+    if SLEEP:
+        chunkSize = minChunkSize
+    chunks = math.ceil(fileSize / maxChunkSize)
+    url = os.path.join(base_url, "file-v1", "download", downloadDict["repositoryType"])
     responseCode = None
-    with requests.get(url, params=downloadDict, headers=headerD, timeout=None) as response:
-        with open(downloadFilePath, "wb") as ofh:
-            for chunk in tqdm(response.iter_content(chunk_size=maxSliceSize), leave=False, total=chunks, desc=os.path.basename(downloadFilePath)):
-                ofh.write(chunk)
+    count = 0
+    if os.path.exists(downloadFilePath):
+        os.remove(downloadFilePath)
+    with requests.get(url, params=downloadDict, headers=headerD, timeout=None, stream=True) as response:
+        with open(downloadFilePath, "ab") as ofh:
+            for chunk in tqdm(response.iter_content(chunk_size=chunkSize), leave=False, total=chunks, desc=os.path.basename(downloadFilePath)):
+                if chunk:
+                    ofh.write(chunk)
+                # print(f'wrote chunk {count} of {chunks} of size {chunkSize} for {downloadFilePath}')
+                count += 1
                 if SLEEP:
                     time.sleep(1)
         responseCode = response.status_code
+        rspHashType = response.headers["rcsb_hash_type"]
+        rspHashDigest = response.headers["rcsb_hexdigest"]
+        thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
+        if not thD["hashDigest"] == rspHashDigest:
+            print('error - hash comparison failed')
+            sys.exit()
     return responseCode
 
 
@@ -261,7 +291,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.test:
         SLEEP = True
-        maxSliceSize = minSliceSize
+        maxChunkSize = minChunkSize
     uploads = []
     uploadIds = []
     downloads = []
@@ -297,17 +327,17 @@ if __name__ == "__main__":
             allowOverwrite = arglist[8]
             hD = CryptUtils().getFileHash(filePath, hashType=hashType)
             fullTestHash = hD["hashDigest"]
-            sliceSize = maxSliceSize
+            chunkSize = maxChunkSize
             fileSize = os.path.getsize(filePath)
-            sliceTotal = 0
-            if sliceSize < fileSize:
-                sliceTotal = fileSize // sliceSize
-                if fileSize % sliceSize:
-                    sliceTotal = sliceTotal + 1
+            expectedChunks = 0
+            if chunkSize < fileSize:
+                expectedChunks = fileSize // chunkSize
+                if fileSize % chunkSize:
+                    expectedChunks = expectedChunks + 1
             else:
-                sliceTotal = 1
-            sliceIndex = 0
-            sliceOffset = 0
+                expectedChunks = 1
+            chunkIndex = 0
+            chunkOffset = 0
             chunkMode = "sequential"
             if args.parallel:
                 chunkMode = "parallel"
@@ -318,25 +348,28 @@ if __name__ == "__main__":
             #     sys.exit('error - could not get new upload id')
             uploads.append(
                     {
+                        # upload file parameters
                         "filePath": filePath,
-                        "fileSize": fileSize,
-                        "sliceSize": sliceSize,
-                        "sliceIndex": sliceIndex,
-                        "sliceOffset": sliceOffset,
-                        "sliceTotal": sliceTotal,
                         "uploadId": None,
+                        "fileSize": fileSize,
+                        "hashType": hashType,
+                        "hashDigest": fullTestHash,
+                        "copyMode": "native", # whether file is a zip file
+                        # chunk parameters
+                        "chunkSize": chunkSize,
+                        "chunkIndex": chunkIndex,
+                        "chunkOffset": chunkOffset,
+                        "expectedChunks": expectedChunks,
+                        "chunkMode": chunkMode,
+                        # save file parameters
                         "repositoryType": repositoryType,
-                        "idCode": depId,
+                        "depId": depId,
                         "contentType": contentType,
                         "milestone": milestone,
                         "partNumber": part,
                         "contentFormat": contentFormat,
                         "version": version,
-                        "copyMode": "native",
-                        "allowOverWrite": allowOverwrite,
-                        "hashType": hashType,
-                        "hashDigest": fullTestHash,
-                        "chunkMode": chunkMode
+                        "allowOverWrite": allowOverwrite
                     }
             )
     if args.download:
@@ -354,7 +387,7 @@ if __name__ == "__main__":
             contentFormat = arglist[6]
             version = arglist[7]
             downloadDict = {
-                "idCode": depId,
+                "depId": depId,
                 "repositoryType": repositoryType,
                 "contentType": contentType,
                 "contentFormat": contentFormat,
@@ -399,10 +432,10 @@ if __name__ == "__main__":
         arglist = args.list
         if not len(arglist) == 2:
             sys.exit('error - list takes two args')
-        idCode = arglist[0]
+        depId = arglist[0]
         repoType = arglist[1]
         parameters = {
-            "idCode": idCode,
+            "depId": depId,
             "repositoryType": repoType
         }
         url = os.path.join(base_url, "file-v1", "list-dir")

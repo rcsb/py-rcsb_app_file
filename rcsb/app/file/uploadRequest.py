@@ -13,14 +13,15 @@ import os
 import re
 from enum import Enum
 from typing import Optional
-
+import json
+import pydantic
 from fastapi import APIRouter, Path, Query
 from fastapi import Depends
 from fastapi import File
 from fastapi import Form
 from fastapi import HTTPException
 from fastapi import UploadFile
-from pydantic import BaseModel  # pylint: disable=no-name-in-module
+from pydantic import BaseModel, ValidationError  # pylint: disable=no-name-in-module
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
@@ -59,17 +60,24 @@ class UploadResult(BaseModel):
 
 # return kv entry from file parameters, or None
 @router.get("/uploadStatus")
-async def getUploadStatus(repositoryType: str = Query(...), idCode: str = Query(...), contentType: str = Query(...), milestone: Optional[str] = Query(default="next"), partNumber: int = Query(...), contentFormat: str = Query(...), version: str = Query(default="next"), fileHash: str = Query(default=None)):
+async def getUploadStatus(repositoryType: str = Query(...),
+                          depId: str = Query(...),
+                          contentType: str = Query(...),
+                          milestone: Optional[str] = Query(default="next"),
+                          partNumber: int = Query(...),
+                          contentFormat: str = Query(...),
+                          version: str = Query(default="next"),
+                          hashDigest: str = Query(default=None)):
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
     ioU = IoUtils(cP)
-    # logging.warning(f'upload status version {version} hash {fileHash}')
+    # logging.warning(f'upload status version {version} hash {hashDigest}')
     if version is None or not re.match(r'\d+', version):
-        version = await ioU.findVersion(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
-        # version = await latestFileVersion(idCode, repositoryType, contentType, contentFormat, partNumber, milestone)
-    # logging.warning(f'upload status version {version} hash {fileHash}')
-    uploadId = await ioU.getResumedUpload(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version, fileHash)
+        version = await ioU.findVersion(repositoryType=repositoryType, depId=depId, contentType=contentType, milestone=milestone, partNumber=partNumber, contentFormat=contentFormat, version=version)
+        # version = await latestFileVersion(depId, repositoryType, contentType, contentFormat, partNumber, milestone)
+    # logging.warning(f'upload status version {version} hash {hashDigest}')
+    uploadId = await ioU.getResumedUpload(repositoryType=repositoryType, depId=depId, contentType=contentType, milestone=milestone, partNumber=partNumber, contentFormat=contentFormat, version=version, hashDigest=hashDigest)
     if not uploadId:
         return None
     status = await ioU.getSession(uploadId)
@@ -89,12 +97,18 @@ async def getUploadStatus(uploadId: str = Path(...)):
 
 # find upload id from file parameters
 @router.post("/findUploadId")
-async def findUploadId(repositoryType: str = Form(), idCode: str = Form(...), contentType: str = Form(...), milestone: str = Form(...), partNumber: int = Form(...), contentFormat: str = Form(...), version: str = Form(...)):
+async def findUploadId(repositoryType: str = Form(),
+                       depId: str = Form(...),
+                       contentType: str = Form(...),
+                       milestone: str = Form(...),
+                       partNumber: int = Form(...),
+                       contentFormat: str = Form(...),
+                       version: str = Form(...)):
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
     ioU = IoUtils(cP)
-    return await ioU.getResumedUpload(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
+    return await ioU.getResumedUpload(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)
 
 
 # create new id
@@ -129,100 +143,27 @@ async def clearKv():
 
 @router.post("/upload", response_model=UploadResult)
 async def upload(
+    # upload file parameters
     uploadFile: UploadFile = File(...),
-    sliceSize: int = Form(
-        None,
-        title="Size of one slice",
-        description="Size of one slice",
-        example="1024"
-    ),
-    sliceIndex: int = Form(
-        1,
-        title="Index of the current chunk",
-        description="Index of the current chunk",
-        example="1",
-    ),
-    sliceOffset: int = Form(
-        0, title="Chunk byte offset", description="Chunk byte offset", example="1024"
-    ),
-    sliceTotal: int = Form(
-        1,
-        title="Total number of chunks in the session",
-        description="Total number of chunks in the session",
-        example="5",
-    ),
-    fileSize: int = Form(
-        None,
-        title="Size of entire file",
-        description="Size of entire file",
-        example="8388608"
-    ),
-    uploadId: str = Form(
-        None,
-        title="Session identifier",
-        description="Unique identifier for the current session",
-        example="9fe2c4e93f654fdbb24c02b15259716c",
-    ),
-    idCode: str = Form(
-        None, title="ID Code", description="Identifier code", example="D_0000000001"
-    ),
-    repositoryType: str = Form(
-        None,
-        title="Repository Type",
-        description="OneDep repository type",
-        example="onedep-archive, onedep-deposit",
-    ),
-    contentType: str = Form(
-        None,
-        title="Content Type",
-        description="OneDep content type",
-        example="model, structure-factors, val-report-full",
-    ),
-    contentFormat: str = Form(
-        None,
-        title="Content format",
-        description="Content format",
-        example="pdb, pdbx, mtz, pdf",
-    ),
-    partNumber: int = Form(
-        None, title="Part Number", description="OneDep part number", example="1"
-    ),
-    version: str = Form(
-        None,
-        title="Version",
-        description="OneDep version number of descriptor",
-        example="1, 2, latest, next",
-    ),
-    copyMode: str = Form(
-        "native",
-        title="Copy mode",
-        description="Copy mode",
-        example="shell|native|gzip_decompress",
-    ),
-    allowOverWrite: bool = Form(
-        False,
-        title="Allow overwrite of existing files",
-        description="Allow overwrite of existing files",
-        example="False",
-    ),
-    hashType: HashType = Form(
-        None, title="Hash type", description="Hash type", example="SHA256"
-    ),
-    hashDigest: str = Form(
-        None,
-        title="Hash digest",
-        description="Hash digest",
-        example="'0394a2ede332c9a13eb82e9b24631604c31df978b4e2f0fbd2c549944f9d79a5'",
-    ),
-    milestone: str = Form(
-        None,
-        title="milestone",
-        description="milestone",
-        example="release"
-    ),
-    chunkMode: str = Form(
-        'sequential'
-    )
+    uploadId: str = Form(None),
+    hashType: HashType = Form(None),
+    hashDigest: str = Form(None),
+    copyMode: str = Form("native", example="shell|native|gzip_decompress"),
+    # chunk parameters
+    chunkSize: int = Form(None),
+    chunkIndex: int = Form(0),
+    chunkOffset: int = Form(0),
+    expectedChunks: int = Form(1),
+    chunkMode: str = Form('sequential', example="sequential, async"),
+    # save file parameters
+    depId: str = Form(None, example="D_1000000000"),
+    repositoryType: str = Form(None, example="onedep-archive, onedep-deposit"),
+    contentType: str = Form(None, example="model, structure-factors, val-report-full"),
+    milestone: str = Form(None, example="release"),
+    partNumber: int = Form(None),
+    contentFormat: str = Form(None, example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, example="1, 2, latest, next"),
+    allowOverWrite: bool = Form(False)
 ):
     fn = None
     ct = None
@@ -231,7 +172,7 @@ async def upload(
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(cachePath, configFilePath)
         #
-        logger.debug("idCode %r hash %r hashType %r", idCode, hashDigest, hashType)
+        logger.debug("depId %r hash %r hashType %r", depId, hashDigest, hashType)
         #
         fn = uploadFile.filename
         ct = uploadFile.content_type
@@ -244,23 +185,26 @@ async def upload(
         ioU = IoUtils(cP)
 
         ret = await ioU.storeUpload(
-            uploadFile.file,
-            sliceIndex,
-            sliceOffset,
-            sliceTotal,
-            uploadId,
-            idCode,
-            repositoryType,
-            contentType,
-            contentFormat,
-            partNumber,
-            version,
-            milestone,
-            copyMode=copyMode,
-            allowOverWrite=allowOverWrite,
+            # upload file parameters
+            ifh=uploadFile.file,
+            uploadId=uploadId,
             hashType=hashType,
             hashDigest=hashDigest,
-            chunkMode=chunkMode
+            copyMode=copyMode,
+            # chunk parameters
+            chunkIndex=chunkIndex,
+            chunkOffset=chunkOffset,
+            expectedChunks=expectedChunks,
+            chunkMode=chunkMode,
+            # save file parameters
+            depId=depId,
+            repositoryType=repositoryType,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version,
+            allowOverWrite=allowOverWrite
         )
     except Exception as e:
         logger.exception("Failing for %r %r with %s", fn, ct, str(e))
@@ -274,3 +218,4 @@ async def upload(
         raise HTTPException(status_code=405, detail=ret["statusMessage"])
     #
     return ret
+

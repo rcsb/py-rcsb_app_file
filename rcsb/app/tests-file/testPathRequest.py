@@ -74,13 +74,13 @@ class PathRequestTests(unittest.TestCase):
             ("sf", "cif"),
         ]
         # Example - D_1000258919_model_P1.cif.V1
-        for idCode in ["D_1000000001", "D_2000000001"]:
-            dirPath = os.path.join(cls.__repoTestPath, idCode)
+        for depId in ["D_1000000001", "D_2000000001"]:
+            dirPath = os.path.join(cls.__repoTestPath, depId)
             FileUtil().mkdir(dirPath)
             for pNo in ["P1", "P2"]:
                 for contentType, fmt in ctFmtTupL[:6]:
                     for vS in ["V1", "V2"]:
-                        fn = idCode + "_" + contentType + "_" + pNo + "." + fmt + "." + vS
+                        fn = depId + "_" + contentType + "_" + pNo + "." + fmt + "." + vS
                         pth = os.path.join(dirPath, fn)
                         FileUtil().put(cls.__testFilePath, pth)
 
@@ -111,7 +111,7 @@ class PathRequestTests(unittest.TestCase):
         try:
             # First test for file that actually exists (created in fixture above)
             mD = {
-                "idCode": "D_2000000001",
+                "depId": "D_2000000001",
                 "repositoryType": "onedep-archive",
                 "contentType": "model",
                 "contentFormat": "pdbx",
@@ -128,7 +128,7 @@ class PathRequestTests(unittest.TestCase):
             #
             # Next test for file that DOESN'T exists
             mD = {
-                "idCode": "D_1234567890",
+                "depId": "D_1234567890",
                 "repositoryType": "onedep-archive",
                 "contentType": "model",
                 "contentFormat": "pdbx",
@@ -190,7 +190,7 @@ class PathRequestTests(unittest.TestCase):
             # Next test for dir that actually exists using standard params
             endPoint = "dir-exists"
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"idCode": "D_2000000001", "repositoryType": "archive"}, headers=self.__headerD)
+                response = client.post("/file-v1/%s" % endPoint, params={"depId": "D_2000000001", "repositoryType": "archive"}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
@@ -199,7 +199,7 @@ class PathRequestTests(unittest.TestCase):
             # Next test for dir that DOESN'T exists using standard params
             endPoint = "dir-exists"
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"idCode": "D_1234567890", "repositoryType": "archive"}, headers=self.__headerD)
+                response = client.post("/file-v1/%s" % endPoint, params={"depId": "D_1234567890", "repositoryType": "archive"}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 404)
@@ -217,20 +217,20 @@ class PathRequestTests(unittest.TestCase):
             endPoint = "list-dirpath"
             path = os.path.join(self.__repoTestPath, "D_2000000001")
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                response = client.get("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
-            # Next test for dir that actually exists (created in fixture above), given idCode and repositoryType
+            # Next test for dir that actually exists (created in fixture above), given depId and repositoryType
             endPoint = "list-dir"
             mD = {
-                "idCode": "D_2000000001",
+                "depId": "D_2000000001",
                 "repositoryType": "onedep-archive",
             }
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
+                response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
@@ -240,7 +240,7 @@ class PathRequestTests(unittest.TestCase):
             endPoint = "list-dirpath"
             path = os.path.join(self.__repoTestPath, "D_1234567890")
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                response = client.get("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 404)
@@ -257,7 +257,7 @@ class PathRequestTests(unittest.TestCase):
         try:
             # First test for file that actually exists (created in fixture above)
             mD = {
-                "idCode": "D_1000000001",
+                "depId": "D_1000000001",
                 "repositoryType": "onedep-archive",
                 "contentType": "model",
                 "contentFormat": "pdbx",
@@ -282,13 +282,13 @@ class PathRequestTests(unittest.TestCase):
         try:
             # Copy file from one repositoryType to another
             mD = {
-                "idCodeSource": "D_1000000001",
+                "depIdSource": "D_1000000001",
                 "repositoryTypeSource": "onedep-archive",
                 "contentTypeSource": "model",
                 "contentFormatSource": "pdbx",
                 "partNumberSource": 1,
                 #
-                "idCodeTarget": "D_1000000001",
+                "depIdTarget": "D_1000000001",
                 "repositoryTypeTarget": "onedep-deposit",
                 "contentTypeTarget": "model",
                 "contentFormatTarget": "pdbx",
@@ -313,14 +313,14 @@ class PathRequestTests(unittest.TestCase):
         try:
             # Move file from one repositoryType to another
             mD = {
-                "idCodeSource": "D_2000000001",
+                "depIdSource": "D_2000000001",
                 "repositoryTypeSource": "onedep-archive",
                 "contentTypeSource": "model",
                 "contentFormatSource": "pdbx",
                 "partNumberSource": 2,
                 "versionSource": 1,
                 #
-                "idCodeTarget": "D_3000000001",
+                "depIdTarget": "D_3000000001",
                 "repositoryTypeTarget": "onedep-archive",
                 "contentTypeTarget": "model",
                 "contentFormatTarget": "pdbx",
@@ -346,13 +346,13 @@ class PathRequestTests(unittest.TestCase):
         try:
             # First create a copy of one archive directory
             mD = {
-                "idCodeSource": "D_1000000001",
+                "depIdSource": "D_1000000001",
                 "repositoryTypeSource": "onedep-archive",
                 "contentTypeSource": "model",
                 "contentFormatSource": "pdbx",
                 "partNumberSource": 1,
                 #
-                "idCodeTarget": "D_1000000002",
+                "depIdTarget": "D_1000000002",
                 "repositoryTypeTarget": "onedep-archive",
                 "contentTypeTarget": "model",
                 "contentFormatTarget": "pdbx",
@@ -367,7 +367,7 @@ class PathRequestTests(unittest.TestCase):
             #
             # Next compress the copied directory
             mD = {
-                "idCode": "D_1000000002",
+                "depId": "D_1000000002",
                 "repositoryType": "onedep-archive",
             }
             with TestClient(app) as client:

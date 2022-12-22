@@ -42,18 +42,18 @@ class HashType(str, Enum):
 
 
 @router.get("/downloadSize")
-async def downloadSize(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version, hashType):
+async def downloadSize(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, hashType):
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
     pathU = PathUtils(cP)
-    filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
+    filePath = pathU.getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)
     return os.path.getsize(filePath)
 
 
 @router.get("/download/{repositoryType}")
 async def download(
-    idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    depId: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Path(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
     contentType: str = Query(None, title="Content type", description="Content type", example="model, structure-factors, val-report-full"),
     contentFormat: str = Query(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
@@ -70,15 +70,15 @@ async def download(
     success = False
     tD = {}
     try:
-        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, milestone, partNumber, contentFormat, version)
+        filePath = pathU.getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)
         success = FileUtil().exists(filePath)
 
         mimeType = pathU.getMimeType(contentFormat)
         logger.info(
-            "success %r repositoryType %r idCode %r contentType %r format %r version %r fileName %r (%r)",
+            "success %r repositoryType %r depId %r contentType %r format %r version %r fileName %r (%r)",
             success,
             repositoryType,
-            idCode,
+            depId,
             contentType,
             contentFormat,
             version,
@@ -105,7 +105,7 @@ async def download(
 
 @router.get("/download-aws")
 async def downloadAws(
-    idCode: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
+    depId: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Query(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
     contentType: str = Query(None, title="Content type", description="Content type", example="model, structure-factors, val-report-full"),
     contentFormat: str = Query(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
@@ -126,7 +126,7 @@ async def downloadAws(
     pathU = PathUtils(cP)
     awsU = AwsUtils(cP)
     try:
-        filePath = pathU.getVersionedPath(repositoryType, idCode, contentType, partNumber, contentFormat, version)
+        filePath = pathU.getVersionedPath(repositoryType, depId, contentType, partNumber, contentFormat, version)
         fileExists = await awsU.checkExists(key=filePath)
         if fileExists:
             downloads3 = await awsU.download(key=filePath)

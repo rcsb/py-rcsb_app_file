@@ -97,22 +97,26 @@ class ClientUtilsTests(unittest.TestCase):
             logger.info("Starting upload of file %s", self.__testFilePath)
             # sessionId = asyncio.run(self.__cU.getSession())
             uploadIds = []
-            sliceSize = 2500
+            chunkSize = 2500
             startTime = time.time()
             responses = asyncio.run(
                 self.__cU.upload(
                     [
                         {
+                            # upload file parameters
                             "filePath": self.__testFilePath,
-                            "idCode": "D_3000000000",
-                            "repositoryType": "onedep-archive",
-                            "contentType": "model",
-                            "contentFormat": "pdbx",
-                            "partNumber": 1,
-                            "version": "9",
                             "copyMode": "native",
-                            "allowOverWrite": True,
-                            "sliceSize": sliceSize
+                            # chunk parameters
+                            "chunkSize": chunkSize,
+                            # save file parameters
+                            "repositoryType": "onedep-archive",
+                            "depId": "D_3000000000",
+                            "contentType": "model",
+                            "milestone": "release",
+                            "partNumber": 1,
+                            "contentFormat": "pdbx",
+                            "version": "9",
+                            "allowOverWrite": True
                         }
                     ]
                 )
@@ -134,7 +138,7 @@ class ClientUtilsTests(unittest.TestCase):
                 tL.append(
                     {
                         "filePath": self.__testFilePath,
-                        "idCode": "D_400000000" + str(i),
+                        "depId": "D_400000000" + str(i),
                         "repositoryType": "onedep-archive",
                         "contentType": "model",
                         "contentFormat": "pdbx",
@@ -142,7 +146,8 @@ class ClientUtilsTests(unittest.TestCase):
                         "version": "9",
                         "copyMode": "native",
                         "allowOverWrite": True,
-                        "sliceSize": sliceSize
+                        "chunkSize": chunkSize,
+                        "milestone": None
                     }
                 )
             taskL = asyncio.run(self.__cU.upload(tL))
@@ -162,7 +167,7 @@ class ClientUtilsTests(unittest.TestCase):
                     [
                         {
                             "filePath": self.__testFilePath,
-                            "idCode": "D_5000000000",
+                            "depId": "D_5000000000",
                             "repositoryType": "onedep-archive",
                             "contentType": "model",
                             "contentFormat": "pdbx",
@@ -170,7 +175,8 @@ class ClientUtilsTests(unittest.TestCase):
                             "version": "9",
                             "copyMode": "native",
                             "allowOverWrite": True,
-                            "sliceSize": sliceSize,
+                            "chunkSize": chunkSize,
+                            "milestone": None
                         }
                     ]
                 )
@@ -195,7 +201,7 @@ class ClientUtilsTests(unittest.TestCase):
                 data.append(
                     {
                         "filePath": self.__testFilePath,
-                        "idCode": "D_5000000001",
+                        "depId": "D_5000000001",
                         "repositoryType": "onedep-archive",
                         "contentType": "model",
                         "contentFormat": "pdbx",
@@ -203,7 +209,8 @@ class ClientUtilsTests(unittest.TestCase):
                         "version": "9",
                         "copyMode": "native",
                         "allowOverWrite": True,
-                        "sliceSize": sliceSize,
+                        "chunkSize": chunkSize,
+                        "milestone": None
                     }
                 )
             results = asyncio.run(self.__cU.upload(data))
@@ -226,7 +233,7 @@ class ClientUtilsTests(unittest.TestCase):
             asyncio.run(
                 self.__cU.download(
                     fileDownloadPath=self.__testFileDownloadPath,
-                    idCode="D_4000000000",
+                    depId="D_4000000000",
                     repositoryType="onedep-archive",
                     contentType="model",
                     contentFormat="pdbx",
