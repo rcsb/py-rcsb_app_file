@@ -1006,11 +1006,11 @@ class Gui(tk.Frame):
 
     def selectfile(self):
         self.file_path = askopenfilename()
-        self.fileButton.config(text='\u2705')
+        self.fileButton.config(text='\u2713')
 
     def selectfolder(self):
         self.file_path = askdirectory()
-        self.download_fileButton.config(text='\u2705')
+        self.download_fileButton.config(text='\u2713')
 
     def upload(self):
         global headerD
