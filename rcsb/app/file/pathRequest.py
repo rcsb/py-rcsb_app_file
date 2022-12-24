@@ -478,7 +478,7 @@ async def listDir(
     return ret
 
 
-@router.post("/list-dirpath", response_model=DirResult)
+@router.get("/list-dirpath", response_model=DirResult)
 async def listDirPath(
     dirPath: str = Query(title="Directory path", description="Full directory path", example="non_standard/directory/D_2000000001/"),
 ):

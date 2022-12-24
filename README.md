@@ -10,7 +10,7 @@ Download the library source software from the project repository:
 
 ```
 
-git clone --recurse-submodules https://github.com/rcsb/py-rcsb_app_file.git
+git clone https://github.com/rcsb/py-rcsb_app_file.git
 
 ```
 
@@ -29,11 +29,11 @@ tox
 Installation is via the program [pip](https://pypi.python.org/pypi/pip).
 
 ```
-pip install rcsb.app.file
+pip3 install rcsb.app.file
 
 or from the local repository directory:
 
-pip install .
+pip3 install .
 ```
 
 # Deployment on Local Server
@@ -56,7 +56,7 @@ self.kV = redis.Redis(host='localhost', decode_responses=True)
 
 ```
 
-Then, from the base directory, reinstall with pip
+Then, from the base directory, reinstall with pip3
 ```
 
 pip3 install .
@@ -113,36 +113,34 @@ Connect to sqlite and use SQL commands, then ctrl-d to exit
 ```
 
 sqlite3 path/to/kv.sqlite
+.table
+select * from sessions;
 
 ```
 
 ### Testing with Docker
 
-### Build Docker Container
-
 Set KV_MODE in rcsb/app/config/config.yml to either redis or sqlite.
 
-Download Redis image and start container
+For Redis, download Redis image and start container
 
 ```
 docker run --name redis-container -d redis
 ```
 
-Change Redis host to 'redis' in rcsb/app/file/KvRedis.py
+Then change Redis host to 'redis' in rcsb/app/file/KvRedis.py
 ```
 
 self.kV = redis.Redis(host='redis', decode_responses=True)
 
 ```
 
+### Build Docker Container
+
 In directory that contains `Dockerfile.stage`:
 ```
 
 docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fileapp -f Dockerfile.stage .
-
-or, if mounting folders, change paths in rcsb/app/config/config.yml, enable permissions on folder, then
-
-docker build --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fileapp -f Dockerfile.stage . 
 
 ```
 
@@ -151,6 +149,10 @@ docker build --mount type=bind,source=/path/to/file/system,target=/path/to/file/
 ```
 
 docker run --rm --name fileapp -p 8000:8000 --link redis-container:redis fileapp
+
+or, if mounting folders, change paths in rcsb/app/config/config.yml, enable full permissions for target folder, then
+
+docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 8000:8000 --link redis-container:redis fileapp
 
 ```
 
@@ -165,8 +167,6 @@ docker run --rm --name fileapp -p 8000:8000 --link redis-container:redis fileapp
 `--link` connects to the Redis container that was created previously
 
 Test upload and download using client.py or gui.py
-
-Edit url variables to match server url in client.py or gui.py
 
 Client.py usage
 ```
@@ -202,11 +202,24 @@ To view or remove Sqlite variables
 
 Sqlite will not save to path specified in config.yml
 
-Find kv.sqlite with find / -name kv.sqlite
+Instead, find kv.sqlite with
+```
+find / -name kv.sqlite
+```
 
 Connect to sqlite and use SQL commands, then ctrl-d to exit
 ```
 
 sqlite3 path/to/kv.sqlite
+.table
+select * from sessions;
 
 ```
+
+# Deployment on Remote Server
+
+Edit url variables to match server url in client.py or gui.py
+
+Edit paths in rcsb/app/config/config.yml
+
+For launching without docker, edit url in deploy/LAUNCH_GUNICORN.sh

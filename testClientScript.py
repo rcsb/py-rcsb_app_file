@@ -62,7 +62,7 @@ requests.post(url, data={}, headers=headerD, timeout=None)
 
 uploadIds = []
 
-# non-sliced upload
+# non-chunked upload
 
 partNumber = 1
 copyMode = "native"
@@ -73,11 +73,11 @@ allowOverWrite = True
 for version in range(1, 9):
 
     mD = {
-        "sliceIndex": 0,
-        "sliceOffset": 0,
-        "sliceTotal": 1,
+        "chunkIndex": 0,
+        "chunkOffset": 0,
+        "expectedChunks": 1,
         "uploadId": None,
-        "idCode": "D_1000000001",
+        "depId": "D_1000000001",
         "repositoryType": "onedep-archive",
         "contentType": "model",
         "contentFormat": "pdbx",
@@ -108,7 +108,7 @@ for version in range(1, 9):
 for version in range(1, 9):
 
     downloadDict = {
-        "idCode": "D_1000000001",
+        "depId": "D_1000000001",
         "repositoryType": "onedep-archive",
         "contentType": "model",
         "contentFormat": "pdbx",
@@ -117,12 +117,12 @@ for version in range(1, 9):
         "hashType": hashType,
     }
     # set file download path
-    fileName = downloadDict["idCode"] + "_" + downloadDict["version"] + ".dat"
+    fileName = downloadDict["depId"] + "_" + downloadDict["version"] + ".dat"
     downloadFilePath = os.path.join(
-        ".", "test-output", downloadDict["idCode"], fileName
+        ".", "test-output", downloadDict["depId"], fileName
     )
-    downloadDirPath = os.path.join(".", "test-output", downloadDict["idCode"])
-    downloadName = downloadDict["idCode"] + "_" + "v" + downloadDict["version"]
+    downloadDirPath = os.path.join(".", "test-output", downloadDict["depId"])
+    downloadName = downloadDict["depId"] + "_" + "v" + downloadDict["version"]
     FileUtil().mkdir(downloadDirPath)
 
     url = os.path.join(base_url, "file-v1", "download", "onedep-archive")
@@ -135,7 +135,7 @@ for version in range(1, 9):
 
     print("Download status code:", response.status_code)
 
-# sliced upload
+# chunked upload
 
 url = os.path.join(base_url, "file-v2", "upload")
 
@@ -146,25 +146,25 @@ hashType = "MD5"
 hD = CryptUtils().getFileHash(filePath, hashType=hashType)
 fullTestHash = hD["hashDigest"]
 
-slices = 4  # make dynamic
+chunks = 4  # make dynamic
 file_size = os.path.getsize(filePath)
-sliceIndex = 0
-slice_size = file_size // slices
-sliceTotal = 0
-if slice_size < file_size:
-    sliceTotal = file_size // slice_size
-    if file_size % slice_size:
-        sliceTotal = sliceTotal + 1
+chunkIndex = 0
+chunk_size = file_size // chunks
+expectedChunks = 0
+if chunk_size < file_size:
+    expectedChunks = file_size // chunk_size
+    if file_size % chunk_size:
+        expectedChunks = expectedChunks + 1
 else:
-    sliceTotal = 1
-sliceOffset = 0
+    expectedChunks = 1
+chunkOffset = 0
 
 mD = {
-    "sliceIndex": sliceIndex,
-    "sliceOffset": sliceOffset,
-    "sliceTotal": sliceTotal,
+    "chunkIndex": chunkIndex,
+    "chunkOffset": chunkOffset,
+    "expectedChunks": expectedChunks,
     "uploadId": None,
-    "idCode": "D_1000000001",
+    "depId": "D_1000000001",
     "repositoryType": "onedep-archive",
     "contentType": "model",
     "contentFormat": "pdbx",
@@ -179,10 +179,10 @@ mD = {
 tmp = io.BytesIO()
 response = None
 with open(filePath, "rb") as to_upload:
-    for i in range(0, mD["sliceTotal"]):
+    for i in range(0, mD["expectedChunks"]):
         packet_size = min(
-            file_size - (mD["sliceIndex"] * slice_size),
-            slice_size,
+            file_size - (mD["chunkIndex"] * chunk_size),
+            chunk_size,
         )
         tmp.truncate(packet_size)
         tmp.seek(0)
@@ -202,13 +202,13 @@ with open(filePath, "rb") as to_upload:
             )
             break
         print(f"chunk {i} upload result {response.text}")
-        mD["sliceIndex"] += 1
-        mD["sliceOffset"] = mD["sliceIndex"] * slice_size
+        mD["chunkIndex"] += 1
+        mD["chunkOffset"] = mD["chunkIndex"] * chunk_size
         # mD["uploadId"] = json.loads(response.text)["uploadId"]
     text = json.loads(response.text)
     uploadIds.append(text["uploadId"])
 
-# multifile sliced upload
+# multifile chunkd upload
 
 url = os.path.join(base_url, "file-v2", "upload")
 
@@ -223,29 +223,29 @@ def asyncUpload(filePath):
     part += 1
     partNumber = part
     version = 1
-    allowOverWrite = True
+    allowOverrite = True
     hashType = "MD5"
     hD = CryptUtils().getFileHash(filePath, hashType=hashType)
     fullTestHash = hD["hashDigest"]
-    slices = 4  # make dynamic
+    chunks = 4  # make dynamic
     file_size = os.path.getsize(filePath)
-    sliceIndex = 0
-    slice_size = file_size // slices
-    sliceTotal = 0
-    if slice_size < file_size:
-        sliceTotal = file_size // slice_size
-        if file_size % slice_size:
-            sliceTotal = sliceTotal + 1
+    chunkIndex = 0
+    chunk_size = file_size // chunks
+    expectedChunks = 0
+    if chunk_size < file_size:
+        expectedChunks = file_size // chunk_size
+        if file_size % chunk_size:
+            expectedChunks = expectedChunks + 1
     else:
-        sliceTotal = 1
-    sliceOffset = 0
+        expectedChunks = 1
+    chunkOffset = 0
     # sessionId = uuid.uuid4().hex
     mD = {
-        "sliceIndex": sliceIndex,
-        "sliceOffset": sliceOffset,
-        "sliceTotal": sliceTotal,
+        "chunkIndex": chunkIndex,
+        "chunkOffset": chunkOffset,
+        "expectedChunks": expectedChunks,
         "uploadId": None,
-        "idCode": "D_00000000",
+        "depId": "D_00000000",
         "repositoryType": "onedep-archive",
         "contentType": "model",
         "contentFormat": "pdbx",
@@ -259,10 +259,10 @@ def asyncUpload(filePath):
     responses = []
     tmp = io.BytesIO()
     with open(filePath, "rb") as to_upload:
-        for i in range(0, mD["sliceTotal"]):
+        for i in range(0, mD["expectedChunks"]):
             packet_size = min(
-                file_size - (mD["sliceIndex"] * slice_size),
-                slice_size,
+                file_size - (mD["chunkIndex"] * chunk_size),
+                chunk_size,
             )
             tmp.truncate(packet_size)
             tmp.seek(0)
@@ -281,8 +281,8 @@ def asyncUpload(filePath):
                 )
                 break
             responses.append(response)
-            mD["sliceIndex"] += 1
-            mD["sliceOffset"] = mD["sliceIndex"] * slice_size
+            mD["chunkIndex"] += 1
+            mD["chunkOffset"] = mD["chunkIndex"] * chunk_size
             text = json.loads(response.text)
             # mD["uploadId"] = text["uploadId"]
     return responses
@@ -294,7 +294,7 @@ with ThreadPoolExecutor(max_workers=10) as executor:
     results = []
     for future in concurrent.futures.as_completed(futures):
         results.append(future.result())
-    print("multi-file sliced upload result")
+    print("multi-file chunked upload result")
     for result in results:
         print([response.text for response in result])
         for response in result:

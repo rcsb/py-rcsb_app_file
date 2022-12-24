@@ -21,7 +21,7 @@ from rcsb.app.file.IoUtils import IoUtils
 
 """ modifiable variables
 """
-base_url = "http://128.6.159.152:8000"
+base_url = "http://0.0.0.0:8000"
 maxChunkSize = 1024 * 1024 * 8
 
 """ test configuration variables

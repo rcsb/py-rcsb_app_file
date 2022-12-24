@@ -33,7 +33,8 @@ TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 # os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "tests-file", "test-data", "config", "config.yml"))
 # Use custom cache and config path for this set of tests
 os.environ["CACHE_PATH"] = os.path.join(HERE, "test-output")
-os.environ["CONFIG_FILE"] = os.path.join(TOPDIR, "rcsb", "app", "tests-file", "test-data", "config", "config.yml")
+os.environ["CONFIG_FILE"] = os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml")
+# os.environ["CONFIG_FILE"] = os.path.join(TOPDIR, "rcsb", "app", "tests-file", "test-data", "config", "config.yml")
 
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
@@ -318,14 +319,14 @@ class PathRequestTests(unittest.TestCase):
                 "contentTypeSource": "model",
                 "contentFormatSource": "pdbx",
                 "partNumberSource": 2,
-                "versionSource": 1,
+                "versionSource": 2,
                 #
                 "depIdTarget": "D_3000000001",
                 "repositoryTypeTarget": "onedep-archive",
                 "contentTypeTarget": "model",
                 "contentFormatTarget": "pdbx",
                 "partNumberTarget": 2,
-                "versionTarget": 1,
+                "versionTarget": 2,
             }
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
