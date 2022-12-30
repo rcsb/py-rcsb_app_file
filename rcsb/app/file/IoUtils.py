@@ -163,7 +163,7 @@ class IoUtils:
         if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
             return {"success": False, "statusCode": 405, "statusMessage": "Bad content type and/or format - upload rejected"}
 
-        if fileName and mimeType:
+        if fileName and mimeType and not copyMode == "gzip_decompress":
             if fileName.endswith(".gz") or mimeType == "application/gzip":
                 copyMode = "gzip_decompress"
 
@@ -184,8 +184,6 @@ class IoUtils:
                 uploadId = await self.getResumedUpload(repositoryType=repositoryType, depId=depId, contentType=contentType, milestone=milestone, partNumber=partNumber, contentFormat=contentFormat, version=version, hashDigest=hashDigest)
                 if not uploadId:
                     uploadId = await self.getNewUploadId()
-                else:
-                    pass
         # versioned path already found, so don't find again
         logKey = self.getPremadeLogKey(repositoryType, outPath)
 
@@ -201,24 +199,25 @@ class IoUtils:
             self.__kV.setSession(key, "expectedCount", expectedChunks)
             self.__kV.setLog(logKey, uploadId)
             chunksSaved = "0" * expectedChunks
-            self.__kV.setSession(key, "chunksSaved", chunksSaved)
+            if chunkMode == 'async':
+                self.__kV.setSession(key, "chunksSaved", chunksSaved)
             self.__kV.setSession(key, "timestamp", int(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))))
             self.__kV.setSession(key, "hashDigest", hashDigest)
-        chunksSaved = self.__kV.getSession(key, "chunksSaved")
-        chunksSaved = list(chunksSaved)
-
-        # do nothing if already have that chunk
-        if chunksSaved[chunkIndex] == "1":
-            return {"success": True, "statusCode": 200, "uploadId": uploadId, "statusMessage": f"Error - redundant chunk {chunkIndex} of {expectedChunks} for id {uploadId} is less than {currentCount}"}
-        # otherwise mark as saved
-        chunksSaved[chunkIndex] = "1"  # currentCount
-        chunksSaved = "".join(chunksSaved)
-        self.__kV.setSession(key, "chunksSaved", chunksSaved)
+        if chunkMode == 'async':
+            chunksSaved = self.__kV.getSession(key, "chunksSaved")
+            chunksSaved = list(chunksSaved)
+            # do nothing if already have that chunk
+            if chunksSaved[chunkIndex] == "1":
+                return {"success": True, "statusCode": 200, "uploadId": uploadId, "statusMessage": f"Error - redundant chunk {chunkIndex} of {expectedChunks} for id {uploadId} is less than {currentCount}"}
+            # otherwise mark as saved
+            chunksSaved[chunkIndex] = "1"  # currentCount
+            chunksSaved = "".join(chunksSaved)
+            self.__kV.setSession(key, "chunksSaved", chunksSaved)
 
         ret = None
-        if chunkMode in ["sequential", "in-place", "synchronous"]:
+        if chunkMode == 'sequential':
             ret = await self.sequentialUpload(ifh, outPath, chunkIndex, chunkOffset, expectedChunks, uploadId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest, logKey=logKey)
-        elif chunkMode in ["parallel", "async", "asynchronous"]:
+        elif chunkMode == 'async':
             ret = await self.asyncUpload(ifh, outPath, chunkIndex, chunkOffset, expectedChunks, uploadId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest, logKey=logKey)
         else:
             return {"success": False, "statusCode": 405,

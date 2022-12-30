@@ -4,6 +4,7 @@ from tkinter.filedialog import askopenfilename, askdirectory
 import sys
 import os
 import io
+import gzip
 from copy import deepcopy
 from PIL import ImageTk, Image
 import math
@@ -835,6 +836,7 @@ class Gui(tk.Frame):
         self.file_format = tk.StringVar(master)
         self.version_number = tk.StringVar(master)
         self.allow_overwrite = tk.IntVar(master)
+        self.compress = tk.IntVar(master)
         self.upload_status = tk.StringVar(master)
         self.upload_status.set('0%')
         self.file_path = None
@@ -846,6 +848,9 @@ class Gui(tk.Frame):
 
         self.allowCheckbox = ttk.Checkbutton(self.uploadTab, text="allow overwrite", variable=self.allow_overwrite)
         self.allowCheckbox.pack()
+
+        self.compressCheckbox = ttk.Checkbutton(self.uploadTab, text="compress", variable=self.compress)
+        self.compressCheckbox.pack()
 
         self.repoTypeLabel = ttk.Label(self.uploadTab, text="REPOSITORY TYPE")
         self.repoTypeLabel.pack()
@@ -985,11 +990,6 @@ class Gui(tk.Frame):
         self.list_repo_type = tk.StringVar(master)
         self.list_dep_id = tk.StringVar(master)
 
-        self.list_depIdLabel = ttk.Label(self.listTab, text="DEPOSIT ID")
-        self.list_depIdLabel.pack()
-        self.list_depIdEntry = ttk.Entry(self.listTab, textvariable=self.list_dep_id)
-        self.list_depIdEntry.pack()
-
         self.list_repoTypeLabel = ttk.Label(self.listTab, text="REPOSITORY TYPE")
         self.list_repoTypeLabel.pack()
         self.list_repoTypeListbox = ttk.Combobox(self.listTab, exportselection=0, textvariable=self.list_repo_type)
@@ -997,6 +997,11 @@ class Gui(tk.Frame):
         self.list_repoTypeListbox['values'] = repoTypeList
         # self.list_repoTypeListbox['values'] = ('deposit', 'archive', 'workflow', 'session')
         self.list_repoTypeListbox.current()
+
+        self.list_depIdLabel = ttk.Label(self.listTab, text="DEPOSIT ID")
+        self.list_depIdLabel.pack()
+        self.list_depIdEntry = ttk.Entry(self.listTab, textvariable=self.list_dep_id)
+        self.list_depIdEntry.pack()
 
         self.listButton = ttk.Button(self.listTab, text='submit', command=self.listDir)
         self.listButton.pack()
@@ -1018,9 +1023,10 @@ class Gui(tk.Frame):
         global SLEEP
         global maxChunkSize
         global minChunkSize
-        t1 = time.time()
+        t1 = time.perf_counter()
         filePath = self.file_path
         allowOverwrite = self.allow_overwrite.get() == 1
+        COMPRESS = self.compress.get() == 1
         repositoryType = self.repo_type.get()
         # repositoryType = self.repoTypeListbox.get(self.repoTypeListbox.curselection()[0])
         depId = self.dep_id.get()
@@ -1057,12 +1063,15 @@ class Gui(tk.Frame):
         chunkIndex = 0
         chunkOffset = 0
         chunkMode = "sequential"
+        copyMode = "native"
+        if COMPRESS:
+            copyMode = "gzip_decompress"
         mD = {
             # upload file parameters
             "filePath": filePath,
             "uploadId": None,
             "fileSize": fileSize,
-            "copyMode": "native",
+            "copyMode": copyMode,
             "hashType": hashType,
             "hashDigest": fullTestHash,
             # chunk parameters
@@ -1126,7 +1135,10 @@ class Gui(tk.Frame):
                 )
                 tmp.truncate(packet_size)
                 tmp.seek(0)
-                tmp.write(to_upload.read(packet_size))
+                if COMPRESS:
+                    tmp.write(gzip.compress(to_upload.read(packet_size)))
+                else:
+                    tmp.write(to_upload.read(packet_size))
                 tmp.seek(0)
                 response = requests.post(
                     url,
@@ -1149,7 +1161,7 @@ class Gui(tk.Frame):
                 self.upload_status.set(f'{self.status}%')
                 self.master.update()
         print(responses)
-        print(f'time {time.time() - t1} s')
+        print(f'time {time.perf_counter() - t1} s')
 
     def download(self):
         global headerD
@@ -1157,7 +1169,7 @@ class Gui(tk.Frame):
         global SLEEP
         global maxChunkSize
         global minChunkSize
-        t1 = time.time()
+        t1 = time.perf_counter()
         allowOverwrite = self.download_allow_overwrite.get() == 1
         repositoryType = self.download_repo_type.get()
         depId = self.download_dep_id.get()
@@ -1233,16 +1245,16 @@ class Gui(tk.Frame):
                 print('error - hash comparison failed')
                 sys.exit()
         print(f'response {responseCode}')
-        print(f'time {time.time() - t1} s')
+        print(f'time {time.perf_counter() - t1} s')
 
     def listDir(self):
-        t1 = time.time()
+        t1 = time.perf_counter()
         self.list_Listbox.delete(0, tk.END)
         depId = self.list_dep_id.get()
         repoType = self.list_repo_type.get()
         parameters = {
-            "depId": depId,
-            "repositoryType": repoType
+            "repositoryType": repoType,
+            "depId": depId
         }
         if not depId or not repoType:
             print('error - missing values')
@@ -1265,7 +1277,7 @@ class Gui(tk.Frame):
                 print(f'\t{fi}')
                 self.list_Listbox.insert(index, fi)
                 index += 1
-        print(f'time {time.time() - t1} s')
+        print(f'time {time.perf_counter() - t1} s')
 
 if __name__=='__main__':
     root = tk.Tk()

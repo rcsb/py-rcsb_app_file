@@ -13,8 +13,6 @@ import os
 import re
 from enum import Enum
 from typing import Optional
-import json
-import pydantic
 from fastapi import APIRouter, Path, Query
 from fastapi import Depends
 from fastapi import File
@@ -26,6 +24,8 @@ from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
+import json
+import pydantic
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.utils.io.FileLock import FileLock
 from rcsb.app.file.pathRequest import latestFileVersion

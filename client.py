@@ -48,6 +48,7 @@ headerD = {
     + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)
 }
 hashType = "MD5"
+COMPRESS = False
 
 uploadIds = []
 uploadResults = []
@@ -65,6 +66,7 @@ def upload(mD):
     global headerD
     global ioU
     global SLEEP
+    global COMPRESS
 
     responses = []
     # test for resumed upload
@@ -111,7 +113,10 @@ def upload(mD):
             )
             tmp.truncate(packet_size)
             tmp.seek(0)
-            tmp.write(to_upload.read(packet_size))
+            if COMPRESS:
+                tmp.write(gzip.compress(to_upload.read(packet_size)))
+            else:
+                tmp.write(to_upload.read(packet_size))
             tmp.seek(0)
             response = requests.post(
                 url,
@@ -272,7 +277,7 @@ def description():
 
 
 if __name__ == "__main__":
-    t1 = time.time()
+    t1 = time.perf_counter()
     if len(sys.argv) <= 1:
         description()
         sys.exit('error - please run with -h for instructions')
@@ -283,9 +288,10 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--download', nargs=8, action='append',
                         metavar=('file-path', 'repo-type', 'dep-id', 'content-type', 'milestone', 'part-number', 'content-format', 'version'),
                         help='***** multiple downloads allowed *****')
-    parser.add_argument('-l', '--list', nargs=2, metavar=('dep-id', 'repository-type'), help='***** list contents of requested directory *****')
+    parser.add_argument('-l', '--list', nargs=2, metavar=('repository-type', 'dep-id'), help='***** list contents of requested directory *****')
     parser.add_argument('-p', '--parallel', action='store_true', help='***** upload parallel chunks *****')
-    parser.add_argument('-c', '--compress', nargs=2, help='***** compress with gzip and output new file *****', metavar=('read-path', 'new-name'))
+    parser.add_argument('-c', '--compress', action='store_true', help='***** compress files or chunks prior to upload')
+    # parser.add_argument('-c', '--compress', nargs=2, help='***** compress with gzip and output new file *****', metavar=('read-path', 'new-name'))
     parser.add_argument('-t', '--test', action='store_true',
                         help='***** slow motion mode for testing with small files (sequential chunks only) ******')
     args = parser.parse_args()
@@ -298,16 +304,17 @@ if __name__ == "__main__":
     if args.upload or args.download or args.compress:
         description()
     if args.compress:
-        arglist = args.compress
-        if len(arglist) < 2:
-            sys.exit(f'wrong number of args to compress {len(arglist)}')
-        filePath = arglist[0]
-        newName = arglist[1]
-        if not newName.endswith(".gz"):
-            newName += ".gz"
-        with open(filePath, "rb") as r:
-            with open(newName, "wb") as w:
-                w.write(gzip.compress(r.read()))
+        COMPRESS = True
+        # arglist = args.compress
+        # if len(arglist) < 2:
+        #     sys.exit(f'wrong number of args to compress {len(arglist)}')
+        # filePath = arglist[0]
+        # newName = arglist[1]
+        # if not newName.endswith(".gz"):
+        #     newName += ".gz"
+        # with open(filePath, "rb") as r:
+        #     with open(newName, "wb") as w:
+        #         w.write(gzip.compress(r.read()))
     if args.upload:
         for arglist in args.upload:
             if len(arglist) < 9:
@@ -340,7 +347,10 @@ if __name__ == "__main__":
             chunkOffset = 0
             chunkMode = "sequential"
             if args.parallel:
-                chunkMode = "parallel"
+                chunkMode = "async"
+            copyMode = "native"
+            if COMPRESS:
+                copyMode = "gzip_decompress"
             # url = os.path.join(base_url, "file-v2", "getNewUploadId")
             # response = requests.get(url, headers=headerD, timeout=None)
             # uploadId = json.loads(response.text)
@@ -354,7 +364,7 @@ if __name__ == "__main__":
                         "fileSize": fileSize,
                         "hashType": hashType,
                         "hashDigest": fullTestHash,
-                        "copyMode": "native", # whether file is a zip file
+                        "copyMode": copyMode, # whether file is a zip file
                         # chunk parameters
                         "chunkSize": chunkSize,
                         "chunkIndex": chunkIndex,
@@ -398,10 +408,10 @@ if __name__ == "__main__":
             }
             downloads.append((downloadFilePath, downloadDict))
     if len(uploads) > 0:
-        if uploads[0]["chunkMode"] in ["parallel", "async", "asynchronous"]:
+        if uploads[0]["chunkMode"] == "async":
             # upload concurrent files concurrent chunks
             uploadResults = asyncio.run(asyncFiles(uploads))
-        elif uploads[0]["chunkMode"] in ["sequential", "in-place", "synchronous"]:
+        elif uploads[0]["chunkMode"] == "sequential":
             # upload concurrent files sequential chunks
             with ThreadPoolExecutor(max_workers=10) as executor:
                 futures = {executor.submit(upload, u): u for u in uploads}
@@ -432,8 +442,8 @@ if __name__ == "__main__":
         arglist = args.list
         if not len(arglist) == 2:
             sys.exit('error - list takes two args')
-        depId = arglist[0]
-        repoType = arglist[1]
+        repoType = arglist[0]
+        depId = arglist[1]
         parameters = {
             "depId": depId,
             "repositoryType": repoType
@@ -451,6 +461,6 @@ if __name__ == "__main__":
                     dirList = resp["dirList"]
         print(f'response {responseCode}')
         if responseCode == 200:
-            for fi in dirList:
+            for fi in sorted(dirList):
                 print(f'\t{fi}')
-    print("time %.2f seconds" % (time.time() - t1))
+    print("time %.2f seconds" % (time.perf_counter() - t1))

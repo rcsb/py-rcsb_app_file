@@ -438,8 +438,8 @@ async def moveFilePath(
 
 @router.get("/list-dir", response_model=DirResult)
 async def listDir(
-    depId: str = Query(title="ID Code", description="Identifier code", example="D_0000000001"),
     repositoryType: str = Query(title="Repository Type", description="OneDep repository type", example="onedep-archive, onedep-deposit"),
+    depId: str = Query(title="ID Code", description="Identifier code", example="D_0000000001")
 ):
     """List files in directory of requested depId and repositoryType (using standard input paramaters).
     """
