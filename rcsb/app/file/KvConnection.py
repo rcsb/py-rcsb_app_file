@@ -33,7 +33,7 @@ class KvConnection:
                 )
         except Exception:
             pass
-            # logging.warning(f'warning in Kv get, {type(exc)} {exc}')
+            # logging.warning(f"warning in Kv get, {type(exc)} {exc}")
         return res
 
     def set(self, key, val, table):

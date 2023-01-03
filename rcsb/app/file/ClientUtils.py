@@ -27,7 +27,7 @@ from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 import httpx
 import requests
-import json
+# import json
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -88,7 +88,6 @@ class ClientUtils:
         for _d in data:
             tasks.append(self.uploadFile(**_d))
         return await asyncio.gather(*tasks)
-
 
     async def uploadv3(self, data: list):
         # has slight problem with return values
@@ -284,8 +283,8 @@ class ClientUtils:
         except Exception as e:
             logger.exception("Failing with %s", str(e))
 
-    async def getNewUploadId(self):#, repositoryType, depId, contentType, partNumber, contentFormat, version):
-        return await self.__ioU.getNewUploadId()#repositoryType, depId, contentType, partNumber, contentFormat, version)
+    async def getNewUploadId(self):  # , repositoryType, depId, contentType, partNumber, contentFormat, version):
+        return await self.__ioU.getNewUploadId()  # repositoryType, depId, contentType, partNumber, contentFormat, version)
 
     async def clearUploadId(self, uid):
         url = os.path.join(self.__hostAndPort, "file-v2", "clearUploadId")
@@ -308,3 +307,7 @@ class ClientUtils:
     async def clearKv(self):
         url = os.path.join(self.__hostAndPort, "file-v2", "clearKv")
         response = requests.post(url, data={}, headers=self.__headerD, timeout=None)
+        if response.status_code != 200:
+            logging.warning("error - could not clear Kv")
+            return False
+        return True

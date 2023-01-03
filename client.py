@@ -239,7 +239,7 @@ def download(downloadFilePath, downloadDict):
     url = os.path.join(base_url, "file-v1", "downloadSize")
     fileSize = requests.get(url, params=downloadDict, headers=headerD, timeout=None).text
     if not fileSize.isnumeric():
-        print(f'error - no response for {downloadDict}')
+        print(f"error - no response for {downloadDict}")
         return None
     fileSize = int(fileSize)
     chunkSize = maxChunkSize
@@ -256,7 +256,7 @@ def download(downloadFilePath, downloadDict):
             for chunk in tqdm(response.iter_content(chunk_size=chunkSize), leave=False, total=chunks, desc=os.path.basename(downloadFilePath)):
                 if chunk:
                     ofh.write(chunk)
-                # print(f'wrote chunk {count} of {chunks} of size {chunkSize} for {downloadFilePath}')
+                # print(f"wrote chunk {count} of {chunks} of size {chunkSize} for {downloadFilePath}")
                 count += 1
                 if SLEEP:
                     time.sleep(1)
@@ -265,7 +265,7 @@ def download(downloadFilePath, downloadDict):
         rspHashDigest = response.headers["rcsb_hexdigest"]
         thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
         if not thD["hashDigest"] == rspHashDigest:
-            print('error - hash comparison failed')
+            print("error - hash comparison failed")
             sys.exit()
     return responseCode
 
@@ -280,20 +280,20 @@ if __name__ == "__main__":
     t1 = time.perf_counter()
     if len(sys.argv) <= 1:
         description()
-        sys.exit('error - please run with -h for instructions')
+        sys.exit("error - please run with -h for instructions")
     parser = argparse.ArgumentParser(description=signature, formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('-u', '--upload', nargs=9, action='append',
-                        metavar=('file-path', 'repo-type', 'dep-id', 'content-type', 'milestone', 'part-number', 'content-format', 'version', 'allow-overwrite'),
-                        help='***** multiple uploads allowed *****')
-    parser.add_argument('-d', '--download', nargs=8, action='append',
-                        metavar=('file-path', 'repo-type', 'dep-id', 'content-type', 'milestone', 'part-number', 'content-format', 'version'),
-                        help='***** multiple downloads allowed *****')
-    parser.add_argument('-l', '--list', nargs=2, metavar=('repository-type', 'dep-id'), help='***** list contents of requested directory *****')
-    parser.add_argument('-p', '--parallel', action='store_true', help='***** upload parallel chunks *****')
-    parser.add_argument('-c', '--compress', action='store_true', help='***** compress files or chunks prior to upload')
-    # parser.add_argument('-c', '--compress', nargs=2, help='***** compress with gzip and output new file *****', metavar=('read-path', 'new-name'))
-    parser.add_argument('-t', '--test', action='store_true',
-                        help='***** slow motion mode for testing with small files (sequential chunks only) ******')
+    parser.add_argument("-u", "--upload", nargs=9, action="append",
+                        metavar=("file-path", "repo-type", "dep-id", "content-type", "milestone", "part-number", "content-format", "version", "allow-overwrite"),
+                        help="***** multiple uploads allowed *****")
+    parser.add_argument("-d", "--download", nargs=8, action="append",
+                        metavar=("file-path", "repo-type", "dep-id", "content-type", "milestone", "part-number", "content-format", "version"),
+                        help="***** multiple downloads allowed *****")
+    parser.add_argument("-l", "--list", nargs=2, metavar=("repository-type", "dep-id"), help="***** list contents of requested directory *****")
+    parser.add_argument("-p", "--parallel", action="store_true", help="***** upload parallel chunks *****")
+    parser.add_argument("-c", "--compress", action="store_true", help="***** compress files or chunks prior to upload")
+    # parser.add_argument("-c", "--compress", nargs=2, help="***** compress with gzip and output new file *****", metavar=("read-path", "new-name"))
+    parser.add_argument("-t", "--test", action="store_true",
+                        help="***** slow motion mode for testing with small files (sequential chunks only) ******")
     args = parser.parse_args()
     if args.test:
         SLEEP = True
@@ -307,7 +307,7 @@ if __name__ == "__main__":
         COMPRESS = True
         # arglist = args.compress
         # if len(arglist) < 2:
-        #     sys.exit(f'wrong number of args to compress {len(arglist)}')
+        #     sys.exit(f"wrong number of args to compress {len(arglist)}")
         # filePath = arglist[0]
         # newName = arglist[1]
         # if not newName.endswith(".gz"):
@@ -318,10 +318,10 @@ if __name__ == "__main__":
     if args.upload:
         for arglist in args.upload:
             if len(arglist) < 9:
-                sys.exit(f'error - wrong number of args to upload: {len(arglist)}')
+                sys.exit(f"error - wrong number of args to upload: {len(arglist)}")
             filePath = arglist[0]
             if not os.path.exists(filePath):
-                sys.exit(f'error - file does not exist: {filePath}')
+                sys.exit(f"error - file does not exist: {filePath}")
             repositoryType = arglist[1]
             depId = arglist[2]
             contentType = arglist[3]
@@ -355,7 +355,7 @@ if __name__ == "__main__":
             # response = requests.get(url, headers=headerD, timeout=None)
             # uploadId = json.loads(response.text)
             # if not uploadId:
-            #     sys.exit('error - could not get new upload id')
+            #     sys.exit("error - could not get new upload id")
             uploads.append(
                     {
                         # upload file parameters
@@ -385,7 +385,7 @@ if __name__ == "__main__":
     if args.download:
         for arglist in args.download:
             if len(arglist) < 8:
-                sys.exit(f'error - wrong number of args to download {len(arglist)}')
+                sys.exit(f"error - wrong number of args to download {len(arglist)}")
             downloadFilePath = arglist[0]
             repositoryType = arglist[1]
             depId = arglist[2]
@@ -435,13 +435,13 @@ if __name__ == "__main__":
             for status_code in results:
                 downloadResults.append(status_code)
     if len(uploadResults) > 0:
-        print(f'upload results {uploadResults}')
+        print(f"upload results {uploadResults}")
     if len(downloadResults) > 0:
-        print(f'download results {downloadResults}')
+        print(f"download results {downloadResults}")
     if args.list:
         arglist = args.list
         if not len(arglist) == 2:
-            sys.exit('error - list takes two args')
+            sys.exit("error - list takes two args")
         repoType = arglist[0]
         depId = arglist[1]
         parameters = {
@@ -459,8 +459,8 @@ if __name__ == "__main__":
                     if not isinstance(resp, dict):
                         resp = json.loads(resp)
                     dirList = resp["dirList"]
-        print(f'response {responseCode}')
+        print(f"response {responseCode}")
         if responseCode == 200:
             for fi in sorted(dirList):
-                print(f'\t{fi}')
+                print(f"\t{fi}")
     print("time %.2f seconds" % (time.perf_counter() - t1))

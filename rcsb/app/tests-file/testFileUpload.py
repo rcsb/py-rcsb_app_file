@@ -21,14 +21,14 @@ __author__ = "John Westbrook"
 __email__ = "jwest@rcsb.rutgers.edu"
 __license__ = "Apache 2.0"
 
-import asyncio
+# import asyncio
 import logging
 import os
 import platform
 import resource
 import time
 import unittest
-import uuid
+# import uuid
 
 # pylint: disable=wrong-import-position
 # This environment must be set before main.app is imported

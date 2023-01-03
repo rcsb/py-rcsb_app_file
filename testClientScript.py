@@ -303,7 +303,7 @@ with ThreadPoolExecutor(max_workers=10) as executor:
 
 
 # for id in uploadIds:
-#     print(f'clearing upload id {id}')
+#     print(f"clearing upload id {id}")
 # ioU = IoUtils(cP)
 # url = os.path.join(base_url, "file-v2", "clearSession")
 # response = requests.post(url, data={"uploadIds": uploadIds}, headers=headerD, timeout=None)

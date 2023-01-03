@@ -3,11 +3,12 @@ import typing
 import logging
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
+
 class KvRedis:
     def __init__(self, cP: typing.Type[ConfigProvider]):
         self.kV = None
         self.__cP = cP
-        self.duration = self.__cP.get('KV_MAX_SECONDS')
+        self.duration = self.__cP.get("KV_MAX_SECONDS")
         # fix mount point
         # self.filePath = self.__cP.get("KV_FILE_PATH")
         self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
@@ -15,10 +16,10 @@ class KvRedis:
         # create database if not exists
         # create table if not exists
         try:
-            self.kV = redis.Redis(host='localhost', decode_responses=True)
+            self.kV = redis.Redis(host="localhost", decode_responses=True)
         except Exception as exc:
             # already exists
-            logging.warning(f'exception in KvRedis: {type(exc)} {exc}')
+            logging.warning(f"exception in KvRedis: {type(exc)} {exc}")
             pass
         if self.kV is None:
             raise Exception("error in KvRedis - no database")

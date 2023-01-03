@@ -41,6 +41,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.propagate = False
 
+
 def wrapAsync(fnc: typing.Callable) -> typing.Awaitable:
     @functools.wraps(fnc)
     def wrap(*args, **kwargs):
@@ -74,9 +75,9 @@ class IoUtils:
 
     def __init__(self, cP: typing.Type[ConfigProvider]):
         self.__cP = cP
-        if self.__cP.get('KV_MODE') == 'sqlite':
+        if self.__cP.get("KV_MODE") == "sqlite":
             self.__kV = KvSqlite(self.__cP)
-        elif self.__cP.get('KV_MODE') == 'redis':
+        elif self.__cP.get("KV_MODE") == "redis":
             self.__kV = KvRedis(self.__cP)
         self.__pathU = PathUtils(self.__cP)
         self.__makedirs = wrapAsync(os.makedirs)
@@ -153,7 +154,8 @@ class IoUtils:
     ) -> typing.Dict:
 
         # logger.warning(
-        #     "repositoryType %r depId %r contentType %r partNumber %r contentFormat %r version %r copyMode %r", repositoryType, depId, contentType, partNumber, contentFormat, version, copyMode
+        #     "repositoryType %r depId %r contentType %r partNumber %r contentFormat %r version %r copyMode %r",
+        #     repositoryType, depId, contentType, partNumber, contentFormat, version, copyMode
         # )
         # logger.warning(
         #     "chunk index %s chunk offset %s chunk total %s upload id %s", chunkIndex, chunkOffset, expectedChunks, uploadId
@@ -171,7 +173,15 @@ class IoUtils:
         outPath = None
         lockPath = self.__pathU.getFileLockPath(depId, contentType, milestone, partNumber, contentFormat)
         with FileLock(lockPath):
-            outPath = self.__pathU.getVersionedPath(repositoryType=repositoryType, depId=depId, contentType=contentType, milestone=milestone, partNumber=partNumber, contentFormat=contentFormat, version=version)
+            outPath = self.__pathU.getVersionedPath(
+                repositoryType=repositoryType,
+                depId=depId,
+                contentType=contentType,
+                milestone=milestone,
+                partNumber=partNumber,
+                contentFormat=contentFormat,
+                version=version
+            )
             if not outPath:
                 return {"success": False, "statusCode": 405, "statusMessage": "Bad content type metadata - cannot build a valid path"}
             if os.path.exists(outPath) and not allowOverWrite:
@@ -181,7 +191,15 @@ class IoUtils:
             # if find resumed upload then set uid = previous uid, otherwise new uid
             # lock so that even for concurrent chunks the first chunk will write an upload id that subsequent chunks will use
             if uploadId is None:
-                uploadId = await self.getResumedUpload(repositoryType=repositoryType, depId=depId, contentType=contentType, milestone=milestone, partNumber=partNumber, contentFormat=contentFormat, version=version, hashDigest=hashDigest)
+                uploadId = await self.getResumedUpload(
+                    repositoryType=repositoryType,
+                    depId=depId, contentType=contentType,
+                    milestone=milestone,
+                    partNumber=partNumber,
+                    contentFormat=contentFormat,
+                    version=version,
+                    hashDigest=hashDigest
+                )
                 if not uploadId:
                     uploadId = await self.getNewUploadId()
         # versioned path already found, so don't find again
@@ -192,33 +210,66 @@ class IoUtils:
         key = uploadId
         val = "uploadCount"
         # initializes to zero
-        currentCount = int(self.__kV.getSession(key, val)) # for sequential chunks, current index = current count
+        currentCount = int(self.__kV.getSession(key, val))  # for sequential chunks, current index = current count
 
         # on first chunk upload, set expected count, record uid in log table
         if currentCount == 0:  # for async, use kv uploadCount rather than parameter chunkIndex == 0:
             self.__kV.setSession(key, "expectedCount", expectedChunks)
             self.__kV.setLog(logKey, uploadId)
             chunksSaved = "0" * expectedChunks
-            if chunkMode == 'async':
+            if chunkMode == "async":
                 self.__kV.setSession(key, "chunksSaved", chunksSaved)
             self.__kV.setSession(key, "timestamp", int(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))))
             self.__kV.setSession(key, "hashDigest", hashDigest)
-        if chunkMode == 'async':
+        if chunkMode == "async":
             chunksSaved = self.__kV.getSession(key, "chunksSaved")
             chunksSaved = list(chunksSaved)
             # do nothing if already have that chunk
             if chunksSaved[chunkIndex] == "1":
-                return {"success": True, "statusCode": 200, "uploadId": uploadId, "statusMessage": f"Error - redundant chunk {chunkIndex} of {expectedChunks} for id {uploadId} is less than {currentCount}"}
+                return {
+                    "success": True,
+                    "statusCode": 200,
+                    "uploadId": uploadId,
+                    "statusMessage": f"Error - redundant chunk {chunkIndex} of {expectedChunks} for id {uploadId} is less than {currentCount}"
+                }
             # otherwise mark as saved
             chunksSaved[chunkIndex] = "1"  # currentCount
             chunksSaved = "".join(chunksSaved)
             self.__kV.setSession(key, "chunksSaved", chunksSaved)
 
         ret = None
-        if chunkMode == 'sequential':
-            ret = await self.sequentialUpload(ifh, outPath, chunkIndex, chunkOffset, expectedChunks, uploadId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest, logKey=logKey)
-        elif chunkMode == 'async':
-            ret = await self.asyncUpload(ifh, outPath, chunkIndex, chunkOffset, expectedChunks, uploadId, key, val, mode="ab", copyMode=copyMode, hashType=hashType, hashDigest=hashDigest, logKey=logKey)
+        if chunkMode == "sequential":
+            ret = await self.sequentialUpload(
+                ifh,
+                outPath,
+                chunkIndex,
+                chunkOffset,
+                expectedChunks,
+                uploadId,
+                key,
+                val,
+                mode="ab",
+                copyMode=copyMode,
+                hashType=hashType,
+                hashDigest=hashDigest,
+                logKey=logKey
+            )
+        elif chunkMode == "async":
+            ret = await self.asyncUpload(
+                ifh,
+                outPath,
+                chunkIndex,
+                chunkOffset,
+                expectedChunks,
+                uploadId,
+                key,
+                val,
+                mode="ab",
+                copyMode=copyMode,
+                hashType=hashType,
+                hashDigest=hashDigest,
+                logKey=logKey
+            )
         else:
             return {"success": False, "statusCode": 405,
                     "statusMessage": "error - unknown chunk mode"}
@@ -259,7 +310,7 @@ class IoUtils:
 
             async with aiofiles.open(tempPath, mode) as ofh:
                 await ofh.seek(chunkOffset)
-                if copyMode == "native" or copyMode=="shell":
+                if copyMode == "native" or copyMode == "shell":
                     await ofh.write(ifh.read())
                     await ofh.flush()
                     os.fsync(ofh.fileno())
@@ -291,7 +342,7 @@ class IoUtils:
                         except Exception:
                             logging.warning("could not delete %s", tempPath)
                 else:
-                    logging.warning('hash error')
+                    logging.warning("hash error")
                     ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
                 await self.clearSession(key, logKey)
         return ret
@@ -323,7 +374,7 @@ class IoUtils:
             chunkPath = os.path.join(tempDir, str(chunkIndex))
             async with aiofiles.open(chunkPath, mode) as ofh:
                 await ofh.seek(chunkOffset)
-                if copyMode == "native" or copyMode=="shell":
+                if copyMode == "native" or copyMode == "shell":
                     await ofh.write(ifh.read())
                     await ofh.flush()
                     os.fsync(ofh.fileno())
@@ -358,7 +409,7 @@ class IoUtils:
                         except Exception:
                             logging.warning("could not delete %s", tempPath)
                 else:
-                    logging.warning('hash error')
+                    logging.warning("hash error")
                     ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
                 await self.clearSession(key, logKey)
         return ret
@@ -366,13 +417,13 @@ class IoUtils:
     async def joinFiles(self, uploadId, dirPath, fn, tempDir):
         tempPath = self.getTempFilePath(uploadId, dirPath, fn)
         try:
-            files = sorted([f for f in os.listdir(tempDir) if re.match(r'[0-9]+', f)], key=lambda x: int(x))
+            files = sorted([f for f in os.listdir(tempDir) if re.match(r"[0-9]+", f)], key=lambda x: int(x))
             previous = 0
             with open(tempPath, "wb") as w:
                 for f in files:
                     index = int(f)
                     if index < previous:
-                        raise HTTPException(status_code=500, detail='error - indices not sorted')
+                        raise HTTPException(status_code=500, detail="error - indices not sorted")
                     previous += 1
                     chunkPath = os.path.join(tempDir, f)
                     with open(chunkPath, "rb") as r:
@@ -394,7 +445,15 @@ class IoUtils:
                          ):
         # requires lock?
         # filename = self.__pathU.getBaseFileName(depId, contentType, milestone, partNumber, contentFormat)
-        filename = self.__pathU.getVersionedPath(repositoryType=repositoryType, depId=depId, contentType=contentType, milestone=milestone, partNumber=partNumber, contentFormat=contentFormat, version=version)
+        filename = self.__pathU.getVersionedPath(
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version
+        )
         if not filename:
             return None
         filename = os.path.basename(filename)
@@ -428,9 +487,17 @@ class IoUtils:
                                version: str = "next",
                                hashDigest: str = None
                                ):
-        # logging.warning(f'get resumed upload version {version} hash {hashDigest}')
+        # logging.warning(f"get resumed upload version {version} hash {hashDigest}")
         # requires lock?
-        filename = self.getPrimaryLogKey(repositoryType=repositoryType, depId=depId, contentType=contentType, milestone=milestone, partNumber=partNumber, contentFormat=contentFormat, version=version)
+        filename = self.getPrimaryLogKey(
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version
+        )
         uploadId = self.__kV.getLog(filename)
         if not uploadId:
             return None
@@ -444,12 +511,12 @@ class IoUtils:
             return None
         # test if user resumes with same file as previously
         if hashDigest is not None:
-            hash = self.__kV.getSession(uploadId, 'hashDigest')
+            hash = self.__kV.getSession(uploadId, "hashDigest")
             if hash != hashDigest:
                 await self.removeExpiredEntry(uploadId=uploadId, filename=filename, depId=depId, repositoryType=repositoryType)
                 return None
         else:
-            logging.warning(f'error - no hash')
+            logging.warning("error - no hash")
         return uploadId  # returns uploadId or None
 
     async def removeExpiredEntry(self,
@@ -493,11 +560,11 @@ class IoUtils:
             res = self.__kV.clearSessionKey(uid)
             if not res:
                 response = False
-            if self.__cP.get('KV_MODE') == 'sqlite':
+            if self.__cP.get("KV_MODE") == "sqlite":
                 res = self.__kV.clearLogVal(uid)
-            elif self.__cP.get('KV_MODE') == 'redis':
+            elif self.__cP.get("KV_MODE") == "redis":
                 res = self.__kV.clearLog(logKey)
-        except Exception as exc:
+        except Exception:
             return False
         return response
 
@@ -506,7 +573,7 @@ class IoUtils:
         self.__kV.clearTable(self.__kV.logTable)
 
     async def findVersion(self,
-                          repositoryType: str = 'archive',
+                          repositoryType: str = "archive",
                           depId: str = None,
                           contentType: str = "model",
                           milestone: str = None,
@@ -515,8 +582,16 @@ class IoUtils:
                           version: str = "next"
                           ):
         # requires lock?
-        primaryKey = self.getPrimaryLogKey(repositoryType=repositoryType, depId=depId, contentType=contentType, milestone=milestone, partNumber=partNumber, contentFormat=contentFormat, version=version)
-        versions = primaryKey.split('.')
+        primaryKey = self.getPrimaryLogKey(
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version
+        )
+        versions = primaryKey.split(".")
         version = versions[-1]
-        version = version.replace('V', '')
+        version = version.replace("V", "")
         return version

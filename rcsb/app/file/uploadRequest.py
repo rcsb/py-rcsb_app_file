@@ -19,16 +19,17 @@ from fastapi import File
 from fastapi import Form
 from fastapi import HTTPException
 from fastapi import UploadFile
-from pydantic import BaseModel, ValidationError  # pylint: disable=no-name-in-module
+from pydantic import BaseModel  # pylint: disable=no-name-in-module
+# from pydantic import ValidationError
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
-import json
-import pydantic
-from rcsb.app.file.PathUtils import PathUtils
-from rcsb.utils.io.FileLock import FileLock
-from rcsb.app.file.pathRequest import latestFileVersion
+# import json
+# import pydantic
+# from rcsb.app.file.PathUtils import PathUtils
+# from rcsb.utils.io.FileLock import FileLock
+# from rcsb.app.file.pathRequest import latestFileVersion
 
 logger = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
@@ -72,12 +73,29 @@ async def getUploadStatus(repositoryType: str = Query(...),
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
     ioU = IoUtils(cP)
-    # logging.warning(f'upload status version {version} hash {hashDigest}')
-    if version is None or not re.match(r'\d+', version):
-        version = await ioU.findVersion(repositoryType=repositoryType, depId=depId, contentType=contentType, milestone=milestone, partNumber=partNumber, contentFormat=contentFormat, version=version)
+    # logging.warning(f"upload status version {version} hash {hashDigest}")
+    if version is None or not re.match(r"\d+", version):
+        version = await ioU.findVersion(
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version
+        )
         # version = await latestFileVersion(depId, repositoryType, contentType, contentFormat, partNumber, milestone)
-    # logging.warning(f'upload status version {version} hash {hashDigest}')
-    uploadId = await ioU.getResumedUpload(repositoryType=repositoryType, depId=depId, contentType=contentType, milestone=milestone, partNumber=partNumber, contentFormat=contentFormat, version=version, hashDigest=hashDigest)
+    # logging.warning(f"upload status version {version} hash {hashDigest}")
+    uploadId = await ioU.getResumedUpload(
+        repositoryType=repositoryType,
+        depId=depId,
+        contentType=contentType,
+        milestone=milestone,
+        partNumber=partNumber,
+        contentFormat=contentFormat,
+        version=version,
+        hashDigest=hashDigest
+    )
     if not uploadId:
         return None
     status = await ioU.getSession(uploadId)
@@ -154,7 +172,7 @@ async def upload(
     chunkIndex: int = Form(0),
     chunkOffset: int = Form(0),
     expectedChunks: int = Form(1),
-    chunkMode: str = Form('sequential', example="sequential, async"),
+    chunkMode: str = Form("sequential", example="sequential, async"),
     # save file parameters
     depId: str = Form(None, example="D_1000000000"),
     repositoryType: str = Form(None, example="onedep-archive, onedep-deposit"),
@@ -218,4 +236,3 @@ async def upload(
         raise HTTPException(status_code=405, detail=ret["statusMessage"])
     #
     return ret
-
