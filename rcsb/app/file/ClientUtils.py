@@ -102,7 +102,7 @@ class ClientUtils:
         # can't print results since mixed async thread results have type error
         return results
 
-    """ multipart upload of one file 
+    """ multipart upload of one file
         chunks must be uploaded sequentially rather than concurrently or asynchronously
         to ensure sequential behavior, must wait for a response before uploading next chunk
     """
