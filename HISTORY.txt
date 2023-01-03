@@ -11,5 +11,6 @@
 30-Sep-2022  - V0.19 Fixed asynchronous upload issue
 25-Oct-2022  - V0.20 Add additional file/directory path request endpoints (file-exists, dir-exists, list-dir, file-copy)
  5-Dec-2022  - V0.21 Resumable uploads coordinated through database and new client interface
-14-Dec-2022  - V0.22 Redis with Docker support;
-                     Add additional file/directory path request endpoints (path-exists, copy-filepath, compress-dir, compress-dirpath)
+ 3-Jan-2023  - V0.22 Redis with Docker support;
+                     Add additional file/directory path request endpoints (path-exists, copy-filepath, compress-dir, compress-dirpath);
+                     Configuration changes to support tox 4
