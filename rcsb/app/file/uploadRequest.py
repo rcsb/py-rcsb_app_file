@@ -8,6 +8,8 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
+import gzip
+import io
 import logging
 import os
 import re
@@ -103,8 +105,8 @@ async def getUploadStatus(repositoryType: str = Query(...),
 
 
 # return kv entry from upload id
-@router.get("/uploadStatus/{uploadId}")
-async def getUploadStatus(uploadId: str = Path(...)):
+@router.get("/uploadStatusFromId/{uploadId}")
+async def getUploadStatusFromId(uploadId: str = Path(...)):
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)

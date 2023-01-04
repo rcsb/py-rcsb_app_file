@@ -21,7 +21,7 @@ from rcsb.app.file.IoUtils import IoUtils
 base_url = "http://0.0.0.0:8000"
 maxChunkSize = 1024 * 1024 * 8  # default
 
-""" test configuration variables 
+""" development testing variables 
     set sleep = true for slow motion testing of small files with min chunk size
 """
 SLEEP = False
@@ -1047,6 +1047,12 @@ class Gui(tk.Frame):
             sys.exit(f'error - file does not exist: {filePath}')
         if milestone.lower() == "none":
             milestone = ""
+        if COMPRESS:
+            tempPath = filePath + ".gz"
+            with open(filePath, "rb") as r:
+                with gzip.open(tempPath, "wb") as w:
+                    w.write(r.read())
+            filePath = tempPath
         hD = CryptUtils().getFileHash(filePath, hashType=hashType)
         fullTestHash = hD["hashDigest"]
         chunkSize = maxChunkSize
@@ -1135,10 +1141,11 @@ class Gui(tk.Frame):
                 )
                 tmp.truncate(packet_size)
                 tmp.seek(0)
-                if COMPRESS:
-                    tmp.write(gzip.compress(to_upload.read(packet_size)))
-                else:
-                    tmp.write(to_upload.read(packet_size))
+                # if COMPRESS:
+                #     tmp.write(gzip.compress(to_upload.read(packet_size)))
+                # else:
+                tmp.write(to_upload.read(packet_size))
+
                 tmp.seek(0)
                 response = requests.post(
                     url,

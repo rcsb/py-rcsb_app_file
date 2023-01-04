@@ -216,8 +216,8 @@ class IoUtils:
         if currentCount == 0:  # for async, use kv uploadCount rather than parameter chunkIndex == 0:
             self.__kV.setSession(key, "expectedCount", expectedChunks)
             self.__kV.setLog(logKey, uploadId)
-            chunksSaved = "0" * expectedChunks
             if chunkMode == "async":
+                chunksSaved = "0" * expectedChunks
                 self.__kV.setSession(key, "chunksSaved", chunksSaved)
             self.__kV.setSession(key, "timestamp", int(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))))
             self.__kV.setSession(key, "hashDigest", hashDigest)
@@ -303,19 +303,16 @@ class IoUtils:
     ) -> typing.Dict:
         ok = False
         ret = {"success": False, "statusMessage": None}
+        tempPath = None
         try:
             dirPath, fn = os.path.split(outPath)
-            tempPath = self.getTempFilePath(uploadId, dirPath, fn)
+            tempPath = self.getTempFilePath(uploadId, dirPath)
             await self.__makedirs(dirPath, mode=0o755, exist_ok=True)
 
             async with aiofiles.open(tempPath, mode) as ofh:
                 await ofh.seek(chunkOffset)
-                if copyMode == "native" or copyMode == "shell":
+                if copyMode == "native" or copyMode == "shell" or copyMode == "gzip_decompress":
                     await ofh.write(ifh.read())
-                    await ofh.flush()
-                    os.fsync(ofh.fileno())
-                elif copyMode == "gzip_decompress":
-                    await ofh.write(gzip.decompress(ifh.read()))
                     await ofh.flush()
                     os.fsync(ofh.fileno())
 
@@ -341,6 +338,11 @@ class IoUtils:
                             os.unlink(tempPath)
                         except Exception:
                             logging.warning("could not delete %s", tempPath)
+                    if copyMode == "gzip_decompress":
+                        with gzip.open(outPath, "rb") as r:
+                            with open(tempPath, "wb") as w:
+                                w.write(r.read())
+                        await self.__replace(tempPath, outPath)
                 else:
                     logging.warning("hash error")
                     ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
@@ -393,29 +395,30 @@ class IoUtils:
             if (int(self.__kV.getSession(key, val)) + 1) == expectedChunks:
                 tempPath = await self.joinFiles(uploadId, dirPath, fn, tempDir)
                 if not tempPath:
-                    return {"success": False, "statusCode": 400, "statusMessage": f"error saving {fn}"}
-                ok = True
-                if hashDigest and hashType:
-                    ok = self.checkHash(tempPath, hashDigest, hashType)
-                    # ok = await self.__checkHashAsync(tempPath, hashDigest, hashType)
-                    if not ok:
-                        ret = {"success": False, "statusCode": 400, "statusMessage": f"{hashType} hash check failed"}
-                    if ok:
-                        await self.__replace(tempPath, outPath)
-                        ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
-                    if os.path.exists(tempPath):
-                        try:
-                            os.unlink(tempPath)
-                        except Exception:
-                            logging.warning("could not delete %s", tempPath)
+                    ret = {"success": False, "statusCode": 400, "statusMessage": f"error saving {fn}"}
                 else:
-                    logging.warning("hash error")
-                    ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
+                    ok = True
+                    if hashDigest and hashType:
+                        ok = self.checkHash(tempPath, hashDigest, hashType)
+                        # ok = await self.__checkHashAsync(tempPath, hashDigest, hashType)
+                        if not ok:
+                            ret = {"success": False, "statusCode": 400, "statusMessage": f"{hashType} hash check failed"}
+                        else:
+                            await self.__replace(tempPath, outPath)
+                            ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
+                        if os.path.exists(tempPath):
+                            try:
+                                os.unlink(tempPath)
+                            except Exception:
+                                logging.warning("could not delete %s", tempPath)
+                    else:
+                        logging.warning("hash error")
+                        ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
                 await self.clearSession(key, logKey)
         return ret
 
     async def joinFiles(self, uploadId, dirPath, fn, tempDir):
-        tempPath = self.getTempFilePath(uploadId, dirPath, fn)
+        tempPath = self.getTempFilePath(uploadId, dirPath)
         try:
             files = sorted([f for f in os.listdir(tempDir) if re.match(r"[0-9]+", f)], key=lambda x: int(x))
             previous = 0
@@ -469,11 +472,11 @@ class IoUtils:
         return filename
 
     # must be different from getTempDirPath
-    def getTempFilePath(self, uploadId, dirPath, fileName):
+    def getTempFilePath(self, uploadId, dirPath):
         return os.path.join(dirPath, "." + uploadId)
 
     # must be different from getTempFilePath
-    def getTempDirPath(self, uploadId, dirPath, fileName):
+    def getTempDirPath(self, uploadId, dirPath):
         return os.path.join(dirPath, "._" + uploadId + "_")
 
     # find upload id using file parameters
@@ -507,13 +510,13 @@ class IoUtils:
         duration = now - timestamp
         max_duration = self.__cP.get("KV_MAX_SECONDS")
         if duration > max_duration:
-            await self.removeExpiredEntry(uploadId=uploadId, filename=filename, depId=depId, repositoryType=repositoryType)
+            await self.removeExpiredEntry(uploadId=uploadId, fileName=filename, depId=depId, repositoryType=repositoryType)
             return None
         # test if user resumes with same file as previously
         if hashDigest is not None:
-            hash = self.__kV.getSession(uploadId, "hashDigest")
-            if hash != hashDigest:
-                await self.removeExpiredEntry(uploadId=uploadId, filename=filename, depId=depId, repositoryType=repositoryType)
+            hashvar = self.__kV.getSession(uploadId, "hashDigest")
+            if hashvar != hashDigest:
+                await self.removeExpiredEntry(uploadId=uploadId, fileName=filename, depId=depId, repositoryType=repositoryType)
                 return None
         else:
             logging.warning("error - no hash")
@@ -532,9 +535,9 @@ class IoUtils:
         dirPath = self.__pathU.getDirPath(repositoryType, depId)
         try:
             # don't know which save mode (temp file or temp dir) so remove both
-            tempFile = self.getTempFilePath(uploadId, dirPath, fileName)
+            tempFile = self.getTempFilePath(uploadId, dirPath)
             os.unlink(tempFile)
-            tempDir = self.getTempDirPath(uploadId, dirPath, fileName)
+            tempDir = self.getTempDirPath(uploadId, dirPath)
             shutil.rmtree(tempDir, ignore_errors=True)
         except Exception:
             # either tempFile or tempDir was not found
@@ -561,9 +564,9 @@ class IoUtils:
             if not res:
                 response = False
             if self.__cP.get("KV_MODE") == "sqlite":
-                res = self.__kV.clearLogVal(uid)
+                self.__kV.clearLogVal(uid)
             elif self.__cP.get("KV_MODE") == "redis":
-                res = self.__kV.clearLog(logKey)
+                self.__kV.clearLog(logKey)
         except Exception:
             return False
         return response

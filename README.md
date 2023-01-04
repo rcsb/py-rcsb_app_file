@@ -49,7 +49,7 @@ apt install redis-server
 service redis start
 ```
 
-Change Redis host to 'localhost' in rcsb/app/file/KvRedis.py
+Change Redis host to 'localhost' in rcsb/app/file/KvRedis.py, then save.
 ```
 
 self.kV = redis.Redis(host='localhost', decode_responses=True)
@@ -81,8 +81,8 @@ python3 client.py
 [-h (help)]
 [--upload source_file repo_type id content_type milestone part format version overwritable]
 [--download target_file repo_type id content_type milestone part format version]
-[--list dep_id repo_type (list directory)]
-[-c source target (compress)]
+[--list repo_type dep_id (list directory)]
+[-c (compress before upload)]
 
 ```
 
@@ -107,7 +107,7 @@ exit
 
 To view or remove Sqlite variables
 
-Find path in rcsb/app/config/config.yml
+Find KV_FILE_PATH in rcsb/app/config/config.yml
 
 Connect to sqlite and use SQL commands, then ctrl-d to exit
 ```
@@ -150,15 +150,15 @@ docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fi
 
 docker run --rm --name fileapp -p 8000:8000 --link redis-container:redis fileapp
 
-or, if mounting folders, change paths in rcsb/app/config/config.yml, enable full permissions for target folder, then
+or, if mounting folders, change paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY), enable full permissions for target folder, then
 
 docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 8000:8000 --link redis-container:redis fileapp
 
 ```
 
-`-d` runs container in the background, allowing user to 
+`-d` runs container in the background (for production)
 
-`–-rm` removes the container after it is stopped
+`–-rm` removes the container after it is stopped (only for development testing)
 
 `–-name` allows user to choose a name for the container
 
@@ -175,8 +175,8 @@ python3 client.py
 [-h (help)]
 [--upload source_file repo_type id content_type milestone part format version overwritable]
 [--download target_file repo_type id content_type milestone part format version]
-[--list dep_id repo_type (list directory)]
-[-c source target (compress)]
+[--list repo_type dep_id (list directory)]
+[-c (compress files before upload)]
 
 ```
 
@@ -220,6 +220,6 @@ select * from sessions;
 
 Edit url variables to match server url in client.py or gui.py
 
-Edit paths in rcsb/app/config/config.yml
+Edit paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY)
 
 For launching without docker, edit url in deploy/LAUNCH_GUNICORN.sh

@@ -42,7 +42,7 @@ class HashType(str, Enum):
 
 
 @router.get("/downloadSize")
-async def downloadSize(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, hashType):
+async def downloadSize(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, hashType=None):
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)

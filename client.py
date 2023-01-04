@@ -21,11 +21,11 @@ from rcsb.app.file.IoUtils import IoUtils
 
 """ modifiable variables
 """
-base_url = "http://0.0.0.0:8000"
+base_url = "http://0.0.0.0.8000"
 maxChunkSize = 1024 * 1024 * 8
 
-""" test configuration variables
-    set sleep = false for slow motion testing of small files with min chunk size
+""" development testing variables
+    set sleep = true for slow motion testing of small files with min chunk size
     modifiable from command line args
 """
 SLEEP = False
@@ -113,10 +113,11 @@ def upload(mD):
             )
             tmp.truncate(packet_size)
             tmp.seek(0)
-            if COMPRESS:
-                tmp.write(gzip.compress(to_upload.read(packet_size)))
-            else:
-                tmp.write(to_upload.read(packet_size))
+            # if COMPRESS:
+            #     tmp.write(gzip.compress(to_upload.read(packet_size)))
+            # else:
+            tmp.write(to_upload.read(packet_size))
+
             tmp.seek(0)
             response = requests.post(
                 url,
@@ -305,16 +306,6 @@ if __name__ == "__main__":
         description()
     if args.compress:
         COMPRESS = True
-        # arglist = args.compress
-        # if len(arglist) < 2:
-        #     sys.exit(f"wrong number of args to compress {len(arglist)}")
-        # filePath = arglist[0]
-        # newName = arglist[1]
-        # if not newName.endswith(".gz"):
-        #     newName += ".gz"
-        # with open(filePath, "rb") as r:
-        #     with open(newName, "wb") as w:
-        #         w.write(gzip.compress(r.read()))
     if args.upload:
         for arglist in args.upload:
             if len(arglist) < 9:
@@ -332,6 +323,12 @@ if __name__ == "__main__":
             contentFormat = arglist[6]
             version = arglist[7]
             allowOverwrite = arglist[8]
+            if COMPRESS:
+                tempPath = filePath + ".gz"
+                with open(filePath, "rb") as r:
+                    with gzip.open(tempPath, "wb") as w:
+                        w.write(r.read())
+                filePath = tempPath
             hD = CryptUtils().getFileHash(filePath, hashType=hashType)
             fullTestHash = hD["hashDigest"]
             chunkSize = maxChunkSize

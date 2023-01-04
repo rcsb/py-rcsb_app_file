@@ -9,8 +9,6 @@ class KvRedis:
         self.kV = None
         self.__cP = cP
         self.duration = self.__cP.get("KV_MAX_SECONDS")
-        # fix mount point
-        # self.filePath = self.__cP.get("KV_FILE_PATH")
         self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
         self.logTable = self.__cP.get("KV_LOG_TABLE_NAME")
         # create database if not exists
@@ -20,87 +18,76 @@ class KvRedis:
         except Exception as exc:
             # already exists
             logging.warning(f"exception in KvRedis: {type(exc)} {exc}")
-            pass
+
         if self.kV is None:
             raise Exception("error in KvRedis - no database")
 
-    # hash = uid
+    # hashvar = uid
     # if no key, sets to zero and returns, even if not a numeric variable
-    def getSession(self, hash, key):
+    def getSession(self, hashvar, key):
         # validate args
-        if not hash or not key:
+        if not hashvar or not key:
             return None
-        # validate hash
-        # if not self.kV.exists(hash):
-        #     self.kV.hmset(hash, {})
-        # validate hash key, set val to zero by default
-        if not self.kV.exists(hash) or not self.kV.hexists(hash, key):
-            self.kV.hset(hash, key, 0)
-            self.kV.expire(hash, self.duration)
-        return self.kV.hget(hash, key)
+        # validate hashvar key, set val to zero by default
+        if not self.kV.exists(hashvar) or not self.kV.hexists(hashvar, key):
+            self.kV.hset(hashvar, key, 0)
+            self.kV.expire(hashvar, self.duration)
+        return self.kV.hget(hashvar, key)
 
-    # hash = uid
-    def setSession(self, hash, key, val):
+    # hashvar = uid
+    def setSession(self, hashvar, key, val):
         # validate args
-        if not hash or not key or not val:
+        if not hashvar or not key or not val:
             return False
-        # validate hash
-        # if not self.kV.exists(hash):
-        #     self.kV.hmset(hash, {})
-        #     self.kV.expire(hash, self.duration)
         # validate key, set val to zero by default
-        if not self.kV.exists(hash) or not self.kV.hexists(hash, key):
-            self.kV.hset(hash, key, 0)
-            self.kV.expire(hash, self.duration)
-        self.kV.hset(hash, key, val)
+        if not self.kV.exists(hashvar) or not self.kV.hexists(hashvar, key):
+            self.kV.hset(hashvar, key, 0)
+            self.kV.expire(hashvar, self.duration)
+        self.kV.hset(hashvar, key, val)
         return True
 
     # increment session val
     # presumes key has a numeric value
-    def inc(self, hash, key):
+    def inc(self, hashvar, key):
         # validate args
-        if not hash or not key:
+        if not hashvar or not key:
             return False
-        # validate hash
-        # if not self.kV.exists(hash):
-        #     self.kV.hmset(hash, {})
-        #     self.kV.expire(hash, self.duration)
         # validate key, set val to zero by default
-        if not self.kV.exists(hash) or not self.kV.hexists(hash, key):
-            self.kV.hset(hash, key, 0)
-            self.kV.expire(hash, self.duration)
-        self.kV.hincrby(hash, key, 1)
+        if not self.kV.exists(hashvar) or not self.kV.hexists(hashvar, key):
+            self.kV.hset(hashvar, key, 0)
+            self.kV.expire(hashvar, self.duration)
+        self.kV.hincrby(hashvar, key, 1)
         return True
 
-    def clearSessionVal(self, hash, key):
+    def clearSessionVal(self, hashvar, key):
         # validate args
-        if not hash or not key:
+        if not hashvar or not key:
             return False
-        # validate hash
-        if not self.kV.exists(hash):
+        # validate hashvar
+        if not self.kV.exists(hashvar):
             return True
         # validate key
-        if not self.kV.hexists(hash, key):
+        if not self.kV.hexists(hashvar, key):
             return True
-        self.kV.hdel(hash, key)
+        self.kV.hdel(hashvar, key)
         return True
 
-    def clearSessionKey(self, hash):
+    def clearSessionKey(self, hashvar):
         # validate args
-        if not hash:
+        if not hashvar:
             return False
-        # validate hash
-        if not self.kV.exists(hash):
+        # validate hashvar
+        if not self.kV.exists(hashvar):
             return True
-        self.kV.delete(hash)
+        self.kV.delete(hashvar)
         return True
 
     # get entire dictionary value rather than a sub-value
-    def getKey(self, hash, table):
+    def getKey(self, hashvar, table):
         if table == self.sessionTable:
-            return self.kV.hgetall(hash)
+            return self.kV.hgetall(hashvar)
         elif table == self.logTable:
-            return self.kV.get(hash)
+            return self.kV.get(hashvar)
 
     def getLog(self, key):
         # validate args
@@ -118,7 +105,7 @@ class KvRedis:
     def clearLog(self, key):
         self.kV.delete(key)
 
-    # no tables in Redis, instead clear everything
-    def clearTable(self, table=None):
+    # clear everything
+    def clearTable(self):
         self.kV.flushall()
-        # self.kV.clearTable(table)
+
