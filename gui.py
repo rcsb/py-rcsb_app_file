@@ -14,7 +14,6 @@ import time
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
-from rcsb.app.file.IoUtils import IoUtils
 
 """ modifiable variables
 """
@@ -38,7 +37,6 @@ configFilePath = os.environ.get("CONFIG_FILE")
 cP = ConfigProvider(cachePath)
 cP.getConfig()
 subject = cP.get("JWT_SUBJECT")
-ioU = IoUtils(cP)
 headerD = {
     "Authorization": "Bearer "
     + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)
@@ -836,6 +834,7 @@ class Gui(tk.Frame):
         self.file_format = tk.StringVar(master)
         self.version_number = tk.StringVar(master)
         self.allow_overwrite = tk.IntVar(master)
+        self.expedite = tk.IntVar(master)
         self.compress = tk.IntVar(master)
         self.upload_status = tk.StringVar(master)
         self.upload_status.set('0%')
@@ -845,6 +844,9 @@ class Gui(tk.Frame):
         self.fileButtonLabel.pack()
         self.fileButton = ttk.Button(self.uploadTab, text="select", command=self.selectfile)
         self.fileButton.pack()
+
+        self.expediteCheckbox = ttk.Checkbutton(self.uploadTab, text="expedite", variable=self.expedite)
+        self.expediteCheckbox.pack()
 
         self.allowCheckbox = ttk.Checkbutton(self.uploadTab, text="allow overwrite", variable=self.allow_overwrite)
         self.allowCheckbox.pack()
@@ -1019,12 +1021,12 @@ class Gui(tk.Frame):
 
     def upload(self):
         global headerD
-        global ioU
         global SLEEP
         global maxChunkSize
         global minChunkSize
         t1 = time.perf_counter()
         filePath = self.file_path
+        expedite = self.expedite.get() == 1
         allowOverwrite = self.allow_overwrite.get() == 1
         COMPRESS = self.compress.get() == 1
         repositoryType = self.repo_type.get()
@@ -1072,6 +1074,44 @@ class Gui(tk.Frame):
         copyMode = "native"
         if COMPRESS:
             copyMode = "gzip_decompress"
+        if expedite:
+            mD = {
+                # upload file parameters
+                "filePath": filePath,
+                "uploadId": None,
+                "fileSize": fileSize,
+                "copyMode": copyMode,
+                "hashType": hashType,
+                "hashDigest": fullTestHash,
+                # save file parameters
+                "repositoryType": repositoryType,
+                "depId": depId,
+                "contentType": contentType,
+                "milestone": milestone,
+                "partNumber": partNumber,
+                "contentFormat": fileFormat,
+                "version": version,
+                "allowOverWrite": allowOverwrite
+            }
+            response = None
+            with open(mD["filePath"], "rb") as to_upload:
+                url = os.path.join(base_url, "file-v2", "expedite")
+                response = requests.post(
+                    url,
+                    data=deepcopy(mD),
+                    headers=headerD,
+                    files={"uploadFile": to_upload},
+                    timeout=None,
+                )
+            if response.status_code != 200:
+                print(
+                    f"error - status code {response.status_code} {response.text}...terminating"
+                )
+            self.upload_status.set(f'100%')
+            self.master.update()
+            print(response)
+            print(f'time {time.perf_counter() - t1} s')
+            return
         mD = {
             # upload file parameters
             "filePath": filePath,
@@ -1141,11 +1181,7 @@ class Gui(tk.Frame):
                 )
                 tmp.truncate(packet_size)
                 tmp.seek(0)
-                # if COMPRESS:
-                #     tmp.write(gzip.compress(to_upload.read(packet_size)))
-                # else:
                 tmp.write(to_upload.read(packet_size))
-
                 tmp.seek(0)
                 response = requests.post(
                     url,
@@ -1172,7 +1208,6 @@ class Gui(tk.Frame):
 
     def download(self):
         global headerD
-        global ioU
         global SLEEP
         global maxChunkSize
         global minChunkSize

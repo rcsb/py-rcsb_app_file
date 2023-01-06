@@ -9,26 +9,25 @@ __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
 import gzip
+import hashlib
 import io
 import logging
 import os
 import re
+import shutil
 from enum import Enum
 from typing import Optional
-from fastapi import APIRouter, Path, Query
-from fastapi import Depends
-from fastapi import File
-from fastapi import Form
-from fastapi import HTTPException
-from fastapi import UploadFile
+from fastapi import APIRouter, Path, Query, Request, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
-# from pydantic import ValidationError
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
+from rcsb.app.file.PathUtils import PathUtils
+from rcsb.utils.io.FileLock import FileLock
 # import json
 # import pydantic
+# from pydantic import ValidationError
 # from rcsb.app.file.PathUtils import PathUtils
 # from rcsb.utils.io.FileLock import FileLock
 # from rcsb.app.file.pathRequest import latestFileVersion
@@ -238,3 +237,102 @@ async def upload(
         raise HTTPException(status_code=405, detail=ret["statusMessage"])
     #
     return ret
+
+
+@router.post("/expedite")
+async def expediteUpload(
+    request: Request,
+    # upload file parameters
+    uploadFile: UploadFile = File(...),
+    uploadId: str = Form(None),
+    hashType: HashType = Form(None),
+    hashDigest: str = Form(None),
+    copyMode: str = Form("native", example="shell|native|gzip_decompress"),
+    # save file parameters
+    depId: str = Form(None, example="D_1000000000"),
+    repositoryType: str = Form(None, example="onedep-archive, onedep-deposit"),
+    contentType: str = Form(None, example="model, structure-factors, val-report-full"),
+    milestone: str = Form(None, example="release"),
+    partNumber: int = Form(None),
+    contentFormat: str = Form(None, example="pdb, pdbx, mtz, pdf"),
+    version: str = Form(None, example="1, 2, latest, next"),
+    allowOverWrite: bool = Form(False)
+):
+    tempPath = None
+    outPath = None
+    try:
+        ifh = uploadFile.file
+        fn = uploadFile.filename
+        ct = uploadFile.content_type
+        if fn.endswith(".gz") or ct == "application/gzip":
+            copyMode = "gzip_decompress"
+        cachePath = os.environ.get("CACHE_PATH")
+        configFilePath = os.environ.get("CONFIG_FILE")
+        cP = ConfigProvider(cachePath, configFilePath)
+        pathU = PathUtils(cP)
+        if not pathU.checkContentTypeFormat(contentType, contentFormat):
+            return {"success": False, "statusCode": 405,
+                    "statusMessage": "Bad content type and/or format - upload rejected"}
+        lockPath = pathU.getFileLockPath(depId, contentType, milestone, partNumber, contentFormat)
+        with FileLock(lockPath):
+            outPath = pathU.getVersionedPath(
+                repositoryType=repositoryType,
+                depId=depId,
+                contentType=contentType,
+                milestone=milestone,
+                partNumber=partNumber,
+                contentFormat=contentFormat,
+                version=version
+            )
+            if not outPath:
+                return {"success": False, "statusCode": 405,
+                        "statusMessage": "Bad content type metadata - cannot build a valid path"}
+            if os.path.exists(outPath) and not allowOverWrite:
+                return {"success": False, "statusCode": 405,
+                        "statusMessage": "Encountered existing file - overwrite prohibited"}
+        dirPath, fn = os.path.split(outPath)
+        tempPath = os.path.join(dirPath, "." + fn)
+        os.makedirs(dirPath, mode=0o755, exist_ok=True)
+        if copyMode == "shell" or copyMode == "gzip_decompress":
+            with open(tempPath, "wb") as ofh:
+                shutil.copyfileobj(ifh, ofh)
+        elif copyMode == "native":  # gzip throws error
+            with open(tempPath, "wb") as ofh:
+                async for chunk in request.stream():
+                    ofh.write(chunk)
+    except Exception as e:
+        ret = {"success": False, "statusCode": 400, "statusMessage": f"Store fails with {str(e)}"}
+    finally:
+        ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
+        if hashDigest and hashType:
+            if hashType == "SHA1":
+                hashObj = hashlib.sha1()
+            elif hashType == "SHA256":
+                hashObj = hashlib.sha256()
+            elif hashType == "MD5":
+                hashObj = hashlib.md5()
+            blockSize = 65536
+            with open(tempPath, "rb") as r:
+                while chunk := r.read(blockSize):
+                    hashObj.update(chunk)
+            ok = hashObj.hexdigest() == hashDigest
+            if not ok:
+                ret = {"success": False, "statusCode": 400, "statusMessage": f"{hashType} hash check failed"}
+            if ok:
+                os.replace(tempPath, outPath)
+            if os.path.exists(tempPath):
+                os.unlink(tempPath)
+            if copyMode == "gzip_decompress":
+                with gzip.open(outPath, "rb") as r:
+                    with open(tempPath, "wb") as w:
+                        w.write(r.read())
+                os.replace(tempPath, outPath)
+        else:
+            ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
+        ifh.close()
+    if not ret["success"]:
+        raise HTTPException(status_code=405, detail=ret["statusMessage"])
+    return ret
+
+
+

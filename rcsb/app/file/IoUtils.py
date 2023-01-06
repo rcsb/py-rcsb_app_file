@@ -339,6 +339,7 @@ class IoUtils:
                         except Exception:
                             logging.warning("could not delete %s", tempPath)
                     if copyMode == "gzip_decompress":
+                        # just deleted temp path but using again for a temp file
                         with gzip.open(outPath, "rb") as r:
                             with open(tempPath, "wb") as w:
                                 w.write(r.read())
