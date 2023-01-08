@@ -150,7 +150,7 @@ class IoUtils:
         partNumber: int = 1,
         contentFormat: str = "pdbx",
         version: str = "next",
-        allowOverWrite: bool = True
+        allowOverwrite: bool = True
     ) -> typing.Dict:
 
         # logger.warning(
@@ -184,8 +184,8 @@ class IoUtils:
             )
             if not outPath:
                 return {"success": False, "statusCode": 405, "statusMessage": "Bad content type metadata - cannot build a valid path"}
-            if os.path.exists(outPath) and not allowOverWrite:
-                logger.info("Path exists (overwrite %r): %r", allowOverWrite, outPath)
+            if os.path.exists(outPath) and not allowOverwrite:
+                logger.info("Path exists (overwrite %r): %r", allowOverwrite, outPath)
                 return {"success": False, "statusCode": 405, "statusMessage": "Encountered existing file - overwrite prohibited"}
             # test if file name in log table (resumed upload or later chunk)
             # if find resumed upload then set uid = previous uid, otherwise new uid
@@ -369,9 +369,10 @@ class IoUtils:
 
         ok = False
         ret = {"success": False, "statusMessage": None}
+        tempDir = None
         try:
             dirPath, fn = os.path.split(outPath)
-            tempDir = self.getTempDirPath(uploadId, dirPath, fn)
+            tempDir = self.getTempDirPath(uploadId, dirPath)
             await self.__makedirs(dirPath, mode=0o755, exist_ok=True)
             await self.__makedirs(tempDir, mode=0o755, exist_ok=True)
             chunkPath = os.path.join(tempDir, str(chunkIndex))
@@ -532,7 +533,10 @@ class IoUtils:
         # remove expired entry and temp files
         self.__kV.clearSessionKey(uploadId)
         # still must remove log table entry (key = file parameters)
-        self.__kV.clearLog(fileName)
+        if self.__cP.get("KV_MODE") == "sqlite":
+            self.__kV.clearLogVal(uploadId)
+        elif self.__cP.get("KV_MODE") == "redis":
+            self.__kV.clearLog(fileName)
         dirPath = self.__pathU.getDirPath(repositoryType, depId)
         try:
             # don't know which save mode (temp file or temp dir) so remove both

@@ -36,11 +36,80 @@ or from the local repository directory:
 pip3 install .
 ```
 
-# Deployment on Local Server
+# Configuration 
 
-### Testing without docker
+Edit paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY)
 
-Set KV_MODE in rcsb/app/config/config.yml to either redis or sqlite.
+Edit url variables to match server url in client.py or gui.py
+
+# Testing and deployment
+
+Testing is easiest without Docker and using a Sqlite database.
+
+For production, use a Docker container with a Redis database.
+
+# Deployment on local server without docker
+
+For launching without docker, edit url in deploy/LAUNCH_GUNICORN.sh
+
+From base repository directory (in `py-rcsb_app_file/`), start app with:
+```bash
+
+./deploy/LAUNCH_GUNICORN.sh
+
+```
+
+# Uploads and downloads
+
+In a separate shell (also from the base repository directory) run client.py or gui.py
+
+Gui.py is launched from the shell
+
+Client.py usage
+```
+
+python3 client.py
+[-h (help)]
+[--upload source_file repo_type id content_type milestone part format version overwritable]
+[--download target_file repo_type id content_type milestone part format version]
+[--list repo_type dep_id (list directory)]
+[-e (expedite upload)]
+[-c (chunk file)]
+[-z (zip file before upload)]
+[-p (parallelize chunks)]
+
+```
+
+# Sqlite3
+
+When uploading in chunks, server processes coordinate through a database named KV (key-value)
+
+If KV_MODE is set to sqlite in rcsb/app/config/config.yml, chunk information is coordinated with a sqlite3 database
+
+### To view or remove Sqlite variables
+
+Find KV_FILE_PATH in rcsb/app/config/config.yml
+
+Connect to sqlite and use SQL commands, then ctrl-d to exit
+```
+
+sqlite3 path/to/kv.sqlite
+.table
+select * from sessions;
+select * from log;
+
+```
+
+However, if files API is running in Docker, sqlite will not save to path specified in config.yml
+
+Instead, to view or remove Sqlite variables, find kv.sqlite with
+```
+find / -name kv.sqlite
+```
+
+# Redis
+
+If KV_MODE is set to redis in rcsb/app/config/config.yml, chunks coordinate through a Redis database
 
 Install Redis
 ```
@@ -51,9 +120,9 @@ apt install redis-tools
 
 Start the Redis server
 ```
-service redis start
+/usr/bin/redis-server (preferred)
 or
-/usr/bin/redis-server
+service redis start
 ```
 
 To test Redis
@@ -70,6 +139,26 @@ shutdown
 (or service redis stop, but not if Redis was started with /usr/bin/redis-server)
 ```
 
+To view Redis variables
+```
+
+redis-cli
+KEYS *
+exit
+
+```
+
+To remove all variables
+```
+
+redis-cli
+FLUSHALL
+exit
+
+```
+
+### Redis on same machine as files API and without Redis in Docker
+
 Change Redis host to 'localhost' in rcsb/app/file/KvRedis.py, then save.
 ```
 
@@ -84,33 +173,63 @@ pip3 install .
 
 ```
 
-From base repository directory (in `py-rcsb_app_file/`), start app with:
-```bash
+### Connecting to Redis remotely
 
-./deploy/LAUNCH_GUNICORN.sh
+If Redis runs on a different machine than the files API, then the host must be set to a url
+
+Change Redis host to '#:#:#:#' and port 6379 in rcsb/app/file/KvRedis.py
+
+For example
+```
+
+self.kV = redis.Redis(host='1.2.3.4', port=6379, decode_responses=True)
 
 ```
 
-Then, in a separate shell (also from the base repository directory), test with client.py or gui.py
+Remote Redis requires changing the config file settings on the machine with Redis
 
-Gui.py is launched from the shell
-
-Client.py usage
+From root
+```
+vim /etc/redis/redis.conf
+(comment out the 'bind' statement)
+(change 'protected-mode' from 'yes' to 'no')
 ```
 
-python3 client.py
-[-h (help)]
-[--upload source_file repo_type id content_type milestone part format version overwritable]
-[--download target_file repo_type id content_type milestone part format version]
-[--list repo_type dep_id (list directory)]
-[-c (compress before upload)]
+Then start Redis and add the config file as a parameter
+```
+/usr/bin/redis-server /etc/redis/redis.conf
+```
+
+### Redis in Docker
+
+Download Redis image and start container
+
+```
+docker run --name redis-container -d redis
+or (if connecting remotely to Redis container on different server)
+docker run --name redis-container -p 6379:6379 -d redis
+```
+
+If the Redis container runs on the same machine as the files API, change Redis host to 'redis' in rcsb/app/file/KvRedis.py
+```
+
+self.kV = redis.Redis(host='redis', decode_responses=True)
+
+```
+
+Or, if connecting remotely to Redis container on different server, change Redis host to '#:#:#:#' and port 6379 in rcsb/app/file/KvRedis.py
+
+For example
+```
+
+self.kV = redis.Redis(host='1.2.3.4', port=6379, decode_responses=True)
 
 ```
 
 To view Redis variables
 ```
 
-redis-cli
+docker run -it --name redis-viewer --link redis-container:redis --rm redis redis-cli -h redis -p 6379
 KEYS *
 exit
 
@@ -119,52 +238,13 @@ exit
 To remove all variables
 ```
 
-redis-cli
+docker run -it --name redis-viewer --link redis-container:redis --rm redis redis-cli -h redis -p 6379
 FLUSHALL
 exit
 
 ```
 
-To view or remove Sqlite variables
-
-Find KV_FILE_PATH in rcsb/app/config/config.yml
-
-Connect to sqlite and use SQL commands, then ctrl-d to exit
-```
-
-sqlite3 path/to/kv.sqlite
-.table
-select * from sessions;
-select * from log;
-
-```
-
-### Testing with Docker
-
-Set KV_MODE in rcsb/app/config/config.yml to either redis or sqlite.
-
-For Redis, download Redis image and start container
-
-```
-docker run --name redis-container -d redis
-or (if connecting remotely to Redis container on different server)
-docker run --name redis-container -p 6379:6379 -d redis
-```
-
-Then change Redis host to 'redis' in rcsb/app/file/KvRedis.py
-```
-
-self.kV = redis.Redis(host='redis', decode_responses=True)
-
-```
-
-Or, if connecting remotely to Redis container on different server, change Redis host to '#:#:#:#' and port 6379 in rcsb/app/file/KvRedis.py
-For example
-```
-
-self.kV = redis.Redis(host='1.2.3.4', port=6379, decode_responses=True)
-
-```
+# Docker
 
 ### Build Docker Container
 
@@ -179,7 +259,11 @@ docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fi
 
 ```
 
-docker run --rm --name fileapp -p 8000:8000 --link redis-container:redis fileapp
+docker run --name fileapp -p 8000:8000 fileapp
+
+or, if also running a Redis container on the same machine
+
+docker run --name fileapp -p 8000:8000 --link redis-container:redis fileapp
 
 or, if mounting folders, change paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY), enable full permissions for target folder, then
 
@@ -189,7 +273,7 @@ or, if also linking to redis container running on same server
 
 docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 8000:8000 --link redis-container:redis fileapp
 
-(observer that the link attribute is not necessary for connecting to Redis running in a container on a different server)
+(observe that the link attribute is not necessary for connecting to Redis running in a container on a different server)
 
 ```
 
@@ -201,79 +285,15 @@ docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/sy
 
 `-p` allows user to choose a port, 8000:8000 is used in this case, as the port 8000 is exposed in the current dockerfile
 
-`--link` connects to the Redis container that was created previously
+`--link` connects to a Redis container if the container is running on the same machine as the files API 
 
-Test upload and download using client.py or gui.py
+# Error handling
 
-Client.py usage
-```
+Errors related to 'shared locks' are generally fixed by deleting the 'shared-locks' directory and, if necessary, restarting.
 
-python3 client.py
-[-h (help)]
-[--upload source_file repo_type id content_type milestone part format version overwritable]
-[--download target_file repo_type id content_type milestone part format version]
-[--list repo_type dep_id (list directory)]
-[-c (compress files before upload)]
+For production, Redis variables are set to expire periodically. However, hidden files are not, so a cron job should be run periodically to remove lingering hidden files.
 
-```
+After development testing with a Sqlite database, open the kv.sqlite file and delete the tables, and delete hidden files from the deposit or archives directories.
 
-To view Redis variables
-```
-
-docker run -it --name redis-viewer --link redis-container:redis --rm redis redis-cli -h redis -p 6379
-KEYS *
-exit
-
-```
-
-To remove all variables
-```
-
-docker run -it --name redis-viewer --link redis-container:redis --rm redis redis-cli -h redis -p 6379
-FLUSHALL
-exit
-
-```
-
-To view or remove Sqlite variables
-
-Sqlite will not save to path specified in config.yml
-
-Instead, find kv.sqlite with
-```
-find / -name kv.sqlite
-```
-
-Connect to sqlite and use SQL commands, then ctrl-d to exit
-```
-
-sqlite3 path/to/kv.sqlite
-.table
-select * from sessions;
-
-```
-
-# Deployment on Remote Server
-
-Edit url variables to match server url in client.py or gui.py
-
-Edit paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY)
-
-For launching without docker, edit url in deploy/LAUNCH_GUNICORN.sh
-
-# Connecting to Redis remotely
-
-In addition to the above instructions, remote Redis requires changing the config file settings
-
-From root
-```
-vim /etc/redis/redis.conf
-(comment out the 'bind' statement)
-(change 'protected-mode' from 'yes' to 'no')
-```
-
-Then start Redis and add the config file
-```
-/usr/bin/redis-server /etc/redis/redis.conf
-```
+After development testing with Redis, open the redis-cli and delete the variables, and delete hidden files from the deposit or archives directories.
 

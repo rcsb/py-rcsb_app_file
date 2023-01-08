@@ -21,7 +21,7 @@ from rcsb.app.file.IoUtils import IoUtils
 
 """ modifiable variables
 """
-base_url = "http://0.0.0.0.8000"
+base_url = "http://0.0.0.0:8000"
 maxChunkSize = 1024 * 1024 * 8
 
 """ development testing variables
@@ -29,7 +29,7 @@ maxChunkSize = 1024 * 1024 * 8
     modifiable from command line args
 """
 SLEEP = False
-minChunkSize = 1024
+minChunkSize = 1024 * 64
 
 """ do not alter from here
 """
@@ -48,6 +48,8 @@ headerD = {
     + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)
 }
 hashType = "MD5"
+EXPEDITE = False
+CHUNK = False
 COMPRESS = False
 
 uploadIds = []
@@ -67,7 +69,90 @@ def upload(mD):
     global ioU
     global SLEEP
     global COMPRESS
-
+    global EXPEDITE
+    global CHUNK
+    if EXPEDITE and not CHUNK:
+        response = None
+        with open(mD["filePath"], "rb") as to_upload:
+            url = os.path.join(base_url, "file-v2", "expediteFile")
+            response = requests.post(
+                url,
+                data=deepcopy(mD),
+                headers=headerD,
+                files={"uploadFile": to_upload},
+                timeout=None,
+            )
+        if response.status_code != 200:
+            print(
+                f"error - status code {response.status_code} {response.text}"
+            )
+        return [response]
+    elif EXPEDITE and CHUNK:
+        readFilePath = mD["filePath"]
+        url = os.path.join(base_url, "file-v2", "prepChunks")
+        parameters = {"repositoryType": mD["repositoryType"],
+                      "depId": mD["depId"],
+                      "contentType": mD["contentType"],
+                      "milestone": mD["milestone"],
+                      "partNumber": str(mD["partNumber"]),
+                      "contentFormat": mD["contentFormat"],
+                      "allowOverwrite": mD["allowOverwrite"]
+                      }
+        response = requests.get(
+            url,
+            params=parameters,
+            headers=headerD,
+            timeout=None
+        )
+        if response.status_code == 200:
+            result = json.loads(response.text)
+            if result:
+                mD["filePath"] = str(result)
+        url = os.path.join(base_url, "file-v2", "getNewUploadId")
+        response = requests.get(
+            url,
+            headers=headerD,
+            timeout=None
+        )
+        if response.status_code == 200:
+            result = json.loads(response.text)
+            if result:
+                mD["uploadId"] = str(result)
+        # chunk file and upload
+        offset = 0
+        offsetIndex = 0
+        responses = []
+        tmp = io.BytesIO()
+        with open(readFilePath, "rb") as to_upload:
+            to_upload.seek(offset)
+            url = os.path.join(base_url, "file-v2", "expediteChunk")
+            for x in range(offsetIndex, mD["expectedChunks"]):
+                packet_size = min(
+                    int(mD["fileSize"]) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
+                    int(mD["chunkSize"]),
+                )
+                tmp.truncate(packet_size)
+                tmp.seek(0)
+                tmp.write(to_upload.read(packet_size))
+                tmp.seek(0)
+                response = requests.post(
+                    url,
+                    data=deepcopy(mD),
+                    headers=headerD,
+                    files={"uploadFile": tmp},
+                    timeout=None,
+                )
+                if response.status_code != 200:
+                    print(
+                        f"error - status code {response.status_code} {response.text}...terminating"
+                    )
+                    break
+                responses.append(response)
+                mD["chunkIndex"] += 1
+                mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
+                if SLEEP:
+                    time.sleep(1)
+        return responses
     responses = []
     # test for resumed upload
     uploadId = mD["uploadId"]
@@ -251,7 +336,11 @@ def download(downloadFilePath, downloadDict):
     responseCode = None
     count = 0
     if os.path.exists(downloadFilePath):
-        os.remove(downloadFilePath)
+        if downloadDict["allowOverwrite"].lower() == "true":
+            os.remove(downloadFilePath)
+        else:
+            print(f'error - file already exists')
+            return None
     with requests.get(url, params=downloadDict, headers=headerD, timeout=None, stream=True) as response:
         with open(downloadFilePath, "ab") as ofh:
             for chunk in tqdm(response.iter_content(chunk_size=chunkSize), leave=False, total=chunks, desc=os.path.basename(downloadFilePath)):
@@ -286,12 +375,14 @@ if __name__ == "__main__":
     parser.add_argument("-u", "--upload", nargs=9, action="append",
                         metavar=("file-path", "repo-type", "dep-id", "content-type", "milestone", "part-number", "content-format", "version", "allow-overwrite"),
                         help="***** multiple uploads allowed *****")
-    parser.add_argument("-d", "--download", nargs=8, action="append",
-                        metavar=("file-path", "repo-type", "dep-id", "content-type", "milestone", "part-number", "content-format", "version"),
+    parser.add_argument("-d", "--download", nargs=9, action="append",
+                        metavar=("file-path", "repo-type", "dep-id", "content-type", "milestone", "part-number", "content-format", "version", "allow-overwrite"),
                         help="***** multiple downloads allowed *****")
     parser.add_argument("-l", "--list", nargs=2, metavar=("repository-type", "dep-id"), help="***** list contents of requested directory *****")
+    parser.add_argument("-e", "--expedite", action="store_true", help="***** expedited file upload *****")
+    parser.add_argument("-c", "--chunk", action="store_true", help="***** chunk file *****")
     parser.add_argument("-p", "--parallel", action="store_true", help="***** upload parallel chunks *****")
-    parser.add_argument("-c", "--compress", action="store_true", help="***** compress files or chunks prior to upload")
+    parser.add_argument("-z", "--zip", action="store_true", help="***** zip files prior to upload")
     # parser.add_argument("-c", "--compress", nargs=2, help="***** compress with gzip and output new file *****", metavar=("read-path", "new-name"))
     parser.add_argument("-t", "--test", action="store_true",
                         help="***** slow motion mode for testing with small files (sequential chunks only) ******")
@@ -302,9 +393,13 @@ if __name__ == "__main__":
     uploads = []
     uploadIds = []
     downloads = []
-    if args.upload or args.download or args.compress:
+    if args.upload or args.download or args.zip:
         description()
-    if args.compress:
+    if args.expedite:
+        EXPEDITE = True
+    if args.chunk:
+        CHUNK = True
+    if args.zip:
         COMPRESS = True
     if args.upload:
         for arglist in args.upload:
@@ -319,7 +414,7 @@ if __name__ == "__main__":
             milestone = arglist[4]
             if milestone.lower() == "none":
                 milestone = ""
-            part = arglist[5]
+            partNumber = arglist[5]
             contentFormat = arglist[6]
             version = arglist[7]
             allowOverwrite = arglist[8]
@@ -353,7 +448,27 @@ if __name__ == "__main__":
             # uploadId = json.loads(response.text)
             # if not uploadId:
             #     sys.exit("error - could not get new upload id")
-            uploads.append(
+            if EXPEDITE and not CHUNK:
+                uploads.append({
+                    # upload file parameters
+                    "filePath": filePath,
+                    "uploadId": None,
+                    "fileSize": fileSize,
+                    "copyMode": copyMode,
+                    "hashType": hashType,
+                    "hashDigest": fullTestHash,
+                    # save file parameters
+                    "repositoryType": repositoryType,
+                    "depId": depId,
+                    "contentType": contentType,
+                    "milestone": milestone,
+                    "partNumber": partNumber,
+                    "contentFormat": contentFormat,
+                    "version": version,
+                    "allowOverwrite": allowOverwrite
+                })
+            else:
+                uploads.append(
                     {
                         # upload file parameters
                         "filePath": filePath,
@@ -373,12 +488,12 @@ if __name__ == "__main__":
                         "depId": depId,
                         "contentType": contentType,
                         "milestone": milestone,
-                        "partNumber": part,
+                        "partNumber": partNumber,
                         "contentFormat": contentFormat,
                         "version": version,
-                        "allowOverWrite": allowOverwrite
+                        "allowOverwrite": allowOverwrite
                     }
-            )
+                )
     if args.download:
         for arglist in args.download:
             if len(arglist) < 8:
@@ -393,6 +508,7 @@ if __name__ == "__main__":
             partNumber = arglist[5]
             contentFormat = arglist[6]
             version = arglist[7]
+            allowOverwrite = arglist[8]
             downloadDict = {
                 "depId": depId,
                 "repositoryType": repositoryType,
@@ -401,14 +517,15 @@ if __name__ == "__main__":
                 "partNumber": partNumber,
                 "version": str(version),
                 "hashType": hashType,
-                "milestone": milestone
+                "milestone": milestone,
+                "allowOverwrite": allowOverwrite
             }
             downloads.append((downloadFilePath, downloadDict))
     if len(uploads) > 0:
-        if uploads[0]["chunkMode"] == "async":
+        if not EXPEDITE and uploads[0]["chunkMode"] == "async":
             # upload concurrent files concurrent chunks
             uploadResults = asyncio.run(asyncFiles(uploads))
-        elif uploads[0]["chunkMode"] == "sequential":
+        elif EXPEDITE or uploads[0]["chunkMode"] == "sequential":
             # upload concurrent files sequential chunks
             with ThreadPoolExecutor(max_workers=10) as executor:
                 futures = {executor.submit(upload, u): u for u in uploads}
@@ -419,7 +536,8 @@ if __name__ == "__main__":
                     for response in result:
                         uploadResults.append(response.status_code)
                         res = json.loads(response.text)
-                        uploadIds.append(res["uploadId"])
+                        if res and res.get("uploadId"):
+                            uploadIds.append(res["uploadId"])
                         uploadTexts.append(res)
         else:
             sys.exit("error - unknown chunk mode")
