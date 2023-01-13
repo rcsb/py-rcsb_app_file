@@ -115,6 +115,10 @@ class ClientUtils:
         copyMode: str = None,
         # chunk parameters
         chunkSize: int = None,
+        chunkIndex: int = None,
+        expectedChunks: int = None,
+        chunkMode: str = None,
+        chunkOffset: int = None,
         # save file parameters
         repositoryType: str = None,
         depId: str = None,
@@ -123,12 +127,13 @@ class ClientUtils:
         partNumber: int = None,
         contentFormat: str = None,
         version: str = None,
-        allowOverWrite: bool = None
+        allowOverwrite: bool = None,
+        emailAddress: str = None
     ):
 
         # print(f'upload {depId} part {partNumber} path {filePath}')
 
-        endpoint = "upload"
+        endpoint = "asyncUpload"
         url = os.path.join(self.__hostAndPort, "file-v2", endpoint)
 
         hashType = "MD5"
@@ -168,7 +173,8 @@ class ClientUtils:
             "partNumber": partNumber,
             "contentFormat": contentFormat,
             "version": str(version),
-            "allowOverWrite": allowOverWrite
+            "allowOverwrite": allowOverwrite,
+            "emailAddress": ""
         }
 
         response = None
@@ -219,20 +225,23 @@ class ClientUtils:
         useHash: typing.Optional[bool] = True,
         hashType: typing.Optional[str] = "MD5",
         hashDigest: typing.Optional[str] = None,
+        milestone: typing.Optional[str] = None
     ):
         """Simple file download from repository storage or other location"""
         #
-        endPoint = os.path.join("download", repositoryType)
+        endPoint = "download" # os.path.join("download", repositoryType)
         #
         startTime = time.time()
         try:
             mD = {
+                "repositoryType": repositoryType,
                 "depId": depId,
                 "contentType": contentType,
-                "contentFormat": contentFormat,
+                "milestone": milestone,
                 "partNumber": partNumber,
+                "contentFormat": contentFormat,
                 "version": version,
-                "hashType": hashType,
+                "hashType": hashType
             }
             #
             async with httpx.AsyncClient(timeout=self.__timeout) as client:

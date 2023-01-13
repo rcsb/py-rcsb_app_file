@@ -1,3 +1,4 @@
+import asyncio
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename, askdirectory
@@ -10,24 +11,30 @@ from PIL import ImageTk, Image
 import math
 import requests
 import json
+import httpx
 import time
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
-""" modifiable variables
+"""
+author James Smith
+"""
+
+""" modifiable global variables
 """
 base_url = "http://0.0.0.0:8000"
 maxChunkSize = 1024 * 1024 * 8  # default
 
-""" development testing variables 
-    set sleep = true for slow motion testing of small files with min chunk size
-"""
-SLEEP = False
-minChunkSize = 1024
-
 """ do not alter from here
 """
+
+# other global variables
+contentTypeInfoD = None
+fileFormatExtensionD = None
+headerD = None
+hashType = None
+
 os.environ["CACHE_PATH"] = os.path.join(
     ".", "rcsb", "app", "tests-file", "test-data", "data"
 )
@@ -813,17 +820,6 @@ class Gui(tk.Frame):
         img.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
         img.pack(fill=tk.BOTH, expand=1)
 
-#         instructionsText = """
-# UPLOAD FILE
-#     You may upload one file at a time.
-# DOWNLOAD FILE
-#     You may download one file at a time.
-# LIST FILES
-#     Specify deposit id to list files within the specified directory.
-#         """
-#         instructionsLabel = tk.Label(self.instructionsTab, text=instructionsText)
-#         instructionsLabel.pack()
-
         # UPLOADS
 
         self.repo_type = tk.StringVar(master)
@@ -833,10 +829,11 @@ class Gui(tk.Frame):
         self.part_number = tk.StringVar(master)
         self.file_format = tk.StringVar(master)
         self.version_number = tk.StringVar(master)
+        self.email_address = tk.StringVar(master)
+        self.upload_radio = tk.IntVar(master)
         self.allow_overwrite = tk.IntVar(master)
-        self.expedite = tk.IntVar(master)
-        self.chunk = tk.IntVar(master)
         self.compress = tk.IntVar(master)
+        self.decompress = tk.IntVar(master)
         self.upload_status = tk.StringVar(master)
         self.upload_status.set('0%')
         self.file_path = None
@@ -846,29 +843,12 @@ class Gui(tk.Frame):
         self.fileButton = ttk.Button(self.uploadTab, text="select", command=self.selectfile)
         self.fileButton.pack()
 
-        self.expediteCheckbox = ttk.Checkbutton(self.uploadTab, text="expedite", variable=self.expedite)
-        self.expediteCheckbox.pack()
-
-        self.allowCheckbox = ttk.Checkbutton(self.uploadTab, text="allow overwrite", variable=self.allow_overwrite)
-        self.allowCheckbox.pack()
-
-        self.chunkCheckbox = ttk.Checkbutton(self.uploadTab, text="chunk file", variable=self.chunk)
-        self.chunkCheckbox.pack()
-
-        # full file compression was slow so there was no point to compression
-        # self.compressCheckbox = ttk.Checkbutton(self.uploadTab, text="compress", variable=self.compress)
-        # self.compressCheckbox.pack()
-
         self.repoTypeLabel = ttk.Label(self.uploadTab, text="REPOSITORY TYPE")
         self.repoTypeLabel.pack()
         self.repoTypeListbox = ttk.Combobox(self.uploadTab, exportselection=0, textvariable=self.repo_type)
         self.repoTypeListbox.pack()
         self.repoTypeListbox['values'] = repoTypeList
         self.repoTypeListbox.current()
-        # self.repoTypeListbox.insert(1, "deposit")
-        # self.repoTypeListbox.insert(2, "archive")
-        # self.repoTypeListbox.insert(3, "workflow")
-        # self.repoTypeListbox.insert(4, "session")
 
         self.depIdLabel = ttk.Label(self.uploadTab, text="DEPOSIT ID")
         self.depIdLabel.pack()
@@ -880,13 +860,9 @@ class Gui(tk.Frame):
         self.contentTypeListbox = ttk.Combobox(self.uploadTab, exportselection=0, textvariable=self.content_type)
         self.contentTypeListbox.pack()
         self.contentTypeListbox['values'] = [key for key in contentTypeInfoD.keys()]
-        # for index, key in enumerate(contentTypeInfoD.keys()):
-        #     self.contentTypeListbox.insert(index + 1, key)
 
         self.milestoneLabel = ttk.Label(self.uploadTab, text="MILESTONE")
         self.milestoneLabel.pack()
-        # self.milestoneEntry = ttk.Entry(self.uploadTab, textvariable=self.mile_stone)
-        # self.milestoneEntry.pack()
         self.milestoneListbox = ttk.Combobox(self.uploadTab, exportselection=0, textvariable=self.mile_stone)
         self.milestoneListbox.pack()
         self.milestoneListbox['values'] = milestoneList
@@ -898,19 +874,38 @@ class Gui(tk.Frame):
         self.partNumberEntry.insert(1, "1")
         self.partNumberEntry.pack()
 
-        self.fileFormatLabel = ttk.Label(self.uploadTab, text="CONTENT FORMAT")
-        self.fileFormatLabel.pack()
-        self.fileFormatListbox = ttk.Combobox(self.uploadTab, exportselection=0, textvariable=self.file_format)
-        self.fileFormatListbox.pack()
-        self.fileFormatListbox['values'] = [key for key in fileFormatExtensionD.keys()]
-        # for index, key in enumerate(fileFormatExtensionD.keys()):
-        #     self.fileFormatListbox.insert(index + 1, key)
+        self.contentFormatLabel = ttk.Label(self.uploadTab, text="CONTENT FORMAT")
+        self.contentFormatLabel.pack()
+        self.contentFormatListbox = ttk.Combobox(self.uploadTab, exportselection=0, textvariable=self.file_format)
+        self.contentFormatListbox.pack()
+        self.contentFormatListbox['values'] = [key for key in fileFormatExtensionD.keys()]
 
         self.versionLabel = ttk.Label(self.uploadTab, text="VERSION")
         self.versionLabel.pack()
         self.versionEntry = ttk.Entry(self.uploadTab, textvariable=self.version_number)
         self.versionEntry.insert(1, "next")
         self.versionEntry.pack()
+
+        self.emailLabel = ttk.Label(self.uploadTab, text="EMAIL ADDRESS")
+        self.emailLabel.pack()
+        self.emailEntry = ttk.Entry(self.uploadTab, textvariable=self.email_address)
+        self.emailEntry.pack()
+
+        self.upload_group = ttk.Frame(self.uploadTab)
+        self.streamFileRadio = ttk.Radiobutton(self.upload_group, text="stream file", variable=self.upload_radio, value=1)
+        self.streamFileRadio.pack(anchor=tk.W)
+        self.sequentialChunkRadio = ttk.Radiobutton(self.upload_group, text="sequential chunks", variable=self.upload_radio, value=2)
+        self.sequentialChunkRadio.pack(anchor=tk.W)
+        self.asyncChunkRadio = ttk.Radiobutton(self.upload_group, text="async chunks", variable=self.upload_radio, value=3)
+        self.asyncChunkRadio.pack(anchor=tk.W)
+        self.allowOverwriteButton = ttk.Checkbutton(self.upload_group, text="allow overwrite", variable=self.allow_overwrite)
+        self.allowOverwriteButton.pack(anchor=tk.W)
+        self.compressCheckbox = ttk.Checkbutton(self.upload_group, text="compress", variable=self.compress)
+        self.compressCheckbox.pack(anchor=tk.W)
+        self.decompressCheckbox = ttk.Checkbutton(self.upload_group, text="decompress after upload", variable=self.decompress)
+        self.decompressCheckbox.pack(anchor=tk.W)
+        self.upload_radio.set(1)
+        self.upload_group.pack()
 
         self.uploadButton = ttk.Button(self.uploadTab, text='submit', command=self.upload)
         self.uploadButton.pack()
@@ -948,7 +943,6 @@ class Gui(tk.Frame):
         self.download_repoTypeListbox = ttk.Combobox(self.downloadTab, exportselection=0, textvariable=self.download_repo_type)
         self.download_repoTypeListbox.pack()
         self.download_repoTypeListbox['values'] = repoTypeList
-        # self.download_repoTypeListbox['values'] = ('deposit', 'archive', 'workflow', 'session')
         self.download_repoTypeListbox.current()
 
         self.download_depIdLabel = ttk.Label(self.downloadTab, text="DEPOSIT ID")
@@ -964,8 +958,6 @@ class Gui(tk.Frame):
 
         self.download_milestoneLabel = ttk.Label(self.downloadTab, text="MILESTONE")
         self.download_milestoneLabel.pack()
-        # self.download_milestoneEntry = ttk.Entry(self.downloadTab, textvariable=self.download_mile_stone)
-        # self.download_milestoneEntry.pack()
         self.download_milestoneListbox = ttk.Combobox(self.downloadTab, exportselection=0, textvariable=self.download_mile_stone)
         self.download_milestoneListbox.pack()
         self.download_milestoneListbox['values'] = milestoneList
@@ -977,11 +969,11 @@ class Gui(tk.Frame):
         self.download_partNumberEntry.insert(1, "1")
         self.download_partNumberEntry.pack()
 
-        self.download_fileFormatLabel = ttk.Label(self.downloadTab, text="CONTENT FORMAT")
-        self.download_fileFormatLabel.pack()
-        self.download_fileFormatListbox = ttk.Combobox(self.downloadTab, exportselection=0, textvariable=self.download_file_format)
-        self.download_fileFormatListbox.pack()
-        self.download_fileFormatListbox['values'] = [key for key in fileFormatExtensionD.keys()]
+        self.download_contentFormatLabel = ttk.Label(self.downloadTab, text="CONTENT FORMAT")
+        self.download_contentFormatLabel.pack()
+        self.download_contentFormatListbox = ttk.Combobox(self.downloadTab, exportselection=0, textvariable=self.download_file_format)
+        self.download_contentFormatListbox.pack()
+        self.download_contentFormatListbox['values'] = [key for key in fileFormatExtensionD.keys()]
 
         self.download_versionLabel = ttk.Label(self.downloadTab, text="VERSION")
         self.download_versionLabel.pack()
@@ -1008,7 +1000,6 @@ class Gui(tk.Frame):
         self.list_repoTypeListbox = ttk.Combobox(self.listTab, exportselection=0, textvariable=self.list_repo_type)
         self.list_repoTypeListbox.pack()
         self.list_repoTypeListbox['values'] = repoTypeList
-        # self.list_repoTypeListbox['values'] = ('deposit', 'archive', 'workflow', 'session')
         self.list_repoTypeListbox.current()
 
         self.list_depIdLabel = ttk.Label(self.listTab, text="DEPOSIT ID")
@@ -1035,17 +1026,17 @@ class Gui(tk.Frame):
 
     def upload(self):
         global headerD
-        global SLEEP
+        global hashType
         global maxChunkSize
-        global minChunkSize
+        global base_url
+        global contentTypeInfoD
+        global fileFormatExtensionD
         t1 = time.perf_counter()
         filePath = self.file_path
-        EXPEDITE = self.expedite.get() == 1
         allowOverwrite = self.allow_overwrite.get() == 1
-        CHUNK = self.chunk.get() == 1
         COMPRESS = self.compress.get() == 1
+        DECOMPRESS = self.decompress.get() == 1
         repositoryType = self.repo_type.get()
-        # repositoryType = self.repoTypeListbox.get(self.repoTypeListbox.curselection()[0])
         depId = self.dep_id.get()
         contentType = self.content_type.get()
         milestone = self.mile_stone.get()
@@ -1055,9 +1046,10 @@ class Gui(tk.Frame):
         else:
             convertedMilestone = ""
         partNumber = self.part_number.get()
-        fileFormat = self.file_format.get()
+        contentFormat = self.file_format.get()
         version = self.version_number.get()
-        if not filePath or not repositoryType or not depId or not contentType or not partNumber or not fileFormat or not version:
+        email = self.email_address.get()
+        if not filePath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
             print('error - missing values')
             sys.exit()
         if not os.path.exists(filePath):
@@ -1073,8 +1065,6 @@ class Gui(tk.Frame):
         hD = CryptUtils().getFileHash(filePath, hashType=hashType)
         fullTestHash = hD["hashDigest"]
         chunkSize = maxChunkSize
-        if SLEEP:
-            chunkSize = minChunkSize
         fileSize = os.path.getsize(filePath)
         expectedChunks = 0
         if chunkSize < fileSize:
@@ -1085,11 +1075,12 @@ class Gui(tk.Frame):
             expectedChunks = 1
         chunkIndex = 0
         chunkOffset = 0
-        chunkMode = "sequential"
+        chunkMode = "async"
         copyMode = "native"
-        if COMPRESS:
+        if DECOMPRESS:
             copyMode = "gzip_decompress"
-        if EXPEDITE and not CHUNK:
+        # upload as one file
+        if self.upload_radio.get() == 1:
             mD = {
                 # upload file parameters
                 "filePath": filePath,
@@ -1104,22 +1095,22 @@ class Gui(tk.Frame):
                 "contentType": contentType,
                 "milestone": milestone,
                 "partNumber": partNumber,
-                "contentFormat": fileFormat,
+                "contentFormat": contentFormat,
                 "version": version,
                 "allowOverwrite": allowOverwrite
             }
             response = None
             with open(filePath, "rb") as to_upload:
-                url = os.path.join(base_url, "file-v2", "expediteFile")
+                url = os.path.join(base_url, "file-v2", "upload")
                 response = requests.post(
-                    url,
+                    url=url,
+                    files={"uploadFile": to_upload},
                     data=deepcopy(mD),
                     headers=headerD,
-                    files={"uploadFile": to_upload},
-                    timeout=None,
+                    timeout=None
                 )
             if response.status_code != 200:
-                print(
+                sys.exit(
                     f"error - status code {response.status_code} {response.text}...terminating"
                 )
             self.upload_status.set(f'100%')
@@ -1127,7 +1118,7 @@ class Gui(tk.Frame):
             print(response)
             print(f'time {time.perf_counter() - t1} s')
             return
-        if EXPEDITE and CHUNK:
+        elif self.upload_radio.get() == 2:
             mD = {
                 # upload file parameters
                 "uploadId": None,
@@ -1145,13 +1136,14 @@ class Gui(tk.Frame):
                 "filePath": filePath
             }
             readFilePath = mD["filePath"]
-            url = os.path.join(base_url, "file-v2", "prepChunks")
+            url = os.path.join(base_url, "file-v2", "getSaveFilePath")
             parameters = {"repositoryType": repositoryType,
                           "depId": depId,
                           "contentType": contentType,
                           "milestone": milestone,
                           "partNumber": str(partNumber),
-                          "contentFormat": fileFormat,
+                          "contentFormat": contentFormat,
+                          "version": version,
                           "allowOverwrite": allowOverwrite
                           }
             response = requests.get(
@@ -1163,7 +1155,9 @@ class Gui(tk.Frame):
             if response.status_code == 200:
                 result = json.loads(response.text)
                 if result:
-                    mD["filePath"] = str(result)
+                    mD["filePath"] = result["path"]
+            else:
+                sys.exit(f'error - {response.status_code}')
             url = os.path.join(base_url, "file-v2", "getNewUploadId")
             response = requests.get(
                 url,
@@ -1173,7 +1167,9 @@ class Gui(tk.Frame):
             if response.status_code == 200:
                 result = json.loads(response.text)
                 if result:
-                    mD["uploadId"] = str(result)
+                    mD["uploadId"] = result["id"]
+            else:
+                sys.exit(f'error - {response.status_code}')
             # chunk file and upload
             offset = 0
             offsetIndex = 0
@@ -1181,7 +1177,7 @@ class Gui(tk.Frame):
             tmp = io.BytesIO()
             with open(readFilePath, "rb") as to_upload:
                 to_upload.seek(offset)
-                url = os.path.join(base_url, "file-v2", "expediteChunk")
+                url = os.path.join(base_url, "file-v2", "sequentialUpload")
                 for x in range(offsetIndex, mD["expectedChunks"]):
                     packet_size = min(
                         int(mD["fileSize"]) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
@@ -1206,113 +1202,125 @@ class Gui(tk.Frame):
                     responses.append(response)
                     mD["chunkIndex"] += 1
                     mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
-                    if SLEEP:
-                        time.sleep(1)
                     self.status = math.ceil((mD["chunkIndex"] / mD["expectedChunks"]) * 100)
                     self.upload_status.set(f'{self.status}%')
                     self.master.update()
             print(responses)
             print(f'time {time.perf_counter() - t1} s')
             return
-        mD = {
-            # upload file parameters
-            "filePath": filePath,
-            "uploadId": None,
-            "fileSize": fileSize,
-            "copyMode": copyMode,
-            "hashType": hashType,
-            "hashDigest": fullTestHash,
-            # chunk parameters
-            "chunkSize": chunkSize,
-            "chunkIndex": chunkIndex,
-            "chunkOffset": chunkOffset,
-            "expectedChunks": expectedChunks,
-            "chunkMode": chunkMode,
-            # save file parameters
-            "repositoryType": repositoryType,
-            "depId": depId,
-            "contentType": contentType,
-            "milestone": milestone,
-            "partNumber": partNumber,
-            "contentFormat": fileFormat,
-            "version": version,
-            "allowOverwrite": allowOverwrite
-        }
-        # test for resumed upload
-        uploadId = mD["uploadId"]
-        url = os.path.join(base_url, "file-v2", "uploadStatus")
-        parameters = {"repositoryType": mD["repositoryType"],
-                      "depId": mD["depId"],
-                      "contentType": mD["contentType"],
-                      "milestone": mD["milestone"],
-                      "partNumber": str(mD["partNumber"]),
-                      "contentFormat": mD["contentFormat"],
-                      "hashDigest": mD["hashDigest"]
-                      }
-        response = requests.get(
-            url,
-            params=parameters,
-            headers=headerD,
-            timeout=None
-        )
-        offsetIndex = 0
-        offset = 0
-        if response.status_code == 200:
-            result = json.loads(response.text)
-            if result:
-                if not isinstance(result, dict):
+        elif self.upload_radio.get() == 3:
+            # async chunks
+            mD = {
+                # upload file parameters
+                "filePath": filePath,
+                "uploadId": None,
+                "fileSize": fileSize,
+                "copyMode": copyMode,
+                "hashType": hashType,
+                "hashDigest": fullTestHash,
+                # chunk parameters
+                "chunkSize": chunkSize,
+                "chunkIndex": chunkIndex,
+                "chunkOffset": chunkOffset,
+                "expectedChunks": expectedChunks,
+                "chunkMode": chunkMode,
+                # save file parameters
+                "repositoryType": repositoryType,
+                "depId": depId,
+                "contentType": contentType,
+                "milestone": milestone,
+                "partNumber": partNumber,
+                "contentFormat": contentFormat,
+                "version": version,
+                "allowOverwrite": allowOverwrite,
+                "emailAddress": email
+            }
+            asyncio.run(self.asyncUpload(mD))
+
+    async def asyncUpload(self, mD):
+            # t1 = time.time()
+            # test for resumed upload
+            uploadId = mD["uploadId"]
+            url = os.path.join(base_url, "file-v2", "uploadStatus")
+            parameters = {"repositoryType": mD["repositoryType"],
+                          "depId": mD["depId"],
+                          "contentType": mD["contentType"],
+                          "milestone": mD["milestone"],
+                          "partNumber": str(mD["partNumber"]),
+                          "contentFormat": mD["contentFormat"],
+                          "hashDigest": mD["hashDigest"]
+                          }
+            response = requests.get(
+                url,
+                params=parameters,
+                headers=headerD,
+                timeout=None
+            )
+            chunksSaved = "0" * mD["expectedChunks"]
+            if response.status_code == 200:
+                result = json.loads(response.text)
+                if result:
                     result = eval(result)
-                offsetIndex = int(result["uploadCount"])
-                packet_size = min(
-                    int(mD["fileSize"]) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
-                    int(mD["chunkSize"]),
-                )
-                offset = offsetIndex * packet_size
-                mD["chunkIndex"] = offsetIndex
-                mD["chunkOffset"] = offset
-        # chunk file and upload
+                    chunksSaved = result["chunksSaved"]
+            tasks = []
+            for index in range(0, len(chunksSaved)):
+                if chunksSaved[index] == "0":
+                    tasks.append(self.asyncChunk(index, mD))
+            responses = await asyncio.gather(*tasks)
+            results = []
+            for response in responses:
+                if response:
+                    status = response.status_code
+                    results.append(status)
+            # print(f'time {time.perf_counter() - t1} s')
+            print(results)
+
+
+    async def asyncChunk(self, index, mD):
+        offset = index * mD["chunkSize"]
+        mD["chunkIndex"] = index
         responses = []
         tmp = io.BytesIO()
         with open(mD["filePath"], "rb") as to_upload:
             to_upload.seek(offset)
-            url = os.path.join(base_url, "file-v2", "upload")
-            for x in range(offsetIndex, mD["expectedChunks"]):
-                packet_size = min(
-                    int(mD["fileSize"]) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
-                    int(mD["chunkSize"]),
+            url = os.path.join(base_url, "file-v2", "asyncUpload")
+            packet_size = min(
+                int(mD["fileSize"]) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
+                int(mD["chunkSize"]),
+            )
+            tmp.truncate(packet_size)
+            tmp.seek(0)
+            tmp.write(to_upload.read(packet_size))
+            tmp.seek(0)
+            response = requests.post(
+                url,
+                data=deepcopy(mD),
+                headers=headerD,
+                files={"uploadFile": tmp},
+                timeout=None,
+            )
+            if response.status_code != 200:
+                sys.exit(
+                    f"error - status code {response.status_code} {response.text}...terminating"
                 )
-                tmp.truncate(packet_size)
-                tmp.seek(0)
-                tmp.write(to_upload.read(packet_size))
-                tmp.seek(0)
-                response = requests.post(
-                    url,
-                    data=deepcopy(mD),
-                    headers=headerD,
-                    files={"uploadFile": tmp},
-                    timeout=None,
-                )
-                if response.status_code != 200:
-                    print(
-                        f"error - status code {response.status_code} {response.text}...terminating"
-                    )
-                    break
+            else:
                 responses.append(response)
                 mD["chunkIndex"] += 1
                 mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
-                if SLEEP:
-                    time.sleep(1)
                 self.status = math.ceil((mD["chunkIndex"] / mD["expectedChunks"]) * 100)
                 self.upload_status.set(f'{self.status}%')
                 self.master.update()
-        print(responses)
-        print(f'time {time.perf_counter() - t1} s')
+        if len(responses) > 0:
+            return responses[-1]
+        return None
 
     def download(self):
         global headerD
-        global SLEEP
         global maxChunkSize
-        global minChunkSize
+        global hashType
+        global base_url
+        global contentTypeInfoD
+        global fileFormatExtensionD
         t1 = time.perf_counter()
         allowOverwrite = self.download_allow_overwrite.get() == 1
         repositoryType = self.download_repo_type.get()
@@ -1325,14 +1333,14 @@ class Gui(tk.Frame):
         else:
             convertedMilestone = ""
         partNumber = self.download_part_number.get()
-        fileFormat = self.download_file_format.get()
+        contentFormat = self.download_file_format.get()
         version = self.download_version_number.get()
         folderPath = self.file_path
-        if not folderPath or not repositoryType or not depId or not contentType or not partNumber or not fileFormat or not version:
+        if not folderPath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
             print('error - missing values')
             sys.exit()
-        convertedFileFormat = fileFormatExtensionD[fileFormat]
-        fileName = f'{depId}_{contentType}{convertedMilestone}_P{partNumber}.{convertedFileFormat}.V{version}'
+        convertedContentFormat = fileFormatExtensionD[contentFormat]
+        fileName = f'{depId}_{contentType}{convertedMilestone}_P{partNumber}.{convertedContentFormat}.V{version}'
         downloadFilePath = os.path.join(folderPath, fileName)
         if not os.path.exists(folderPath):
             print(f'error - folder does not exist: {downloadFilePath}')
@@ -1348,7 +1356,7 @@ class Gui(tk.Frame):
             "depId": depId,
             "repositoryType": repositoryType,
             "contentType": contentType,
-            "contentFormat": fileFormat,
+            "contentFormat": contentFormat,
             "partNumber": partNumber,
             "version": str(version),
             "hashType": hashType,
@@ -1361,23 +1369,19 @@ class Gui(tk.Frame):
             return None
         fileSize = int(fileSize)
         chunkSize = maxChunkSize
-        if SLEEP:
-            chunkSize = minChunkSize
         chunks = math.ceil(fileSize / chunkSize)
-        url = os.path.join(base_url, "file-v1", "download", repositoryType)
+        url = os.path.join(base_url, "file-v1", "download")
+        url = f'{url}?repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}&partNumber={partNumber}&contentFormat={contentFormat}&version={version}&hashType={hashType}'
         responseCode = None
         count = 0
-        with requests.get(url, params=downloadDict, headers=headerD, timeout=None, stream=True) as response:
+        with requests.get(url, headers=headerD, timeout=None, stream=True) as response:
             with open(downloadFilePath, "ab") as ofh:
                 for chunk in response.iter_content(chunk_size=chunkSize):
-                    # print(f'writing chunk {count} of {chunks} size {chunkSize}')
                     if chunk:
                         ofh.write(chunk)
                     # ofh.flush()
                     # os.fsync(ofh.fileno())
                     count += 1
-                    if SLEEP:
-                        time.sleep(1)
                     self.status = math.ceil((count / chunks) * 100)
                     self.download_status.set(f'{self.status}%')
                     self.master.update()
@@ -1438,9 +1442,10 @@ class Gui(tk.Frame):
         self.file_format.set("")
         self.version_number.set("next")
         self.allow_overwrite.set(0)
-        self.expedite.set(0)
         self.compress.set(0)
-        self.chunk.set(0)
+        self.decompress.set(0)
+        self.upload_radio.set(1)
+        self.email_address.set("")
 
         self.download_repo_type.set("")
         self.download_dep_id.set("")

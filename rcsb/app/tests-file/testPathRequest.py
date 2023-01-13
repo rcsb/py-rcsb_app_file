@@ -320,6 +320,7 @@ class PathRequestTests(unittest.TestCase):
                 "contentFormatSource": "pdbx",
                 "partNumberSource": 2,
                 "versionSource": 2,
+                "milestoneSource": "",
                 #
                 "depIdTarget": "D_3000000001",
                 "repositoryTypeTarget": "onedep-archive",
@@ -327,6 +328,7 @@ class PathRequestTests(unittest.TestCase):
                 "contentFormatTarget": "pdbx",
                 "partNumberTarget": 2,
                 "versionTarget": 2,
+                "milestoneTarget": ""
             }
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)

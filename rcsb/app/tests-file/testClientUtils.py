@@ -106,8 +106,13 @@ class ClientUtilsTests(unittest.TestCase):
                             # upload file parameters
                             "filePath": self.__testFilePath,
                             "copyMode": "native",
+                            "uploadId": None,
                             # chunk parameters
                             "chunkSize": chunkSize,
+                            "chunkIndex": None,
+                            "chunkOffset": None,
+                            "expectedChunks": None,
+                            "chunkMode": "async",
                             # save file parameters
                             "repositoryType": "onedep-archive",
                             "depId": "D_3000000000",
@@ -116,7 +121,8 @@ class ClientUtilsTests(unittest.TestCase):
                             "partNumber": 1,
                             "contentFormat": "pdbx",
                             "version": "9",
-                            "allowOverWrite": True
+                            "allowOverwrite": True,
+                            "emailAddress": None,
                         }
                     ]
                 )
@@ -145,9 +151,9 @@ class ClientUtilsTests(unittest.TestCase):
                         "partNumber": 1,
                         "version": "9",
                         "copyMode": "native",
-                        "allowOverWrite": True,
+                        "allowOverwrite": True,
                         "chunkSize": chunkSize,
-                        "milestone": None
+                        "milestone": "upload"
                     }
                 )
             taskL = asyncio.run(self.__cU.upload(tL))
@@ -174,9 +180,9 @@ class ClientUtilsTests(unittest.TestCase):
                             "partNumber": 1,
                             "version": "9",
                             "copyMode": "native",
-                            "allowOverWrite": True,
+                            "allowOverwrite": True,
                             "chunkSize": chunkSize,
-                            "milestone": None
+                            "milestone": "upload"
                         }
                     ]
                 )
@@ -208,9 +214,9 @@ class ClientUtilsTests(unittest.TestCase):
                         "partNumber": part,
                         "version": "9",
                         "copyMode": "native",
-                        "allowOverWrite": True,
+                        "allowOverwrite": True,
                         "chunkSize": chunkSize,
-                        "milestone": None
+                        "milestone": "upload"
                     }
                 )
             results = asyncio.run(self.__cU.upload(data))
@@ -239,6 +245,7 @@ class ClientUtilsTests(unittest.TestCase):
                     contentFormat="pdbx",
                     partNumber=1,
                     version="9",
+                    milestone=""
                 )
             )
             # logger.info("Completed download (%.4f seconds)", time.time() - startTime)

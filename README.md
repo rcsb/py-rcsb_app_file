@@ -59,7 +59,39 @@ From base repository directory (in `py-rcsb_app_file/`), start app with:
 
 ```
 
+# Endpoints and forwarding
+
+The repository contains three upload endpoints, one download endpoint, and one list-directory endpoint.
+
+For uploading an entire file as a stream, use the 'file-v2/upload' endpoint.
+
+To upload a file in chunks, use either the 'file-v2/sequentialUpload' or 'file-v2/asyncUpload' endpoint.
+
+The sequential endpoint has a minimal code footprint but requires some setup by invoking the 'file-v2/getNewUploadId' and 'file-v2/getSaveFilePath' endpoints first, then passing the results as parameters.
+
+To maintain sequential order, the client must wait for each response before sending the next chunk.
+
+The async endpoint has a larger code footprint and therefore allows users to receive an email to inform them when their results are done, allowing the client to exit the upload sooner by ignoring all responses.
+
+The async endpoint also doubles as a sequential chunk endpoint if chunkMode = sequential rather than async.
+
+To skip endpoints and send a chunk or file from Python, use the IoUtils.py storeUpload function.
+
+Only the async API has server-side support for resumable uploads.
+
+The other endpoints would require client-side support for resumable uploads, most likely with local storage.
+
+The download endpoint is found at 'file-v1/download'.
+
+The list directory endpoint is found at 'file-v1/list-dir'.
+
 # Uploads and downloads
+
+### HTML examples
+
+The example-upload.html and example-download.html files demonstrate requests to the endpoints from HTML.
+
+### Python client
 
 In a separate shell (also from the base repository directory) run client.py or gui.py
 
@@ -82,7 +114,7 @@ python3 client.py
 
 # Sqlite3
 
-When uploading in chunks, server processes coordinate through a database named KV (key-value)
+When uploading async chunks, server processes coordinate through a database named KV (key-value)
 
 If KV_MODE is set to sqlite in rcsb/app/config/config.yml, chunk information is coordinated with a sqlite3 database
 
@@ -109,7 +141,7 @@ find / -name kv.sqlite
 
 # Redis
 
-If KV_MODE is set to redis in rcsb/app/config/config.yml, chunks coordinate through a Redis database
+If KV_MODE is set to redis in rcsb/app/config/config.yml, async chunks coordinate through a Redis database
 
 Install Redis
 ```
@@ -291,7 +323,7 @@ docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/sy
 
 Errors related to 'shared locks' are generally fixed by deleting the 'shared-locks' directory and, if necessary, restarting.
 
-For production, Redis variables are set to expire periodically. However, hidden files are not, so a cron job should be run periodically to remove lingering hidden files.
+For production, Redis variables are set to expire periodically. However, hidden files are not, so a cron job should be run periodically to remove lingering hidden files from the deposit or archive directories.
 
 After development testing with a Sqlite database, open the kv.sqlite file and delete the tables, and delete hidden files from the deposit or archives directories.
 

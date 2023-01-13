@@ -82,10 +82,11 @@ class FileUpdateTests(unittest.TestCase):
             # refHashDigest = hD["hashDigest"]
 
         responseCode = 200
-        for endPoint in ["download/onedep-archive"]:
+        for endPoint in ["download"]:
             startTime = time.time()
             try:
                 mD = {
+                    "repositoryType": "archive",
                     "depId": "D_8000210008",
                     "contentType": "model",
                     "contentFormat": "pdbx",
@@ -124,7 +125,7 @@ class FileUpdateTests(unittest.TestCase):
         with open(self.__updatedFilePath, "w", encoding="utf-8") as ofh:
             ofh.write(dataContent.replace("PROC", "REL"))
 
-        endPoint = "upload"
+        endPoint = "asyncUpload"
         hashType = "MD5"
         hD = CryptUtils().getFileHash(self.__updatedFilePath, hashType=hashType)
         testHash = hD["hashDigest"]
@@ -139,7 +140,7 @@ class FileUpdateTests(unittest.TestCase):
                 "partNumber": 1,
                 "version": "next",  # Upload "next"
                 "copyMode": "native",
-                "allowOverWrite": True,
+                "allowOverwrite": True,
                 "hashType": hashType,
                 "hashDigest": testHash,
             }
@@ -175,7 +176,7 @@ class FileUpdateTests(unittest.TestCase):
                 "partNumber": 1,
                 "version": "next",  # Upload "next"
                 "copyMode": "native",
-                "allowOverWrite": True,
+                "allowOverwrite": True,
                 "hashType": hashType,
                 "hashDigest": testHash,
             }

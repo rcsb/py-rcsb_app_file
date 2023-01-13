@@ -13,6 +13,7 @@ __license__ = "Apache 2.0"
 import logging
 import os
 from fastapi import FastAPI, Request, Response
+from starlette.middleware.cors import CORSMiddleware
 from fastapi.security.utils import get_authorization_scheme_param
 
 # pylint: disable=wrong-import-position
@@ -49,6 +50,13 @@ lu.addFilters()
 # ---
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
@@ -96,6 +104,7 @@ app.include_router(
 app.include_router(serverStatus.router)
 
 
+"""
 @app.middleware("http")
 async def checkToken(request: Request, callNext):
     authorization: str = request.headers.get("Authorization", None)
@@ -113,3 +122,5 @@ async def checkToken(request: Request, callNext):
     else:
         response = await callNext(request)
         return response
+"""
+

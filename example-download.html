@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <meta charset="UTF-8">
+        <title>HTML DOWNLOAD EXAMPLE</title>
+        <!-- author James Smith -->
+		<style>
+			div {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+			}
+			form {
+				display: flex;
+				flex-direction: column;
+				align-items: flex-start;
+				row-gap: 10px;
+				border: 1px solid black;
+				padding: 20px;
+			}
+		</style>
+	</head>
+	<body>
+		<div>
+		<form action="http://0.0.0.0:8000/file-v1/download" method="GET">
+            <label>Repository type</label>
+            <input type="text" name="repositoryType">
+            <label>Deposit id</label>
+            <input type="text" name="depId">
+            <label>Content type</label>
+            <input type="text" name="contentType">
+            <label>Milestone</label>
+            <input type="text" name="milestone">
+            <label>Part number</label>
+            <input type="text" name="partNumber">
+            <label>Content format</label>
+            <input type="text" name="contentFormat">
+            <label>Version</label>
+            <input type="text" name="version">
+            <input type="hidden" name="hashType" value="MD5">
+			<input type="submit" value="submit">
+		</form>
+		</div>
+	</body>
+</html>

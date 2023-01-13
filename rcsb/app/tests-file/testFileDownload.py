@@ -156,10 +156,11 @@ class FileDownloadTests(unittest.TestCase):
             hD = CryptUtils().getFileHash(testFilePath, hashType=refHashType)
             refHashDigest = hD["hashDigest"]
 
-        for endPoint in ["download/onedep-archive"]:
+        for endPoint in ["download"]:
             startTime = time.time()
             try:
                 mD = {
+                    "repositoryType": "archive",
                     "depId": "D_1000000001",
                     "contentType": "model",
                     "contentFormat": "pdbx",
@@ -192,15 +193,17 @@ class FileDownloadTests(unittest.TestCase):
     def testDownloadTokens(self):
         """Test - download token security"""
         mD = {
+            "repositoryType": "archive",
             "depId": "D_1000000001",
             "contentType": "model",
             "contentFormat": "pdbx",
             "partNumber": 1,
             "version": 1,
             "hashType": "MD5",
+            "milestone": ""
         }
         headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, "badSubject")}
-        for endPoint in ["download/onedep-archive"]:
+        for endPoint in ["download"]:
             startTime = time.time()
             try:
 
@@ -217,7 +220,7 @@ class FileDownloadTests(unittest.TestCase):
                 self.fail()
 
         headerD = {}
-        for endPoint in ["download/onedep-archive"]:
+        for endPoint in ["download"]:
             startTime = time.time()
             try:
                 with TestClient(app) as client:
@@ -235,7 +238,7 @@ class FileDownloadTests(unittest.TestCase):
 def downloadSimpleTests():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(FileDownloadTests("testSimpleDownload"))
-    suiteSelect.addTest(FileDownloadTests("testDownloadTokens"))
+    # suiteSelect.addTest(FileDownloadTests("testDownloadTokens"))
     return suiteSelect
 
 

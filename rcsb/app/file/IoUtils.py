@@ -5,7 +5,7 @@
 # Version: 0.001
 #
 # Updates:
-##
+#
 """
 Collected I/O utilities.
 """
@@ -14,6 +14,9 @@ __docformat__ = "google en"
 __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
+
+# Tasks:
+# Improve email service
 
 import asyncio
 import datetime
@@ -27,6 +30,7 @@ import typing
 import uuid
 import aiofiles
 import re
+import requests
 
 from fastapi import HTTPException
 
@@ -150,24 +154,17 @@ class IoUtils:
         partNumber: int = 1,
         contentFormat: str = "pdbx",
         version: str = "next",
-        allowOverwrite: bool = True
+        allowOverwrite: bool = True,
+        emailAddress: str = None
     ) -> typing.Dict:
-
-        # logger.warning(
-        #     "repositoryType %r depId %r contentType %r partNumber %r contentFormat %r version %r copyMode %r",
-        #     repositoryType, depId, contentType, partNumber, contentFormat, version, copyMode
-        # )
-        # logger.warning(
-        #     "chunk index %s chunk offset %s chunk total %s upload id %s", chunkIndex, chunkOffset, expectedChunks, uploadId
-        # )
 
         # validate parameters
         if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
-            return {"success": False, "statusCode": 405, "statusMessage": "Bad content type and/or format - upload rejected"}
+            raise HTTPException(status_code=400, detail="Bad content type and/or format - upload rejected")
 
-        if fileName and mimeType and not copyMode == "gzip_decompress":
-            if fileName.endswith(".gz") or mimeType == "application/gzip":
-                copyMode = "gzip_decompress"
+        # if fileName and mimeType and not copyMode == "gzip_decompress":
+        #     if fileName.endswith(".gz") or mimeType == "application/gzip":
+        #         copyMode = "gzip_decompress"
 
         # get path for saving file, test if file exists and is overwritable
         outPath = None
@@ -183,10 +180,10 @@ class IoUtils:
                 version=version
             )
             if not outPath:
-                return {"success": False, "statusCode": 405, "statusMessage": "Bad content type metadata - cannot build a valid path"}
+                raise HTTPException(status_code=400, detail="Bad content type metadata - cannot build a valid path")
             if os.path.exists(outPath) and not allowOverwrite:
                 logger.info("Path exists (overwrite %r): %r", allowOverwrite, outPath)
-                return {"success": False, "statusCode": 405, "statusMessage": "Encountered existing file - overwrite prohibited"}
+                raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
             # test if file name in log table (resumed upload or later chunk)
             # if find resumed upload then set uid = previous uid, otherwise new uid
             # lock so that even for concurrent chunks the first chunk will write an upload id that subsequent chunks will use
@@ -216,11 +213,11 @@ class IoUtils:
         if currentCount == 0:  # for async, use kv uploadCount rather than parameter chunkIndex == 0:
             self.__kV.setSession(key, "expectedCount", expectedChunks)
             self.__kV.setLog(logKey, uploadId)
-            if chunkMode == "async":
-                chunksSaved = "0" * expectedChunks
-                self.__kV.setSession(key, "chunksSaved", chunksSaved)
             self.__kV.setSession(key, "timestamp", int(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))))
             self.__kV.setSession(key, "hashDigest", hashDigest)
+            # for async mode and return value expected from get session
+            chunksSaved = "0" * expectedChunks
+            self.__kV.setSession(key, "chunksSaved", chunksSaved)
         if chunkMode == "async":
             chunksSaved = self.__kV.getSession(key, "chunksSaved")
             chunksSaved = list(chunksSaved)
@@ -268,11 +265,11 @@ class IoUtils:
                 copyMode=copyMode,
                 hashType=hashType,
                 hashDigest=hashDigest,
-                logKey=logKey
+                logKey=logKey,
+                emailAddress=emailAddress
             )
         else:
-            return {"success": False, "statusCode": 405,
-                    "statusMessage": "error - unknown chunk mode"}
+            raise HTTPException(status_code=400, detail="error - unknown chunk mode")
 
         # if last chunk, clear session, otherwise increment chunk count
         if currentCount + 1 == expectedChunks:
@@ -299,7 +296,8 @@ class IoUtils:
         copyMode: typing.Optional[str] = "native",
         hashType: typing.Optional[str] = None,
         hashDigest: typing.Optional[str] = None,
-        logKey: str = None
+        logKey: str = None,
+        emailAddress: str = None
     ) -> typing.Dict:
         ok = False
         ret = {"success": False, "statusMessage": None}
@@ -308,19 +306,11 @@ class IoUtils:
             dirPath, fn = os.path.split(outPath)
             tempPath = self.getTempFilePath(uploadId, dirPath)
             await self.__makedirs(dirPath, mode=0o755, exist_ok=True)
-
             async with aiofiles.open(tempPath, mode) as ofh:
                 await ofh.seek(chunkOffset)
-                if copyMode == "native" or copyMode == "shell" or copyMode == "gzip_decompress":
-                    await ofh.write(ifh.read())
-                    await ofh.flush()
-                    os.fsync(ofh.fileno())
-
-        except Exception as e:
-            logger.exception("Internal write error for path %r: %s", outPath, str(e))
-            ret = {"success": False, "statusCode": 400, "statusMessage": f"Store fails with {str(e)}"}
-        finally:
-            ifh.close()
+                await ofh.write(ifh.read())
+                await ofh.flush()
+                os.fsync(ofh.fileno())
             ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
             # if last chunk, check hash, finalize
             if (int(self.__kV.getSession(key, val)) + 1) == expectedChunks:
@@ -329,10 +319,14 @@ class IoUtils:
                     ok = self.checkHash(tempPath, hashDigest, hashType)
                     # ok = await self.__checkHashAsync(tempPath, hashDigest, hashType)
                     if not ok:
-                        ret = {"success": False, "statusCode": 400, "statusMessage": f"{hashType} hash check failed"}
+                        raise HTTPException(status_code=400, detail=f"{hashType} hash check failed")
                     if ok:
                         await self.__replace(tempPath, outPath)
-                        ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
+                        ret = {"success": True, "statusCode": 200, "statusMessage": f"Store uploaded for {fn}"}
+                        msg = ret["statusMessage"]
+                        response = await self.sendEmail(emailAddress, msg)
+                        if response:
+                            ret["statusMessage"] = response
                     if os.path.exists(tempPath):
                         try:
                             os.unlink(tempPath)
@@ -346,8 +340,16 @@ class IoUtils:
                         await self.__replace(tempPath, outPath)
                 else:
                     logging.warning("hash error")
-                    ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
+                    raise HTTPException(status_code=400, detail="Error - missing hash")
                 await self.clearSession(key, logKey)
+        except HTTPException as exc:
+            logger.exception("Internal write error for path %r: %s", outPath, exc.detail)
+            raise HTTPException(status_code=exc.status_code, detail=f"Store fails with {exc.detail}")
+        except Exception as exc:
+            logger.exception("Internal write error for path %r: %s", outPath, str(exc))
+            raise HTTPException(status_code=400, detail=f"Store fails with {str(exc)}")
+        finally:
+            ifh.close()
         return ret
 
     async def asyncUpload(
@@ -364,12 +366,13 @@ class IoUtils:
         copyMode: typing.Optional[str] = "native",
         hashType: typing.Optional[str] = None,
         hashDigest: typing.Optional[str] = None,
-        logKey: str = None
+        logKey: str = None,
+        emailAddress: str = None
     ) -> typing.Dict:
-
         ok = False
         ret = {"success": False, "statusMessage": None}
         tempDir = None
+        fn = None
         try:
             dirPath, fn = os.path.split(outPath)
             tempDir = self.getTempDirPath(uploadId, dirPath)
@@ -378,45 +381,52 @@ class IoUtils:
             chunkPath = os.path.join(tempDir, str(chunkIndex))
             async with aiofiles.open(chunkPath, mode) as ofh:
                 await ofh.seek(chunkOffset)
-                if copyMode == "native" or copyMode == "shell":
-                    await ofh.write(ifh.read())
-                    await ofh.flush()
-                    os.fsync(ofh.fileno())
-                elif copyMode == "gzip_decompress":
-                    await ofh.write(gzip.decompress(ifh.read()))
-                    await ofh.flush()
-                    os.fsync(ofh.fileno())
-
-        except Exception as e:
-            logger.exception("Internal write error for path %r: %s", outPath, str(e))
-            ret = {"success": False, "statusCode": 400, "statusMessage": f"Store fails with {str(e)}"}
-        finally:
-            ifh.close()
+                await ofh.write(ifh.read())
+                await ofh.flush()
+                os.fsync(ofh.fileno())
             ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
             # if last chunk, check hash, finalize
             if (int(self.__kV.getSession(key, val)) + 1) == expectedChunks:
                 tempPath = await self.joinFiles(uploadId, dirPath, fn, tempDir)
                 if not tempPath:
-                    ret = {"success": False, "statusCode": 400, "statusMessage": f"error saving {fn}"}
+                    raise HTTPException(status_code=400, detail=f"error saving {fn}")
                 else:
                     ok = True
                     if hashDigest and hashType:
                         ok = self.checkHash(tempPath, hashDigest, hashType)
                         # ok = await self.__checkHashAsync(tempPath, hashDigest, hashType)
                         if not ok:
-                            ret = {"success": False, "statusCode": 400, "statusMessage": f"{hashType} hash check failed"}
+                            raise HTTPException(status_code=400, detail=f"{hashType} hash check failed")
                         else:
                             await self.__replace(tempPath, outPath)
-                            ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
+                            ret = {"success": True, "statusCode": 200, "statusMessage": f"Store uploaded for {fn}"}
+                            msg = ret["statusMessage"]
+                            response = await self.sendEmail(emailAddress, msg)
+                            if response:
+                                ret["statusMessage"] = response
                         if os.path.exists(tempPath):
                             try:
                                 os.unlink(tempPath)
                             except Exception:
                                 logging.warning("could not delete %s", tempPath)
+                        if copyMode == "gzip_decompress":
+                            # just deleted temp path but using again for a temp file
+                            with gzip.open(outPath, "rb") as r:
+                                with open(tempPath, "wb") as w:
+                                    w.write(r.read())
+                            await self.__replace(tempPath, outPath)
                     else:
                         logging.warning("hash error")
-                        ret = {"success": False, "statusCode": 500, "statusMessage": "Error - missing hash"}
+                        raise HTTPException(status_code=400, detail="Error - missing hash")
                 await self.clearSession(key, logKey)
+        except HTTPException as exc:
+            logger.exception("Internal write error for path %r: %s", outPath, exc.detail)
+            raise HTTPException(status_code=exc.status_code, detail=f"Store fails with {exc.detail}")
+        except Exception as exc:
+            logger.exception("Internal write error for path %r: %s", outPath, str(exc))
+            raise HTTPException(status_code=400, detail=f"Store fails with {str(exc)}")
+        finally:
+            ifh.close()
         return ret
 
     async def joinFiles(self, uploadId, dirPath, fn, tempDir):
@@ -435,7 +445,9 @@ class IoUtils:
                         w.write(r.read())
                     os.remove(chunkPath)
             os.rmdir(tempDir)
-        except Exception:
+        except HTTPException as exc:
+            return None
+        except Exception as exc:
             return None
         return tempPath
 
@@ -544,7 +556,7 @@ class IoUtils:
             os.unlink(tempFile)
             tempDir = self.getTempDirPath(uploadId, dirPath)
             shutil.rmtree(tempDir, ignore_errors=True)
-        except Exception:
+        except Exception as exc:
             # either tempFile or tempDir was not found
             pass
 
@@ -558,7 +570,7 @@ class IoUtils:
         response = None
         try:
             response = self.__kV.clearSessionKey(uid)
-        except Exception:
+        except Exception as exc:
             return False
         return response
 
@@ -572,7 +584,7 @@ class IoUtils:
                 self.__kV.clearLogVal(uid)
             elif self.__cP.get("KV_MODE") == "redis":
                 self.__kV.clearLog(logKey)
-        except Exception:
+        except Exception as exc:
             return False
         return response
 
@@ -603,3 +615,25 @@ class IoUtils:
         version = versions[-1]
         version = version.replace("V", "")
         return version
+
+    # please change to legitimate email service
+    async def sendEmail(self,
+                        emailAddress: str = None,
+                        msg: str = None
+                        ):
+        if not emailAddress or not msg:
+            logging.warning('error - no email address or body')
+            return None
+        url = "https://springbootemailwebservice.000webhostapp.com"
+        body = {
+            "sender": "PDB",
+            "subject": "one-dep upload status",
+            "recipient": emailAddress,
+            "body": msg
+        }
+        response = requests.post(url, data=body)
+        if response.status_code == 200:
+            return response.text
+        else:
+            logging.warning(f'email response {response.status_code}')
+            return response.status_code

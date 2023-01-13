@@ -31,7 +31,8 @@ from rcsb.utils.io.FileUtil import FileUtil
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["status"])
+router = APIRouter(tags=["status"])
+# router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["status"])
 
 
 class HashType(str, Enum):
@@ -348,6 +349,7 @@ async def moveFile(
     contentFormatSource: str = Query(title="Input Content format", description="OneDep content format of file to move", example="pdb, pdbx, mtz, pdf"),
     partNumberSource: int = Query(1, title="Source Content part", description="OneDep part number of file to move", example="1,2,3"),
     versionSource: str = Query("latest", title="Source Version string", description="OneDep version number or description of file to move", example="1,2,3, latest, previous, next"),
+    milestoneSource: str = Query(""),
     #
     depIdTarget: str = Query(title="Target ID Code", description="Identifier code of destination file", example="D_0000000001"),
     repositoryTypeTarget: str = Query(title="Target Repository Type", description="OneDep repository type of destination file", example="onedep-archive, onedep-deposit"),
@@ -355,7 +357,7 @@ async def moveFile(
     contentFormatTarget: str = Query(title="Input Content format", description="OneDep content format of destination file", example="pdb, pdbx, mtz, pdf"),
     partNumberTarget: int = Query(1, title="Target Content part", description="OneDep part number of destination file", example="1,2,3"),
     versionTarget: str = Query(None, title="Target Version string", description="OneDep version number or description of destination file", example="1,2,3, latest, previous, next"),
-    milestone: str = Query("", title="milestone", description="milestone", example="release"),
+    milestoneTarget: str = Query("", title="milestone", description="milestone", example="release"),
 ):
     """Move a file given standard input paramaters for both the source and destination of the file.
     """
@@ -369,9 +371,9 @@ async def moveFile(
         #
         logger.info(
             "Moving repositoryType %r depId %r contentType %r milestone %r format %r version %r",
-            repositoryTypeSource, depIdSource, contentTypeSource, milestone, contentFormatSource, versionSource
+            repositoryTypeSource, depIdSource, contentTypeSource, milestoneSource, contentFormatSource, versionSource
         )
-        filePathSource = pathU.getVersionedPath(repositoryTypeSource, depIdSource, contentTypeSource, milestone, partNumberSource, contentFormatSource, versionSource)
+        filePathSource = pathU.getVersionedPath(repositoryTypeSource, depIdSource, contentTypeSource, milestoneTarget, partNumberSource, contentFormatSource, versionSource)
         logger.info("filePathSource %r", filePathSource)
         if not versionTarget:
             sourceFileEnd = filePathSource.split(".")[-1]
@@ -380,9 +382,9 @@ async def moveFile(
                 versionTarget = sourceFileEnd.split("V")[1]
         logger.info(
             "Destination repositoryType %r depId %r contentType %r milestone %r format %r version %r",
-            repositoryTypeTarget, depIdTarget, contentTypeTarget, contentFormatTarget, milestone, versionTarget
+            repositoryTypeTarget, depIdTarget, contentTypeTarget, milestoneTarget, contentFormatTarget, versionTarget
         )
-        filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, depIdTarget, contentTypeTarget, milestone, partNumberTarget, contentFormatTarget, versionTarget)
+        filePathTarget = pathU.getVersionedPath(repositoryTypeTarget, depIdTarget, contentTypeTarget, milestoneTarget, partNumberTarget, contentFormatTarget, versionTarget)
         logger.info("filePathTarget %r", filePathTarget)
 
         if not filePathSource or not filePathTarget:
@@ -459,7 +461,7 @@ async def listDir(
         dirExistsCheck = fU.exists(dirPath)
         if dirExistsCheck:
             dirList = os.listdir(dirPath)
-            logger.info("dirList (len %d): %r", len(dirList), dirList)
+            # logger.info("dirList (len %d): %r", len(dirList), dirList)
             success = True
     #
     except Exception as e:
