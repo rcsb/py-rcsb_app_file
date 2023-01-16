@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename, askdirectory
@@ -11,9 +12,9 @@ from PIL import ImageTk, Image
 import math
 import requests
 import json
-import httpx
 import time
 from rcsb.utils.io.CryptUtils import CryptUtils
+from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
@@ -25,6 +26,8 @@ author James Smith
 """
 base_url = "http://0.0.0.0:8000"
 maxChunkSize = 1024 * 1024 * 8  # default
+hashType = "MD5"
+FORWARDING = False  # for testing chunk forwarding to IoUtils.py, skipping uploadRequest.py
 
 """ do not alter from here
 """
@@ -33,8 +36,6 @@ maxChunkSize = 1024 * 1024 * 8  # default
 contentTypeInfoD = None
 fileFormatExtensionD = None
 headerD = None
-hashType = None
-
 os.environ["CACHE_PATH"] = os.path.join(
     ".", "rcsb", "app", "tests-file", "test-data", "data"
 )
@@ -43,12 +44,13 @@ cachePath = os.environ.get("CACHE_PATH")
 configFilePath = os.environ.get("CONFIG_FILE")
 cP = ConfigProvider(cachePath)
 cP.getConfig()
+if FORWARDING:
+    iou = IoUtils(cP)
 subject = cP.get("JWT_SUBJECT")
 headerD = {
     "Authorization": "Bearer "
     + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)
 }
-hashType = "MD5"
 
 repoTypeList = ["deposit", "archive", "workflow", "session"]
 
@@ -1031,6 +1033,8 @@ class Gui(tk.Frame):
         global base_url
         global contentTypeInfoD
         global fileFormatExtensionD
+        global cP
+        global iou
         t1 = time.perf_counter()
         filePath = self.file_path
         allowOverwrite = self.allow_overwrite.get() == 1
@@ -1056,12 +1060,14 @@ class Gui(tk.Frame):
             sys.exit(f'error - file does not exist: {filePath}')
         if milestone.lower() == "none":
             milestone = ""
+        # compress, then hash, then upload
         if COMPRESS:
             tempPath = filePath + ".gz"
             with open(filePath, "rb") as r:
                 with gzip.open(tempPath, "wb") as w:
                     w.write(r.read())
             filePath = tempPath
+        # hash
         hD = CryptUtils().getFileHash(filePath, hashType=hashType)
         fullTestHash = hD["hashDigest"]
         chunkSize = maxChunkSize
@@ -1083,10 +1089,7 @@ class Gui(tk.Frame):
         if self.upload_radio.get() == 1:
             mD = {
                 # upload file parameters
-                "filePath": filePath,
                 "uploadId": None,
-                "fileSize": fileSize,
-                "copyMode": copyMode,
                 "hashType": hashType,
                 "hashDigest": fullTestHash,
                 # save file parameters
@@ -1097,33 +1100,39 @@ class Gui(tk.Frame):
                 "partNumber": partNumber,
                 "contentFormat": contentFormat,
                 "version": version,
+                "copyMode": copyMode,
                 "allowOverwrite": allowOverwrite
             }
             response = None
-            with open(filePath, "rb") as to_upload:
+            if FORWARDING:
+                uploadFile = open(filePath, "rb")
+                mD["uploadFile"] = uploadFile
+                response = asyncio.run(iou.upload(**mD))
+                uploadFile.close()
+            else:
                 url = os.path.join(base_url, "file-v2", "upload")
-                response = requests.post(
-                    url=url,
-                    files={"uploadFile": to_upload},
-                    data=deepcopy(mD),
-                    headers=headerD,
-                    timeout=None
-                )
-            if response.status_code != 200:
-                sys.exit(
-                    f"error - status code {response.status_code} {response.text}...terminating"
-                )
+                with open(filePath, "rb") as to_upload:
+                    response = requests.post(
+                        url=url,
+                        files={"uploadFile": to_upload},
+                        data=deepcopy(mD),
+                        headers=headerD,
+                        timeout=None
+                    )
+                if response.status_code != 200:
+                    sys.exit(
+                        f"error - status code {response.status_code} {response.text}...terminating"
+                    )
+            print(response)
             self.upload_status.set(f'100%')
             self.master.update()
-            print(response)
             print(f'time {time.perf_counter() - t1} s')
             return
+        # upload chunks sequentially
         elif self.upload_radio.get() == 2:
             mD = {
                 # upload file parameters
                 "uploadId": None,
-                "fileSize": fileSize,
-                "copyMode": copyMode,
                 "hashType": hashType,
                 "hashDigest": fullTestHash,
                 # chunk parameters
@@ -1133,10 +1142,11 @@ class Gui(tk.Frame):
                 "expectedChunks": expectedChunks,
                 "chunkMode": chunkMode,
                 # save file parameters
-                "filePath": filePath
+                "filePath": filePath,
+                "copyMode": copyMode,
+                "allowOverwrite": allowOverwrite
             }
             readFilePath = mD["filePath"]
-            url = os.path.join(base_url, "file-v2", "getSaveFilePath")
             parameters = {"repositoryType": repositoryType,
                           "depId": depId,
                           "contentType": contentType,
@@ -1146,30 +1156,43 @@ class Gui(tk.Frame):
                           "version": version,
                           "allowOverwrite": allowOverwrite
                           }
-            response = requests.get(
-                url,
-                params=parameters,
-                headers=headerD,
-                timeout=None
-            )
-            if response.status_code == 200:
-                result = json.loads(response.text)
+            if FORWARDING:
+                result = asyncio.run(iou.getSaveFilePath(**parameters))
                 if result:
-                    mD["filePath"] = result["path"]
+                    mD["filePath"] = result
+                else:
+                    sys.exit('error - could not get save file path')
             else:
-                sys.exit(f'error - {response.status_code}')
-            url = os.path.join(base_url, "file-v2", "getNewUploadId")
-            response = requests.get(
-                url,
-                headers=headerD,
-                timeout=None
-            )
-            if response.status_code == 200:
-                result = json.loads(response.text)
+                url = os.path.join(base_url, "file-v2", "getSaveFilePath")
+                response = requests.get(
+                    url,
+                    params=parameters,
+                    headers=headerD,
+                    timeout=None
+                )
+                if response.status_code == 200:
+                    result = json.loads(response.text)
+                    if result:
+                        mD["filePath"] = result["path"]
+                else:
+                    sys.exit(f'error - {response.status_code}')
+            if FORWARDING:
+                result = asyncio.run(iou.getNewUploadId())
                 if result:
-                    mD["uploadId"] = result["id"]
+                    mD["uploadId"] = result
             else:
-                sys.exit(f'error - {response.status_code}')
+                url = os.path.join(base_url, "file-v2", "getNewUploadId")
+                response = requests.get(
+                    url,
+                    headers=headerD,
+                    timeout=None
+                )
+                if response.status_code == 200:
+                    result = json.loads(response.text)
+                    if result:
+                        mD["uploadId"] = result["id"]
+                else:
+                    sys.exit(f'error - {response.status_code}')
             # chunk file and upload
             offset = 0
             offsetIndex = 0
@@ -1180,25 +1203,29 @@ class Gui(tk.Frame):
                 url = os.path.join(base_url, "file-v2", "sequentialUpload")
                 for x in range(offsetIndex, mD["expectedChunks"]):
                     packet_size = min(
-                        int(mD["fileSize"]) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
+                        int(fileSize) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
                         int(mD["chunkSize"]),
                     )
                     tmp.truncate(packet_size)
                     tmp.seek(0)
                     tmp.write(to_upload.read(packet_size))
                     tmp.seek(0)
-                    response = requests.post(
-                        url,
-                        data=deepcopy(mD),
-                        headers=headerD,
-                        files={"uploadFile": tmp},
-                        timeout=None,
-                    )
-                    if response.status_code != 200:
-                        print(
-                            f"error - status code {response.status_code} {response.text}...terminating"
+                    if FORWARDING:
+                        mD["uploadFile"] = tmp
+                        response = asyncio.run(iou.sequentialUpload(**(deepcopy(mD))))
+                    else:
+                        response = requests.post(
+                            url,
+                            data=deepcopy(mD),
+                            headers=headerD,
+                            files={"uploadFile": tmp},
+                            timeout=None,
                         )
-                        break
+                        if response.status_code != 200:
+                            print(
+                                f"error - status code {response.status_code} {response.text}...terminating"
+                            )
+                            break
                     responses.append(response)
                     mD["chunkIndex"] += 1
                     mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
@@ -1208,14 +1235,11 @@ class Gui(tk.Frame):
             print(responses)
             print(f'time {time.perf_counter() - t1} s')
             return
+        # upload async chunks
         elif self.upload_radio.get() == 3:
-            # async chunks
             mD = {
                 # upload file parameters
-                "filePath": filePath,
                 "uploadId": None,
-                "fileSize": fileSize,
-                "copyMode": copyMode,
                 "hashType": hashType,
                 "hashDigest": fullTestHash,
                 # chunk parameters
@@ -1232,87 +1256,81 @@ class Gui(tk.Frame):
                 "partNumber": partNumber,
                 "contentFormat": contentFormat,
                 "version": version,
+                "copyMode": copyMode,
                 "allowOverwrite": allowOverwrite,
                 "emailAddress": email
             }
-            asyncio.run(self.asyncUpload(mD))
+            asyncio.run(self.asyncUpload(filePath, fileSize, mD))
 
-    async def asyncUpload(self, mD):
-            # t1 = time.time()
-            # test for resumed upload
-            uploadId = mD["uploadId"]
+    async def asyncUpload(self, filePath, fileSize, mD):
+        global iou
+        # test for resumed upload
+        chunksSaved = "0" * mD["expectedChunks"]
+        parameters = {"repositoryType": mD["repositoryType"],
+                      "depId": mD["depId"],
+                      "contentType": mD["contentType"],
+                      "milestone": mD["milestone"],
+                      "partNumber": str(mD["partNumber"]),
+                      "contentFormat": mD["contentFormat"],
+                      "version": mD["version"],
+                      "hashDigest": mD["hashDigest"]
+                      }
+        if FORWARDING:
+            result = await iou.getUploadStatus(**parameters)
+            if result:
+                chunksSaved = result["chunksSaved"]
+        else:
             url = os.path.join(base_url, "file-v2", "uploadStatus")
-            parameters = {"repositoryType": mD["repositoryType"],
-                          "depId": mD["depId"],
-                          "contentType": mD["contentType"],
-                          "milestone": mD["milestone"],
-                          "partNumber": str(mD["partNumber"]),
-                          "contentFormat": mD["contentFormat"],
-                          "hashDigest": mD["hashDigest"]
-                          }
             response = requests.get(
                 url,
                 params=parameters,
                 headers=headerD,
                 timeout=None
             )
-            chunksSaved = "0" * mD["expectedChunks"]
             if response.status_code == 200:
                 result = json.loads(response.text)
                 if result:
                     result = eval(result)
                     chunksSaved = result["chunksSaved"]
-            tasks = []
-            for index in range(0, len(chunksSaved)):
-                if chunksSaved[index] == "0":
-                    tasks.append(self.asyncChunk(index, mD))
-            responses = await asyncio.gather(*tasks)
-            results = []
-            for response in responses:
-                if response:
-                    status = response.status_code
-                    results.append(status)
-            # print(f'time {time.perf_counter() - t1} s')
-            print(results)
+        tasks = []
+        for index in range(0, len(chunksSaved)):
+            if chunksSaved[index] == "0":
+                tasks.append(self.asyncChunk(index, filePath, fileSize, copy.deepcopy(mD)))
+        await asyncio.gather(*tasks)
+        self.upload_status.set('100%')
+        self.master.update()
+        print("upload complete")
 
 
-    async def asyncChunk(self, index, mD):
+    async def asyncChunk(self, index, filePath, fileSize, mD):
+        global iou
         offset = index * mD["chunkSize"]
         mD["chunkIndex"] = index
+        mD["chunkOffset"] = offset
         responses = []
         tmp = io.BytesIO()
-        with open(mD["filePath"], "rb") as to_upload:
+        with open(filePath, "rb") as to_upload:
             to_upload.seek(offset)
-            url = os.path.join(base_url, "file-v2", "asyncUpload")
             packet_size = min(
-                int(mD["fileSize"]) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
+                int(fileSize) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
                 int(mD["chunkSize"]),
             )
             tmp.truncate(packet_size)
             tmp.seek(0)
             tmp.write(to_upload.read(packet_size))
             tmp.seek(0)
-            response = requests.post(
-                url,
-                data=deepcopy(mD),
-                headers=headerD,
-                files={"uploadFile": tmp},
-                timeout=None,
-            )
-            if response.status_code != 200:
-                sys.exit(
-                    f"error - status code {response.status_code} {response.text}...terminating"
-                )
+            if FORWARDING:
+                mD["ifh"] = tmp
+                await iou.asyncUpload(**mD)
             else:
-                responses.append(response)
-                mD["chunkIndex"] += 1
-                mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
-                self.status = math.ceil((mD["chunkIndex"] / mD["expectedChunks"]) * 100)
-                self.upload_status.set(f'{self.status}%')
-                self.master.update()
-        if len(responses) > 0:
-            return responses[-1]
-        return None
+                url = os.path.join(base_url, "file-v2", "asyncUpload")
+                requests.post(
+                    url,
+                    data=deepcopy(mD),
+                    headers=headerD,
+                    files={"uploadFile": tmp},
+                    timeout=None,
+                )
 
     def download(self):
         global headerD
@@ -1460,8 +1478,6 @@ class Gui(tk.Frame):
         self.list_dep_id.set("")
 
         self.master.update()
-
-
 
 if __name__=='__main__':
     root = tk.Tk()

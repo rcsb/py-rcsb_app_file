@@ -38,9 +38,78 @@ pip3 install .
 
 # Configuration 
 
-Edit paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY)
+Edit paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY).
 
-Edit url variables to match server url in client.py or gui.py
+Edit url variables to match server url in client.py, gui.py, example-upload.html, example-download.html, and example-list.html.
+
+Edit url in LAUNCH_GUNICORN.sh if necessary.
+
+
+# Endpoints and forwarding
+
+The repository contains three upload endpoints, one download endpoint, and one list-directory endpoint.
+
+For uploading a complete file as a stream, use the 'file-v2/upload' endpoint.
+
+To upload a file in chunks, use either the 'file-v2/sequentialUpload' or 'file-v2/asyncUpload' endpoint.
+
+The sequential endpoint has a minimal code footprint but requires some setup by invoking the 'file-v2/getNewUploadId' and 'file-v2/getSaveFilePath' endpoints first, then passing the results as parameters.
+
+To maintain sequential order, the client must wait for each response before sending the next chunk.
+
+For the async endpoint, the client should send chunks concurrently or asynchronously, ignoring responses.
+
+Therefore, the async endpoint has an email parameter that sends an email informing users when their results are done, enabling early exit, which is yet to be implemented.
+
+The async endpoint also doubles as a sequential chunk endpoint if chunkMode = sequential rather than async.
+
+Only the async API has server-side support for resumable uploads.
+
+It requires a request to the 'file-v2/getUploadStatus' endpoint prior to the asyncUpload endpoint.
+
+The other endpoints would require client-side support for resumable uploads, most likely with local storage.
+
+The download endpoint is found at 'file-v1/download'.
+
+The list directory endpoint is found at 'file-v1/list-dir'.
+
+To skip endpoints and forward a chunk or file from Python, use functions by the same names in IoUtils.py.
+
+Examples of forwarding are found in gui.py when FORWARDING = True, and have yet to be implemented in client.py.
+
+
+# Uploads and downloads
+
+### HTML examples
+
+The example-upload.html, example-download.html, and example-list.html files demonstrate requests to the endpoints from HTML.
+
+### Python client
+
+In a separate shell (also from the base repository directory) run client.py or gui.py
+
+Gui.py is launched from the shell
+
+Client.py usage
+```
+
+python3 client.py
+[-h (help)]
+[--upload source_file repo_type id content_type milestone part format version]
+[--download target_file repo_type id content_type milestone part format version]
+[--list repo_type dep_id (list directory)]
+[-e address (set email address)]
+[-s (chunk file sequentially)]
+[-a (chunk file asynchronously)]
+[-o (overwrite files with same name)]
+[-z (zip files prior to upload)]
+[-x (expand files after upload)]
+
+```
+
+### Hashing and compression
+
+Should hashing be performed before or after compression/decompression? From the client side, the API first compresses, then hashes the complete file, then uploads. From the server side, the API saves, then hashes the complete file, then decompresses.
 
 # Testing and deployment
 
@@ -56,59 +125,6 @@ From base repository directory (in `py-rcsb_app_file/`), start app with:
 ```bash
 
 ./deploy/LAUNCH_GUNICORN.sh
-
-```
-
-# Endpoints and forwarding
-
-The repository contains three upload endpoints, one download endpoint, and one list-directory endpoint.
-
-For uploading an entire file as a stream, use the 'file-v2/upload' endpoint.
-
-To upload a file in chunks, use either the 'file-v2/sequentialUpload' or 'file-v2/asyncUpload' endpoint.
-
-The sequential endpoint has a minimal code footprint but requires some setup by invoking the 'file-v2/getNewUploadId' and 'file-v2/getSaveFilePath' endpoints first, then passing the results as parameters.
-
-To maintain sequential order, the client must wait for each response before sending the next chunk.
-
-The async endpoint has a larger code footprint and therefore allows users to receive an email to inform them when their results are done, allowing the client to exit the upload sooner by ignoring all responses.
-
-The async endpoint also doubles as a sequential chunk endpoint if chunkMode = sequential rather than async.
-
-To skip endpoints and send a chunk or file from Python, use the IoUtils.py storeUpload function.
-
-Only the async API has server-side support for resumable uploads.
-
-The other endpoints would require client-side support for resumable uploads, most likely with local storage.
-
-The download endpoint is found at 'file-v1/download'.
-
-The list directory endpoint is found at 'file-v1/list-dir'.
-
-# Uploads and downloads
-
-### HTML examples
-
-The example-upload.html and example-download.html files demonstrate requests to the endpoints from HTML.
-
-### Python client
-
-In a separate shell (also from the base repository directory) run client.py or gui.py
-
-Gui.py is launched from the shell
-
-Client.py usage
-```
-
-python3 client.py
-[-h (help)]
-[--upload source_file repo_type id content_type milestone part format version overwritable]
-[--download target_file repo_type id content_type milestone part format version]
-[--list repo_type dep_id (list directory)]
-[-e (expedite upload)]
-[-c (chunk file)]
-[-z (zip file before upload)]
-[-p (parallelize chunks)]
 
 ```
 

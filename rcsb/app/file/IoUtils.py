@@ -4,7 +4,7 @@
 # Date:    30-Aug-2021
 # Version: 0.001
 #
-# Updates:
+# Updates: James Smith 2023
 #
 """
 Collected I/O utilities.
@@ -31,14 +31,13 @@ import uuid
 import aiofiles
 import re
 import requests
-
+from filelock import Timeout, FileLock
 from fastapi import HTTPException
-
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
-from rcsb.utils.io.FileLock import FileLock
 from rcsb.app.file.KvSqlite import KvSqlite
 from rcsb.app.file.KvRedis import KvRedis
+# from rcsb.utils.io.FileLock import FileLock
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -129,8 +128,206 @@ class IoUtils:
             logger.exception("Failing with file %s %r", filePath, str(e))
         return None
 
-    # ---
-    async def storeUpload(
+    # upload complete file
+    async def upload(
+            self,
+            # upload file parameters
+            uploadFile: typing.IO,
+            uploadId: str,
+            hashType: str,
+            hashDigest: str,
+            # save file parameters
+            depId: str,
+            repositoryType: str,
+            contentType: str,
+            milestone: str,
+            partNumber: int,
+            contentFormat: str,
+            version: str,
+            copyMode: str,
+            allowOverwrite: bool
+    ):
+        tempPath = None
+        outPath = None
+        ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
+        try:
+            cachePath = os.environ.get("CACHE_PATH")
+            configFilePath = os.environ.get("CONFIG_FILE")
+            cP = ConfigProvider(cachePath, configFilePath)
+            pathU = PathUtils(cP)
+            if not pathU.checkContentTypeFormat(contentType, contentFormat):
+                raise HTTPException(status_code=405, detail="Bad content type and/or format - upload rejected")
+            outPath = pathU.getVersionedPath(
+                repositoryType=repositoryType,
+                depId=depId,
+                contentType=contentType,
+                milestone=milestone,
+                partNumber=partNumber,
+                contentFormat=contentFormat,
+                version=version
+            )
+            if not outPath:
+                raise HTTPException(status_code=405, detail="Bad content type metadata - cannot build a valid path")
+            if os.path.exists(outPath) and not allowOverwrite:
+                raise HTTPException(status_code=405, detail="Encountered existing file - overwrite prohibited")
+            dirPath, fn = os.path.split(outPath)
+            uploadId = await self.getNewUploadId()
+            tempPath = os.path.join(dirPath, "." + uploadId)
+            os.makedirs(dirPath, mode=0o755, exist_ok=True)
+            # save (all copy modes), then hash, then decompress
+            with open(tempPath, "wb") as ofh:
+                shutil.copyfileobj(uploadFile, ofh)
+            # hash
+            if hashDigest and hashType:
+                if hashType == "SHA1":
+                    hashObj = hashlib.sha1()
+                elif hashType == "SHA256":
+                    hashObj = hashlib.sha256()
+                elif hashType == "MD5":
+                    hashObj = hashlib.md5()
+                blockSize = 65536
+                with open(tempPath, "rb") as r:
+                    while chunk := r.read(blockSize):
+                        hashObj.update(chunk)
+                hexdigest = hashObj.hexdigest()
+                ok = (hexdigest == hashDigest)
+                if not ok:
+                    raise HTTPException(status_code=400,
+                                        detail=f"{hashType} hash check failed {hexdigest} != {hashDigest}")
+                else:
+                    # lock before saving
+                    lockPath = os.path.join(os.path.dirname(outPath), "." + os.path.basename(outPath) + ".lock")
+                    lock = FileLock(lockPath)
+                    try:
+                        with lock.acquire(timeout=60 * 60 * 4):
+                            # last minute race condition prevention
+                            if os.path.exists(outPath) and not allowOverwrite:
+                                raise HTTPException(status_code=400,
+                                                    detail="Encountered existing file - cannot overwrite")
+                            else:
+                                # save final version
+                                os.replace(tempPath, outPath)
+                    except Timeout:
+                        raise HTTPException(status_code=400, detail=f"error - file lock timed out on {outPath}")
+                    finally:
+                        lock.release()
+                        if os.path.exists(lockPath):
+                            os.unlink(lockPath)
+                    # decompress
+                    if copyMode == "gzip_decompress":
+                        with gzip.open(outPath, "rb") as r:
+                            with open(tempPath, "wb") as w:
+                                w.write(r.read())
+                        os.replace(tempPath, outPath)
+            else:
+                raise HTTPException(status_code=500, detail="Error - missing hash")
+        except HTTPException as exc:
+            ret = {"success": False, "statusCode": exc.status_code, "statusMessage": f"Store fails with {exc.detail}"}
+            logging.warning(ret["statusMessage"])
+        except Exception as exc:
+            ret = {"success": False, "statusCode": 400, "statusMessage": f"Store fails with {str(exc)}"}
+            logging.warning(ret["statusMessage"])
+        finally:
+            if tempPath and os.path.exists(tempPath):
+                os.unlink(tempPath)
+            uploadFile.close()
+        if not ret["success"]:
+            raise HTTPException(status_code=405, detail=ret["statusMessage"])
+        return ret
+
+    # in-place sequential chunk
+    async def sequentialUpload(
+            self,
+            # upload file parameters
+            uploadFile: typing.IO,
+            uploadId: str,
+            hashType: str,
+            hashDigest: str,
+            # chunk parameters
+            chunkSize: int,
+            chunkIndex: int,
+            chunkOffset: int,
+            expectedChunks: int,
+            chunkMode: str,
+            # save file parameters
+            filePath: str,
+            copyMode: str,
+            allowOverwrite: bool
+    ):
+        ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
+        dirPath, fn = os.path.split(filePath)
+        tempPath = os.path.join(dirPath, "." + uploadId)
+        try:
+            # save, then hash, then decompress
+            # should lock, however client must wait for each response before sending next chunk, precluding race conditions (unless multifile upload problem)
+            async with aiofiles.open(tempPath, "ab") as ofh:
+                await ofh.seek(chunkOffset)
+                await ofh.write(uploadFile.read())
+                await ofh.flush()
+                os.fsync(ofh.fileno())
+            # if last chunk
+            if chunkIndex + 1 == expectedChunks:
+                if hashDigest and hashType:
+                    if hashType == "SHA1":
+                        hashObj = hashlib.sha1()
+                    elif hashType == "SHA256":
+                        hashObj = hashlib.sha256()
+                    elif hashType == "MD5":
+                        hashObj = hashlib.md5()
+                    blockSize = 65536
+                    # hash
+                    with open(tempPath, "rb") as r:
+                        while chunk := r.read(blockSize):
+                            hashObj.update(chunk)
+                    hexdigest = hashObj.hexdigest()
+                    ok = (hexdigest == hashDigest)
+                    if not ok:
+                        raise HTTPException(status_code=400, detail=f"{hashType} hash check failed")
+                    else:
+                        # lock then save
+                        lockPath = os.path.join(os.path.dirname(filePath), "." + os.path.basename(filePath) + ".lock")
+                        lock = FileLock(lockPath)
+                        try:
+                            with lock.acquire(timeout=60 * 60 * 4):
+                                # last minute race condition handling
+                                if os.path.exists(filePath) and not allowOverwrite:
+                                    raise HTTPException(status_code=400,
+                                                        detail="Encountered existing file - cannot overwrite")
+                                else:
+                                    # save final version
+                                    os.replace(tempPath, filePath)
+                        except Timeout:
+                            raise HTTPException(status_code=400, detail=f'error - lock timed out on {filePath}')
+                        finally:
+                            lock.release()
+                            if os.path.exists(lockPath):
+                                os.unlink(lockPath)
+                    # remove temp file
+                    if os.path.exists(tempPath):
+                        os.unlink(tempPath)
+                    # decompress
+                    if copyMode == "gzip_decompress":
+                        with gzip.open(filePath, "rb") as r:
+                            with open(tempPath, "wb") as w:
+                                w.write(r.read())
+                        os.replace(tempPath, filePath)
+                else:
+                    raise HTTPException(status_code=500, detail="Error - missing hash")
+        except HTTPException as exc:
+            if os.path.exists(tempPath):
+                os.unlink(tempPath)
+            ret = {"success": False, "statusCode": exc.status_code,
+                   "statusMessage": f"error in sequential upload {exc.detail}"}
+            raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+        except Exception as exc:
+            if os.path.exists(tempPath):
+                os.unlink(tempPath)
+            ret = {"success": False, "statusCode": 400, "statusMessage": f"error in sequential upload {str(exc)}"}
+            raise HTTPException(status_code=400, detail=f'error in sequential upload {str(exc)}')
+        return ret
+
+    # resumable chunked upload with either async or sequential chunks
+    async def asyncUpload(
         self,
         # upload file parameters
         ifh: typing.IO = None,
@@ -139,9 +336,9 @@ class IoUtils:
         hashDigest: typing.Optional[str] = None,
         # optional upload file parameters
         fileName: str = None,
-        copyMode: str = "native",  # whether file is a zip file
         mimeType: str = None,
         # chunk parameters
+        chunkSize: int = 0,
         chunkIndex: int = 0,
         chunkOffset: int = 0,
         expectedChunks: int = 1,
@@ -155,6 +352,7 @@ class IoUtils:
         contentFormat: str = "pdbx",
         version: str = "next",
         allowOverwrite: bool = True,
+        copyMode: str = "native",  # whether file is a zip file
         emailAddress: str = None
     ) -> typing.Dict:
 
@@ -162,48 +360,41 @@ class IoUtils:
         if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
             raise HTTPException(status_code=400, detail="Bad content type and/or format - upload rejected")
 
-        # if fileName and mimeType and not copyMode == "gzip_decompress":
-        #     if fileName.endswith(".gz") or mimeType == "application/gzip":
-        #         copyMode = "gzip_decompress"
-
         # get path for saving file, test if file exists and is overwritable
         outPath = None
-        lockPath = self.__pathU.getFileLockPath(depId, contentType, milestone, partNumber, contentFormat)
-        with FileLock(lockPath):
-            outPath = self.__pathU.getVersionedPath(
+        # could change when have race condition, resulting in different names for different chunks of same file, stopped by hash check prior to saving
+        outPath = self.__pathU.getVersionedPath(
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version
+        )
+        if not outPath:
+            raise HTTPException(status_code=400, detail="Bad content type metadata - cannot build a valid path")
+        if os.path.exists(outPath) and not allowOverwrite:
+            logger.info("Path exists (overwrite %r): %r", allowOverwrite, outPath)
+            raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
+        # test if file name in log table (resumed upload or later chunk)
+        # if find resumed upload then set uid = previous uid, otherwise new uid
+        # lock so that even for concurrent chunks the first chunk will write an upload id that subsequent chunks will use
+        if uploadId is None:
+            uploadId = await self.getResumedUpload(
                 repositoryType=repositoryType,
-                depId=depId,
-                contentType=contentType,
+                depId=depId, contentType=contentType,
                 milestone=milestone,
                 partNumber=partNumber,
                 contentFormat=contentFormat,
-                version=version
+                version=version,
+                hashDigest=hashDigest
             )
-            if not outPath:
-                raise HTTPException(status_code=400, detail="Bad content type metadata - cannot build a valid path")
-            if os.path.exists(outPath) and not allowOverwrite:
-                logger.info("Path exists (overwrite %r): %r", allowOverwrite, outPath)
-                raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
-            # test if file name in log table (resumed upload or later chunk)
-            # if find resumed upload then set uid = previous uid, otherwise new uid
-            # lock so that even for concurrent chunks the first chunk will write an upload id that subsequent chunks will use
-            if uploadId is None:
-                uploadId = await self.getResumedUpload(
-                    repositoryType=repositoryType,
-                    depId=depId, contentType=contentType,
-                    milestone=milestone,
-                    partNumber=partNumber,
-                    contentFormat=contentFormat,
-                    version=version,
-                    hashDigest=hashDigest
-                )
-                if not uploadId:
-                    uploadId = await self.getNewUploadId()
+            if not uploadId:
+                uploadId = await self.getNewUploadId()
+
         # versioned path already found, so don't find again
         logKey = self.getPremadeLogKey(repositoryType, outPath)
-
-        # versioned_filename = os.path.basename(outPath)
-        # non_versioned_filename = self.__pathU.getBaseFileName(depId, contentType, milestone, partNumber, contentFormat)
         key = uploadId
         val = "uploadCount"
         # initializes to zero
@@ -236,23 +427,7 @@ class IoUtils:
 
         ret = None
         if chunkMode == "sequential":
-            ret = await self.sequentialUpload(
-                ifh,
-                outPath,
-                chunkIndex,
-                chunkOffset,
-                expectedChunks,
-                uploadId,
-                key,
-                val,
-                mode="ab",
-                copyMode=copyMode,
-                hashType=hashType,
-                hashDigest=hashDigest,
-                logKey=logKey
-            )
-        elif chunkMode == "async":
-            ret = await self.asyncUpload(
+            ret = await self.sequentialChunk(
                 ifh,
                 outPath,
                 chunkIndex,
@@ -266,7 +441,25 @@ class IoUtils:
                 hashType=hashType,
                 hashDigest=hashDigest,
                 logKey=logKey,
-                emailAddress=emailAddress
+                allowOverwrite=allowOverwrite
+            )
+        elif chunkMode == "async":
+            ret = await self.asyncChunk(
+                ifh,
+                outPath,
+                chunkIndex,
+                chunkOffset,
+                expectedChunks,
+                uploadId,
+                key,
+                val,
+                mode="ab",
+                copyMode=copyMode,
+                hashType=hashType,
+                hashDigest=hashDigest,
+                logKey=logKey,
+                emailAddress=emailAddress,
+                allowOverwrite=allowOverwrite
             )
         else:
             raise HTTPException(status_code=400, detail="error - unknown chunk mode")
@@ -282,7 +475,8 @@ class IoUtils:
         ret["uploadId"] = uploadId  # except after last chunk uploadId gets deleted
         return ret
 
-    async def sequentialUpload(
+    # in-place resumable sequential chunk
+    async def sequentialChunk(
         self,
         ifh: typing.IO,
         outPath: str,
@@ -297,41 +491,57 @@ class IoUtils:
         hashType: typing.Optional[str] = None,
         hashDigest: typing.Optional[str] = None,
         logKey: str = None,
-        emailAddress: str = None
+        emailAddress: str = None,
+        allowOverwrite: bool = None
     ) -> typing.Dict:
         ok = False
-        ret = {"success": False, "statusMessage": None}
+        ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
         tempPath = None
         try:
             dirPath, fn = os.path.split(outPath)
             tempPath = self.getTempFilePath(uploadId, dirPath)
             await self.__makedirs(dirPath, mode=0o755, exist_ok=True)
+            # save, then hash, then decompress
+            # should lock, however client must wait for each response before sending next chunk, precluding race conditions (unless multifile upload problem)
             async with aiofiles.open(tempPath, mode) as ofh:
                 await ofh.seek(chunkOffset)
                 await ofh.write(ifh.read())
                 await ofh.flush()
                 os.fsync(ofh.fileno())
-            ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
             # if last chunk, check hash, finalize
             if (int(self.__kV.getSession(key, val)) + 1) == expectedChunks:
                 ok = True
                 if hashDigest and hashType:
+                    # hash
                     ok = self.checkHash(tempPath, hashDigest, hashType)
-                    # ok = await self.__checkHashAsync(tempPath, hashDigest, hashType)
                     if not ok:
                         raise HTTPException(status_code=400, detail=f"{hashType} hash check failed")
-                    if ok:
-                        await self.__replace(tempPath, outPath)
-                        ret = {"success": True, "statusCode": 200, "statusMessage": f"Store uploaded for {fn}"}
-                        msg = ret["statusMessage"]
-                        response = await self.sendEmail(emailAddress, msg)
-                        if response:
-                            ret["statusMessage"] = response
-                    if os.path.exists(tempPath):
+                    else:
+                        # lock then save
+                        lockPath = os.path.join(os.path.dirname(outPath), "." + os.path.basename(outPath) + ".lock")
+                        lock = FileLock(lockPath)
                         try:
-                            os.unlink(tempPath)
-                        except Exception:
-                            logging.warning("could not delete %s", tempPath)
+                            with lock.acquire(timeout = 60 * 60 * 4):
+                                # last minute race condition handling
+                                if os.path.exists(outPath) and not allowOverwrite:
+                                    raise HTTPException(status_code=400, detail=f'error - encountered existing file without overwrite')
+                                else:
+                                    # save final version
+                                    await self.__replace(tempPath, outPath)
+                                    ret = {"success": True, "statusCode": 200, "statusMessage": f"Store uploaded for {fn}"}
+                                    msg = ret["statusMessage"]
+                                    response = await self.sendEmail(emailAddress, msg)
+                                    if response:
+                                        ret["statusMessage"] = response
+                        except Timeout:
+                            raise HTTPException(status_code=400, detail=f'error - lock timed out on {outPath}')
+                        finally:
+                            lock.release()
+                            if os.path.exists(lockPath):
+                                os.unlink(lockPath)
+                    if os.path.exists(tempPath):
+                        os.unlink(tempPath)
+                    # decompress
                     if copyMode == "gzip_decompress":
                         # just deleted temp path but using again for a temp file
                         with gzip.open(outPath, "rb") as r:
@@ -343,16 +553,23 @@ class IoUtils:
                     raise HTTPException(status_code=400, detail="Error - missing hash")
                 await self.clearSession(key, logKey)
         except HTTPException as exc:
+            if os.path.exists(tempPath):
+                os.unlink(tempPath)
+            ret = {"success": False, "statusCode": exc.status_code, "statusMessage": exc.detail}
             logger.exception("Internal write error for path %r: %s", outPath, exc.detail)
             raise HTTPException(status_code=exc.status_code, detail=f"Store fails with {exc.detail}")
         except Exception as exc:
+            if os.path.exists(tempPath):
+                os.unlink(tempPath)
+            ret = {"success": False, "statusCode": 400, "statusMessage": str(exc)}
             logger.exception("Internal write error for path %r: %s", outPath, str(exc))
             raise HTTPException(status_code=400, detail=f"Store fails with {str(exc)}")
         finally:
             ifh.close()
         return ret
 
-    async def asyncUpload(
+    # resumable distributed chunk with joining
+    async def asyncChunk(
         self,
         ifh: typing.IO,
         outPath: str,
@@ -367,18 +584,22 @@ class IoUtils:
         hashType: typing.Optional[str] = None,
         hashDigest: typing.Optional[str] = None,
         logKey: str = None,
-        emailAddress: str = None
+        emailAddress: str = None,
+        allowOverwrite: bool = False
     ) -> typing.Dict:
         ok = False
-        ret = {"success": False, "statusMessage": None}
         tempDir = None
+        tempPath = None
         fn = None
+        ret = {"success": True, "statusCode": 200, "statusMessage": f"Store uploaded for {fn}"}
         try:
             dirPath, fn = os.path.split(outPath)
             tempDir = self.getTempDirPath(uploadId, dirPath)
             await self.__makedirs(dirPath, mode=0o755, exist_ok=True)
             await self.__makedirs(tempDir, mode=0o755, exist_ok=True)
             chunkPath = os.path.join(tempDir, str(chunkIndex))
+            # save, hash, then decompress
+            # don't lock async chunks written to separate files
             async with aiofiles.open(chunkPath, mode) as ofh:
                 await ofh.seek(chunkOffset)
                 await ofh.write(ifh.read())
@@ -387,28 +608,42 @@ class IoUtils:
             ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
             # if last chunk, check hash, finalize
             if (int(self.__kV.getSession(key, val)) + 1) == expectedChunks:
-                tempPath = await self.joinFiles(uploadId, dirPath, fn, tempDir)
+                # save as one file
+                tempPath = await self.joinChunks(uploadId, dirPath, fn, tempDir)
                 if not tempPath:
                     raise HTTPException(status_code=400, detail=f"error saving {fn}")
                 else:
                     ok = True
                     if hashDigest and hashType:
+                        # hash
                         ok = self.checkHash(tempPath, hashDigest, hashType)
-                        # ok = await self.__checkHashAsync(tempPath, hashDigest, hashType)
                         if not ok:
                             raise HTTPException(status_code=400, detail=f"{hashType} hash check failed")
                         else:
-                            await self.__replace(tempPath, outPath)
-                            ret = {"success": True, "statusCode": 200, "statusMessage": f"Store uploaded for {fn}"}
+                            # lock then save
+                            lockPath = os.path.join(os.path.dirname(outPath), "." + os.path.basename(outPath) + ".lock")
+                            lock = FileLock(lockPath)
+                            try:
+                                with lock.acquire(timeout = 60 * 60 * 4):
+                                    # last minute race condition handling
+                                    if os.path.exists(outPath) and not allowOverwrite:
+                                        raise HTTPException(status_code=400, detail='error - encountered existing file without overwrite')
+                                    else:
+                                        # save final version
+                                        await self.__replace(tempPath, outPath)
+                            except Timeout:
+                                raise HTTPException(status_code=400, detail=f'error - lock timed out on {outPath}')
+                            finally:
+                                lock.release()
+                                if os.path.exists(lockPath):
+                                    os.unlink(lockPath)
                             msg = ret["statusMessage"]
                             response = await self.sendEmail(emailAddress, msg)
                             if response:
                                 ret["statusMessage"] = response
                         if os.path.exists(tempPath):
-                            try:
-                                os.unlink(tempPath)
-                            except Exception:
-                                logging.warning("could not delete %s", tempPath)
+                            os.unlink(tempPath)
+                        # decompress
                         if copyMode == "gzip_decompress":
                             # just deleted temp path but using again for a temp file
                             with gzip.open(outPath, "rb") as r:
@@ -420,16 +655,23 @@ class IoUtils:
                         raise HTTPException(status_code=400, detail="Error - missing hash")
                 await self.clearSession(key, logKey)
         except HTTPException as exc:
+            if tempPath and os.path.exists(tempPath):
+                os.unlink(tempPath)
             logger.exception("Internal write error for path %r: %s", outPath, exc.detail)
+            ret = {"success": False, "statusCode": exc.status_code, "statusMessage": exc.detail}
             raise HTTPException(status_code=exc.status_code, detail=f"Store fails with {exc.detail}")
         except Exception as exc:
+            if tempPath and os.path.exists(tempPath):
+                os.unlink(tempPath)
             logger.exception("Internal write error for path %r: %s", outPath, str(exc))
+            ret = {"success": False, "statusCode": 400, "statusMessage": str(exc)}
             raise HTTPException(status_code=400, detail=f"Store fails with {str(exc)}")
         finally:
             ifh.close()
         return ret
 
-    async def joinFiles(self, uploadId, dirPath, fn, tempDir):
+    # join chunks into one file
+    async def joinChunks(self, uploadId, dirPath, fn, tempDir):
         tempPath = self.getTempFilePath(uploadId, dirPath)
         try:
             files = sorted([f for f in os.listdir(tempDir) if re.match(r"[0-9]+", f)], key=lambda x: int(x))
@@ -443,13 +685,109 @@ class IoUtils:
                     chunkPath = os.path.join(tempDir, f)
                     with open(chunkPath, "rb") as r:
                         w.write(r.read())
-                    os.remove(chunkPath)
-            os.rmdir(tempDir)
+                    os.unlink(chunkPath)
         except HTTPException as exc:
-            return None
+            tempPath = None
         except Exception as exc:
-            return None
+            tempPath = None
+        finally:
+            try:
+                os.rmdir(tempDir)
+            except Exception:
+                logging.warning(f'error - could not delete {tempDir}')
+                tempPath = None
         return tempPath
+
+    """
+    utility functions
+    """
+    async def getNewUploadId(self) -> str:
+        return uuid.uuid4().hex
+
+    # please change to legitimate email service
+    async def sendEmail(self,
+                        emailAddress: str = None,
+                        msg: str = None
+                        ):
+        if not emailAddress or not msg:
+            return None
+        url = "https://springbootemailwebservice.000webhostapp.com"
+        body = {
+            "sender": "PDB",
+            "subject": "one-dep upload status",
+            "recipient": emailAddress,
+            "body": msg
+        }
+        response = requests.post(url, data=body)
+        if response.status_code == 200:
+            return response.text
+        else:
+            logging.warning(f'email response {response.status_code}')
+            return response.status_code
+
+    """
+    file path functions
+    """
+
+    async def getSaveFilePath(self,
+                              repositoryType: str,
+                              depId: str,
+                              contentType: str,
+                              milestone: typing.Optional[str],
+                              partNumber: int,
+                              contentFormat: str,
+                              version: str,
+                              allowOverwrite: bool):
+        if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
+            raise HTTPException(status_code=400, detail="Bad content type and/or format - upload rejected")
+        outPath = self.__pathU.getVersionedPath(
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version
+        )
+        if not outPath:
+            raise HTTPException(status_code=400, detail="Bad content type metadata - cannot build a valid path")
+        if os.path.exists(outPath) and not allowOverwrite:
+            raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
+        dirPath, fn = os.path.split(outPath)
+        os.makedirs(dirPath, mode=0o755, exist_ok=True)
+        return outPath
+
+    # must be different from getTempDirPath
+    def getTempFilePath(self, uploadId, dirPath):
+        return os.path.join(dirPath, "." + uploadId)
+
+    # must be different from getTempFilePath
+    def getTempDirPath(self, uploadId, dirPath):
+        return os.path.join(dirPath, "._" + uploadId + "_")
+
+    async def findVersion(self,
+                          repositoryType: str = "archive",
+                          depId: str = None,
+                          contentType: str = "model",
+                          milestone: str = None,
+                          partNumber: int = 1,
+                          contentFormat: str = "pdbx",
+                          version: str = "next"
+                          ):
+        # requires lock?
+        primaryKey = self.getPrimaryLogKey(
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version
+        )
+        versions = primaryKey.split(".")
+        version = versions[-1]
+        version = version.replace("V", "")
+        return version
 
     def getPrimaryLogKey(self,
                          repositoryType: str = "archive",
@@ -460,8 +798,6 @@ class IoUtils:
                          contentFormat: str = "pdbx",
                          version: str = "next"
                          ):
-        # requires lock?
-        # filename = self.__pathU.getBaseFileName(depId, contentType, milestone, partNumber, contentFormat)
         filename = self.__pathU.getVersionedPath(
             repositoryType=repositoryType,
             depId=depId,
@@ -478,20 +814,52 @@ class IoUtils:
         return filename
 
     def getPremadeLogKey(self, repositoryType, versionedPath):
-        # does not require lock since versioned path is already found
+        # when versioned path is already found
         if not versionedPath:
             return None
         filename = os.path.basename(versionedPath)
         filename = repositoryType + "_" + filename
         return filename
 
-    # must be different from getTempDirPath
-    def getTempFilePath(self, uploadId, dirPath):
-        return os.path.join(dirPath, "." + uploadId)
+    """
+    database functions
+    """
 
-    # must be different from getTempFilePath
-    def getTempDirPath(self, uploadId, dirPath):
-        return os.path.join(dirPath, "._" + uploadId + "_")
+    # return kv entry from file parameters, if have resumed upload, or None if don't
+    # if have resumed upload, kv response has chunk indices and count
+    async def getUploadStatus(self,
+                              repositoryType: str,
+                              depId: str,
+                              contentType: str,
+                              milestone: typing.Optional[str],
+                              partNumber: int,
+                              contentFormat: str,
+                              version: str,
+                              hashDigest: str):
+        if version is None or not re.match(r"\d+", version):
+            version = await self.findVersion(
+                repositoryType=repositoryType,
+                depId=depId,
+                contentType=contentType,
+                milestone=milestone,
+                partNumber=partNumber,
+                contentFormat=contentFormat,
+                version=version
+            )
+        uploadId = await self.getResumedUpload(
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version,
+            hashDigest=hashDigest
+        )
+        if not uploadId:
+            return None
+        status = await self.getSession(uploadId)
+        return status
 
     # find upload id using file parameters
     async def getResumedUpload(self,
@@ -504,8 +872,6 @@ class IoUtils:
                                version: str = "next",
                                hashDigest: str = None
                                ):
-        # logging.warning(f"get resumed upload version {version} hash {hashDigest}")
-        # requires lock?
         filename = self.getPrimaryLogKey(
             repositoryType=repositoryType,
             depId=depId,
@@ -536,6 +902,8 @@ class IoUtils:
             logging.warning("error - no hash")
         return uploadId  # returns uploadId or None
 
+    # remove an entry from session table and log table, remove corresponding hidden files and folders
+    # does not check expiration
     async def removeExpiredEntry(self,
                                  uploadId: str = None,
                                  fileName: str = None,
@@ -560,12 +928,11 @@ class IoUtils:
             # either tempFile or tempDir was not found
             pass
 
-    async def getNewUploadId(self) -> str:
-        return uuid.uuid4().hex
-
+    # returns entire dictionary of session table entry
     async def getSession(self, uploadId: str):
         return self.__kV.getKey(uploadId, self.__kV.sessionTable)
 
+    # clear one entry from session table
     async def clearUploadId(self, uid: str):
         response = None
         try:
@@ -574,6 +941,7 @@ class IoUtils:
             return False
         return response
 
+    # clear one entry from session table and corresponding entry from log table
     async def clearSession(self, uid: str, logKey: typing.Optional):
         response = True
         try:
@@ -588,52 +956,8 @@ class IoUtils:
             return False
         return response
 
+    # clear entire database
     async def clearKv(self):
         self.__kV.clearTable(self.__kV.sessionTable)
         self.__kV.clearTable(self.__kV.logTable)
 
-    async def findVersion(self,
-                          repositoryType: str = "archive",
-                          depId: str = None,
-                          contentType: str = "model",
-                          milestone: str = None,
-                          partNumber: int = 1,
-                          contentFormat: str = "pdbx",
-                          version: str = "next"
-                          ):
-        # requires lock?
-        primaryKey = self.getPrimaryLogKey(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version
-        )
-        versions = primaryKey.split(".")
-        version = versions[-1]
-        version = version.replace("V", "")
-        return version
-
-    # please change to legitimate email service
-    async def sendEmail(self,
-                        emailAddress: str = None,
-                        msg: str = None
-                        ):
-        if not emailAddress or not msg:
-            logging.warning('error - no email address or body')
-            return None
-        url = "https://springbootemailwebservice.000webhostapp.com"
-        body = {
-            "sender": "PDB",
-            "subject": "one-dep upload status",
-            "recipient": emailAddress,
-            "body": msg
-        }
-        response = requests.post(url, data=body)
-        if response.status_code == 200:
-            return response.text
-        else:
-            logging.warning(f'email response {response.status_code}')
-            return response.status_code

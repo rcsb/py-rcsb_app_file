@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import subprocess
 import sys
 import concurrent.futures
@@ -27,6 +28,7 @@ author James Smith
 """
 base_url = "http://0.0.0.0:8000"
 maxChunkSize = 1024 * 1024 * 8
+hashType = "MD5"
 
 """ do not alter from here
 """
@@ -44,19 +46,16 @@ headerD = {
     "Authorization": "Bearer "
     + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)
 }
-hashType = "MD5"
 SEQUENTIAL = False
 ASYNCHRONOUS = False
 COMPRESS = False
 DECOMPRESS = False
 OVERWRITE = False
 EMAIL_ADDRESS = None
-
 uploadIds = []
 uploadResults = []
 uploadTexts = []
 downloadResults = []
-
 signature = """
     --------------------------------------------------------
              FILE ACCESS AND DEPOSITION APPLICATION
@@ -75,7 +74,7 @@ def upload(mD):
     global OVERWRITE
     global EMAIL_ADDRESS
     if not SEQUENTIAL:
-        # upload without chunks
+        # upload as one file
         response = None
         with open(mD["filePath"], "rb") as to_upload:
             url = os.path.join(base_url, "file-v2", "upload")
@@ -132,7 +131,7 @@ def upload(mD):
         with open(readFilePath, "rb") as to_upload:
             to_upload.seek(offset)
             url = os.path.join(base_url, "file-v2", "sequentialUpload")
-            for x in range(offsetIndex, mD["expectedChunks"]):
+            for x in tqdm(range(offsetIndex, mD["expectedChunks"]), leave=False, desc=os.path.basename(mD["filePath"])):
                 packet_size = min(
                     int(mD["fileSize"]) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
                     int(mD["chunkSize"]),
@@ -263,21 +262,23 @@ async def asyncFile(mD):
     tasks = []
     for index in range(0, len(chunksSaved)):
         if chunksSaved[index] == "0":
-            tasks.append(asyncChunk(index, mD))
-    responses = await asyncio.gather(*tasks)
-    results = []
-    for response in responses:
-        status = response.status_code
-        text = json.loads(response.text)
-        uploadId = text["uploadId"]
-        results.append(status)
-    return results
+            tasks.append(asyncChunk(index, copy.deepcopy(mD)))
+    await asyncio.gather(*tasks)
+    return "upload complete"
+    # results = []
+    # for response in responses:
+    #     status = response.status_code
+    #     text = json.loads(response.text)
+    #     uploadId = text["uploadId"]
+    #     results.append(status)
+    # return results
 
 
 async def asyncChunk(index, mD):
     filePath = mD["filePath"]
     offset = index * mD["chunkSize"]
     mD["chunkIndex"] = index
+    mD["chunkOffset"] = offset
     response = None
     # chunk file and upload
     tmp = io.BytesIO()
@@ -292,21 +293,21 @@ async def asyncChunk(index, mD):
         tmp.seek(0)
         tmp.write(to_upload.read(packet_size))
         tmp.seek(0)
-        response = requests.post(
+        requests.post(
             url,
             data=deepcopy(mD),
             headers=headerD,
             files={"uploadFile": tmp},
             timeout=None,
         )
-        if response.status_code != 200:
-            print(
-                f"error - status code {response.status_code} {response.text}...terminating"
-            )
-        else:
-            mD["chunkIndex"] += 1
-            mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
-    return response
+        # if response.status_code != 200:
+        #     print(
+        #         f"error - status code {response.status_code} {response.text}...terminating"
+        #     )
+        # else:
+        #     mD["chunkIndex"] += 1
+        #     mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
+    # return response
 
 
 def download(downloadFilePath, downloadDict):
@@ -381,7 +382,6 @@ if __name__ == "__main__":
     uploads = []
     uploadIds = []
     downloads = []
-    # if args.upload or args.download or args.zip:
     description()
     if args.sequential:
         SEQUENTIAL = True
@@ -414,12 +414,14 @@ if __name__ == "__main__":
             contentFormat = arglist[6]
             version = arglist[7]
             allowOverwrite = OVERWRITE
+            # compress, then hash, then upload
             if COMPRESS:
                 tempPath = filePath + ".gz"
                 with open(filePath, "rb") as r:
                     with gzip.open(tempPath, "wb") as w:
                         w.write(r.read())
                 filePath = tempPath
+            # hash
             hD = CryptUtils().getFileHash(filePath, hashType=hashType)
             fullTestHash = hD["hashDigest"]
             chunkSize = maxChunkSize
@@ -433,19 +435,17 @@ if __name__ == "__main__":
                 expectedChunks = 1
             chunkIndex = 0
             chunkOffset = 0
-            chunkMode = "sequential"
-            if args.asynchronous:
-                chunkMode = "async"
+            chunkMode = "async"
             copyMode = "native"
             if DECOMPRESS:
                 copyMode = "gzip_decompress"
+            # upload complete file
             if not SEQUENTIAL and not ASYNCHRONOUS:
                 uploads.append({
                     # upload file parameters
                     "filePath": filePath,
                     "uploadId": None,
                     "fileSize": fileSize,
-                    "copyMode": copyMode,
                     "hashType": hashType,
                     "hashDigest": fullTestHash,
                     # save file parameters
@@ -456,8 +456,10 @@ if __name__ == "__main__":
                     "partNumber": partNumber,
                     "contentFormat": contentFormat,
                     "version": version,
+                    "copyMode": copyMode,
                     "allowOverwrite": allowOverwrite
                 })
+            # upload chunks
             else:
                 uploads.append(
                     {
@@ -467,7 +469,6 @@ if __name__ == "__main__":
                         "fileSize": fileSize,
                         "hashType": hashType,
                         "hashDigest": fullTestHash,
-                        "copyMode": copyMode, # whether file is a zip file
                         # chunk parameters
                         "chunkSize": chunkSize,
                         "chunkIndex": chunkIndex,
@@ -482,6 +483,7 @@ if __name__ == "__main__":
                         "partNumber": partNumber,
                         "contentFormat": contentFormat,
                         "version": version,
+                        "copyMode": copyMode,  # whether file is a zip file
                         "allowOverwrite": allowOverwrite,
                         "emailAddress": EMAIL_ADDRESS
                     }

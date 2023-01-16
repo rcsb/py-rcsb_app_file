@@ -18,7 +18,7 @@ import logging
 import os
 from enum import Enum
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Form
 from fastapi import Depends
 from fastapi import Query
 from fastapi import HTTPException
@@ -341,23 +341,22 @@ async def copyFilePath(
     return ret
 
 
-@router.post("/move-file", response_model=CopyFileResult)
+@router.post("/move-file")#, response_model=CopyFileResult)
 async def moveFile(
-    depIdSource: str = Query(title="Source ID Code", description="Identifier code of file to move", example="D_0000000001"),
-    repositoryTypeSource: str = Query(title="Source Repository Type", description="OneDep repository type of file to move", example="onedep-archive, onedep-deposit"),
-    contentTypeSource: str = Query(title="Source Content type", description="OneDep content type of file to move", example="model, structure-factors, val-report-full"),
-    contentFormatSource: str = Query(title="Input Content format", description="OneDep content format of file to move", example="pdb, pdbx, mtz, pdf"),
-    partNumberSource: int = Query(1, title="Source Content part", description="OneDep part number of file to move", example="1,2,3"),
-    versionSource: str = Query("latest", title="Source Version string", description="OneDep version number or description of file to move", example="1,2,3, latest, previous, next"),
-    milestoneSource: str = Query(""),
-    #
-    depIdTarget: str = Query(title="Target ID Code", description="Identifier code of destination file", example="D_0000000001"),
-    repositoryTypeTarget: str = Query(title="Target Repository Type", description="OneDep repository type of destination file", example="onedep-archive, onedep-deposit"),
-    contentTypeTarget: str = Query(title="Target Content type", description="OneDep content type of destination file", example="model, structure-factors, val-report-full"),
-    contentFormatTarget: str = Query(title="Input Content format", description="OneDep content format of destination file", example="pdb, pdbx, mtz, pdf"),
-    partNumberTarget: int = Query(1, title="Target Content part", description="OneDep part number of destination file", example="1,2,3"),
-    versionTarget: str = Query(None, title="Target Version string", description="OneDep version number or description of destination file", example="1,2,3, latest, previous, next"),
-    milestoneTarget: str = Query("", title="milestone", description="milestone", example="release"),
+    depIdSource: str = Form(title="Source ID Code", description="Identifier code of file to move", example="D_0000000001"),
+    repositoryTypeSource: str = Form(title="Source Repository Type", description="OneDep repository type of file to move", example="onedep-archive, onedep-deposit"),
+    contentTypeSource: str = Form(title="Source Content type", description="OneDep content type of file to move", example="model, structure-factors, val-report-full"),
+    contentFormatSource: str = Form(title="Input Content format", description="OneDep content format of file to move", example="pdb, pdbx, mtz, pdf"),
+    partNumberSource: int = Form(1, title="Source Content part", description="OneDep part number of file to move", example="1,2,3"),
+    versionSource: str = Form("latest", title="Source Version string", description="OneDep version number or description of file to move", example="1,2,3, latest, previous, next"),
+    milestoneSource: str = Form(""),
+    depIdTarget: str = Form(title="Target ID Code", description="Identifier code of destination file", example="D_0000000001"),
+    repositoryTypeTarget: str = Form(title="Target Repository Type", description="OneDep repository type of destination file", example="onedep-archive, onedep-deposit"),
+    contentTypeTarget: str = Form(title="Target Content type", description="OneDep content type of destination file", example="model, structure-factors, val-report-full"),
+    contentFormatTarget: str = Form(title="Input Content format", description="OneDep content format of destination file", example="pdb, pdbx, mtz, pdf"),
+    partNumberTarget: int = Form(1, title="Target Content part", description="OneDep part number of destination file", example="1,2,3"),
+    versionTarget: str = Form(None, title="Target Version string", description="OneDep version number or description of destination file", example="1,2,3, latest, previous, next"),
+    milestoneTarget: str = Form("", title="milestone", description="milestone", example="release"),
 ):
     """Move a file given standard input paramaters for both the source and destination of the file.
     """
@@ -373,7 +372,7 @@ async def moveFile(
             "Moving repositoryType %r depId %r contentType %r milestone %r format %r version %r",
             repositoryTypeSource, depIdSource, contentTypeSource, milestoneSource, contentFormatSource, versionSource
         )
-        filePathSource = pathU.getVersionedPath(repositoryTypeSource, depIdSource, contentTypeSource, milestoneTarget, partNumberSource, contentFormatSource, versionSource)
+        filePathSource = pathU.getVersionedPath(repositoryTypeSource, depIdSource, contentTypeSource, milestoneSource, partNumberSource, contentFormatSource, versionSource)
         logger.info("filePathSource %r", filePathSource)
         if not versionTarget:
             sourceFileEnd = filePathSource.split(".")[-1]
@@ -400,7 +399,7 @@ async def moveFile(
     except Exception as e:
         logger.exception("Failing with %s", str(e))
         raise HTTPException(status_code=400, detail="File checking fails with %s" % str(e))
-    #
+
     if not success:
         raise HTTPException(status_code=400, detail="Bad or incomplete request parameters")
     else:

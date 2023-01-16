@@ -319,9 +319,8 @@ class PathRequestTests(unittest.TestCase):
                 "contentTypeSource": "model",
                 "contentFormatSource": "pdbx",
                 "partNumberSource": 2,
-                "versionSource": 2,
+                "versionSource": 1,
                 "milestoneSource": "",
-                #
                 "depIdTarget": "D_3000000001",
                 "repositoryTypeTarget": "onedep-archive",
                 "contentTypeTarget": "model",
@@ -331,7 +330,7 @@ class PathRequestTests(unittest.TestCase):
                 "milestoneTarget": ""
             }
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
+                response = client.post("/file-v1/%s" % endPoint, data=mD, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
                 logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)

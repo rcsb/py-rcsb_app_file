@@ -4,16 +4,16 @@
         <meta charset="UTF-8">
         <title>HTML UPLOAD EXAMPLE</title>
         <!-- author James Smith -->
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/core.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/3.1.9-1/md5.js"></script>
+        <script src = "http://www.myersdaily.org/joseph/javascript/md5.js"></script>
 		<script type="text/javascript">
 			handleform = async () => {
               window.event.preventDefault();
-              let stream_file_url = "http://0.0.0.0:8000/file-v2/upload";
-              let sequential_chunk_url = "http://0.0.0.0:8000/file-v2/sequentialUpload";
-              let async_chunk_url = "http://0.0.0.0:8000/file-v2/asyncUpload";
-              let upload_id_url = "http://0.0.0.0:8000/file-v2/getNewUploadId";
-              let save_path_url = "http://0.0.0.0:8000/file-v2/getSaveFilePath";
+              let base_url = "http://0.0.0.0:8000"
+              let stream_file_url = `${base_url}/file-v2/upload`;
+              let sequential_chunk_url = `${base_url}/file-v2/sequentialUpload`;
+              let async_chunk_url = `${base_url}/file-v2/asyncUpload`;
+              let upload_id_url = `${base_url}/file-v2/getNewUploadId`;
+              let save_path_url = `${base_url}/file-v2/getSaveFilePath`;
               let file = document.getElementsByName('uploadFile')[0].files[0];
               let fileName = file.name;
               console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
@@ -27,11 +27,19 @@
               let uploadId = null;
               await getUploadId();
               console.log('uploadId = ' + uploadId);
+              if(! uploadId){
+                  return;
+              }
               let filePath = null;
               await getFilePath();
               console.log('saveFilePath = ' + filePath);
+              if(! filePath){
+                  return;
+              }
+              // if file is a zip file, file has been compressed before hashing/upload
               let hashDigest = null;
               await getHashDigest(file);
+              console.log('upload complete')
 
               async function getUploadId() {
                 await fetch(upload_id_url, {
@@ -59,15 +67,15 @@
                 var reader = new FileReader();
                 reader.readAsBinaryString(file);
                 reader.onloadend = await function () {
-                  hashDigest = CryptoJS.MD5(reader.result).toString();
-                  console.log('md5 hash = ' + hashDigest);
-                  if(upload_radio == 1) {
+                    hashDigest = md5(reader.result);
+                    console.log('md5 hash = ' + hashDigest);
+                    if(upload_radio == 1) {
                       streamFile(file);
-                  } else if(upload_radio == 2) {
+                    } else if(upload_radio == 2) {
                       sequentialChunks(file);
-                  } else if(upload_radio == 3) {
+                    } else if(upload_radio == 3) {
                       asyncChunks(file);
-                  }
+                    }
                 }
               }
 
@@ -98,7 +106,6 @@
                 formdata.append("uploadId", uploadId);
                 formdata.append("hashType", hashType);
                 formdata.append("hashDigest", hashDigest);
-                formdata.append("copyMode", copyMode);
                 // save file parameters
                 formdata.append("repositoryType", repositoryType);
                 formdata.append("depId", depId);
@@ -107,6 +114,7 @@
                 formdata.append("partNumber", partNumber);
                 formdata.append("contentFormat", contentFormat);
                 formdata.append("version", version);
+                formdata.append("copyMode", copyMode);
                 formdata.append("allowOverwrite", allowOverwrite);
                 fetch(stream_file_url, {
                     method: "POST",
@@ -123,6 +131,7 @@
                 var chunkMode = "sequential";
                 var hashType = "MD5";
                 var copyMode = "native";
+                let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
                 if(document.getElementsByName('decompress')[0].checked){
                     copyMode = "gzip_decompress";
                 }
@@ -149,7 +158,6 @@
                   formdata.append("uploadId", uploadId);
                   formdata.append("hashType", hashType);
                   formdata.append("hashDigest", hashDigest);
-                  formdata.append("copyMode", copyMode);
                   // chunk parameters
                   formdata.append("chunkIndex", chunkIndex);
                   formdata.append("expectedChunks", expectedChunks);
@@ -158,7 +166,8 @@
                   formdata.append("chunkMode", chunkMode);
                   // save file parameters
                   formdata.append("filePath", filePath);
-
+                  formdata.append("copyMode", copyMode);
+                  formdata.append("allowOverwrite", allowOverwrite);
                   fetch(sequential_chunk_url, {
                     method: "POST",
                     body: formdata
@@ -176,7 +185,7 @@
                 var expectedChunks = Math.ceil((fileSize) / chunkSize);
                 var chunkIndex = 0;
                 var chunkOffset = 0;
-                var chunkMode = "sequential";
+                var chunkMode = "async";
                 var hashType = "MD5";
                 var copyMode = "native";
                 if(document.getElementsByName('decompress')[0].checked){
@@ -192,9 +201,16 @@
                 let version = document.getElementsByName('version')[0].value;
                 let emailAddress = document.getElementsByName('emailAddress')[0].value;
                 let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
-                readChunks(chunkIndex, chunkOffset);
+                for(let x = 0; x < expectedChunks; x++) {
+                    readChunks(x, chunkSize * x);
+                    // chunkOffset += chunkSize;
+                    // chunkIndex = chunkIndex + 1;
+                }
+                // readChunks(chunkIndex, chunkOffset);
 
-                function readChunks(chunkIndex, chunkOffset) {
+                function readChunks(x, offset) {
+                  chunkIndex = x;
+                  chunkOffset = offset;
                   if (chunkIndex >= expectedChunks) {
                     return;
                   }
@@ -214,7 +230,6 @@
                   formdata.append("uploadId", uploadId);
                   formdata.append("hashType", hashType);
                   formdata.append("hashDigest", hashDigest);
-                  formdata.append("copyMode", copyMode);
                   // chunk parameters
                   formdata.append("chunkIndex", chunkIndex);
                   formdata.append("expectedChunks", expectedChunks);
@@ -231,20 +246,20 @@
                   formdata.append("contentFormat", contentFormat);
                   formdata.append("version", version);
                   formdata.append("emailAddress", emailAddress);
+                  formdata.append("copyMode", copyMode);
                   formdata.append("allowOverwrite", allowOverwrite);
 
                   fetch(async_chunk_url, {
                     method: "POST",
                     body: formdata
-                  }).then(() => {
-                    chunkOffset += chunkSize;
-                    chunkIndex = chunkIndex + 1;
-                    readChunks(chunkIndex, chunkOffset)
                   })
+                  //     .then(() => {
+                  //   chunkOffset += chunkSize;
+                  //   chunkIndex = chunkIndex + 1;
+                  //   readChunks(chunkIndex, chunkOffset)
+                  // })
                 }
               }
-
-
             }
         </script>
 		<style>
