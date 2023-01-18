@@ -246,7 +246,8 @@ class ClientUtils:
                 "hashType": hashType
             }
             #
-            async with httpx.AsyncClient(timeout=self.__timeout) as client:
+            with TestClient(app) as client:
+                # async with httpx.AsyncClient(timeout=self.__timeout) as client:
                 # Default timeout is 5.0 seconds, but takes ~120 seconds for ~3 GB file
                 response = await client.get(
                     os.path.join(self.__hostAndPort, "file-v1", endPoint),
@@ -317,8 +318,10 @@ class ClientUtils:
 
     async def clearKv(self):
         url = os.path.join(self.__hostAndPort, "file-v2", "clearKv")
-        response = requests.post(url, data={}, headers=self.__headerD, timeout=None)
-        if response.status_code != 200:
+        response = None
+        with TestClient(app) as client:
+            response = client.post(url, data={}, headers=self.__headerD, timeout=None)
+        if response and response.status_code != 200:
             logging.warning("error - could not clear Kv")
             return False
         return True

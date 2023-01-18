@@ -44,9 +44,9 @@
               async function getUploadId() {
                 await fetch(upload_id_url, {
                   method: "GET",
-                    headers: {
+                    headers: new Headers({
                         "Authorization": "Bearer jwtDisable"
-                    },
+                    })
                 }).then(response => response.json()).then(json => uploadId = json.id).catch(err => console.log(err))
               }
 
@@ -63,9 +63,9 @@
                 let url = save_path_url + query
                 await fetch(url, {
                   method: "GET",
-                    headers: {
+                    headers: new Headers({
                         "Authorization": "Bearer jwtDisable"
-                    },
+                    })
                 }).then(data => data.json()).then(json => filePath = json.path).catch(err => console.log(err));
               }
 
@@ -124,9 +124,9 @@
                 formdata.append("allowOverwrite", allowOverwrite);
                 fetch(stream_file_url, {
                     method: "POST",
-                    headers: {
+                    headers: new Headers({
                         "Authorization": "Bearer jwtDisable"
-                    },
+                    }),
                     body: formdata
                 }).then(response => response.json()).then(json => console.log(`response ${JSON.stringify(json)}`)).catch(err => console.log(err));
               }
@@ -179,9 +179,9 @@
                   formdata.append("allowOverwrite", allowOverwrite);
                   fetch(sequential_chunk_url, {
                     method: "POST",
-                      headers: {
+                      headers: new Headers({
                         "Authorization": "Bearer jwtDisable"
-                    },
+                    }),
                     body: formdata
                   }).then(() => {
                     chunkOffset += chunkSize;
@@ -263,9 +263,9 @@
 
                   fetch(async_chunk_url, {
                     method: "POST",
-                      headers: {
+                      headers: new Headers({
                         "Authorization": "Bearer jwtDisable"
-                    },
+                    }),
                     body: formdata
                   })
                   //     .then(() => {
