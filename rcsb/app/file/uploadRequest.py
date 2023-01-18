@@ -19,18 +19,17 @@ from enum import Enum
 from typing import Optional
 from filelock import Timeout, FileLock
 import aiofiles
-from fastapi import APIRouter, Path, Query, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Path, Query, File, Form, HTTPException, UploadFile, Depends
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.PathUtils import PathUtils
-# from rcsb.utils.io.FileLock import FileLock
+from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["upload"])
-#router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
+router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
 
 
 class HashType(str, Enum):

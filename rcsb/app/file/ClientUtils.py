@@ -27,7 +27,8 @@ from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 import httpx
 import requests
-# import json
+from fastapi.testclient import TestClient
+from rcsb.app.file.main import app
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -180,33 +181,34 @@ class ClientUtils:
         response = None
         tmp = io.BytesIO()
         try:
-            with open(filePath, "rb") as upLoad:
-                for i in range(0, expectedChunks):
-                    packetSize = min(
-                        fileSize - (mD["chunkIndex"] * chunkSize),
-                        chunkSize,
-                    )
-                    tmp.truncate(packetSize)
-                    tmp.seek(0)
-                    tmp.write(upLoad.read(packetSize))
-                    tmp.seek(0)
-                    response = requests.post(
-                        url,
-                        data=deepcopy(mD),
-                        headers=self.__headerD,
-                        files={"uploadFile": tmp},
-                        timeout=self.__timeout,
-                    )
-                    if response.status_code != 200:
-                        print(
-                            f"error - status code {response.status_code} {response.text} url {url} file {filePath}"
+            with TestClient(app) as client:
+                with open(filePath, "rb") as upLoad:
+                    for i in range(0, expectedChunks):
+                        packetSize = min(
+                            fileSize - (mD["chunkIndex"] * chunkSize),
+                            chunkSize,
                         )
-                        break
-                    mD["chunkIndex"] += 1
-                    mD["chunkOffset"] = mD["chunkIndex"] * chunkSize
-                    # time.sleep(1)
-                    # text = json.loads(response.text)
-                    # mD["uploadId"] = text["uploadId"]
+                        tmp.truncate(packetSize)
+                        tmp.seek(0)
+                        tmp.write(upLoad.read(packetSize))
+                        tmp.seek(0)
+                        response = client.post(
+                            url,
+                            data=deepcopy(mD),
+                            headers=self.__headerD,
+                            files={"uploadFile": tmp},
+                            timeout=self.__timeout,
+                        )
+                        if response.status_code != 200:
+                            print(
+                                f"error - status code {response.status_code} {response.text} url {url} file {filePath}"
+                            )
+                            break
+                        mD["chunkIndex"] += 1
+                        mD["chunkOffset"] = mD["chunkIndex"] * chunkSize
+                        # time.sleep(1)
+                        # text = json.loads(response.text)
+                        # mD["uploadId"] = text["uploadId"]
         except asyncio.CancelledError as exc:
             logger.exception("error in chunkd upload %s", exc)
 

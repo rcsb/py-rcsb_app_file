@@ -11,7 +11,6 @@ __license__ = "Apache 2.0"
 import logging
 import os
 from enum import Enum
-
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
@@ -32,8 +31,7 @@ from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["download"])
-# router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["download"])
+router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["download"])
 
 
 class HashType(str, Enum):

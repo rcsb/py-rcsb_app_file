@@ -31,8 +31,7 @@ from rcsb.utils.io.FileUtil import FileUtil
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["status"])
-# router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["status"])
+router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["status"])
 
 
 class HashType(str, Enum):

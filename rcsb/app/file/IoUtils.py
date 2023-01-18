@@ -31,13 +31,13 @@ import uuid
 import aiofiles
 import re
 import requests
+# import multiprocessing
 from filelock import Timeout, FileLock
 from fastapi import HTTPException
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.app.file.KvSqlite import KvSqlite
 from rcsb.app.file.KvRedis import KvRedis
-# from rcsb.utils.io.FileLock import FileLock
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -444,6 +444,25 @@ class IoUtils:
                 allowOverwrite=allowOverwrite
             )
         elif chunkMode == "async":
+            # mode = "ab"
+            # p1 = multiprocessing.Process(target=self.asyncChunk, args=(
+            #     ifh,
+            #     outPath,
+            #     chunkIndex,
+            #     chunkOffset,
+            #     expectedChunks,
+            #     uploadId,
+            #     key,
+            #     val,
+            #     mode,
+            #     copyMode,
+            #     hashType,
+            #     hashDigest,
+            #     logKey,
+            #     emailAddress,
+            #     allowOverwrite
+            # ))
+            # p1.start()
             ret = await self.asyncChunk(
                 ifh,
                 outPath,

@@ -1115,6 +1115,7 @@ class Gui(tk.Frame):
                     response = requests.post(
                         url=url,
                         files={"uploadFile": to_upload},
+                        stream=True,
                         data=deepcopy(mD),
                         headers=headerD,
                         timeout=None
@@ -1219,6 +1220,7 @@ class Gui(tk.Frame):
                             data=deepcopy(mD),
                             headers=headerD,
                             files={"uploadFile": tmp},
+                            stream=True,
                             timeout=None,
                         )
                         if response.status_code != 200:
@@ -1261,11 +1263,13 @@ class Gui(tk.Frame):
                 "emailAddress": email
             }
             asyncio.run(self.asyncUpload(filePath, fileSize, mD))
+            print("upload complete")
+            print(f'time {time.perf_counter() - t1} s')
 
     async def asyncUpload(self, filePath, fileSize, mD):
         global iou
-        # test for resumed upload
         chunksSaved = "0" * mD["expectedChunks"]
+        # test for resumed upload
         parameters = {"repositoryType": mD["repositoryType"],
                       "depId": mD["depId"],
                       "contentType": mD["contentType"],
@@ -1299,7 +1303,6 @@ class Gui(tk.Frame):
         await asyncio.gather(*tasks)
         self.upload_status.set('100%')
         self.master.update()
-        print("upload complete")
 
 
     async def asyncChunk(self, index, filePath, fileSize, mD):
@@ -1321,7 +1324,7 @@ class Gui(tk.Frame):
             tmp.seek(0)
             if FORWARDING:
                 mD["ifh"] = tmp
-                await iou.asyncUpload(**mD)
+                iou.asyncUpload(**mD)
             else:
                 url = os.path.join(base_url, "file-v2", "asyncUpload")
                 requests.post(
@@ -1329,6 +1332,7 @@ class Gui(tk.Frame):
                     data=deepcopy(mD),
                     headers=headerD,
                     files={"uploadFile": tmp},
+                    stream=True,
                     timeout=None,
                 )
 

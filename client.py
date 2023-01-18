@@ -83,6 +83,7 @@ def upload(mD):
                 data=deepcopy(mD),
                 headers=headerD,
                 files={"uploadFile": to_upload},
+                stream=True,
                 timeout=None,
             )
         if response.status_code != 200:
@@ -145,6 +146,7 @@ def upload(mD):
                     data=deepcopy(mD),
                     headers=headerD,
                     files={"uploadFile": tmp},
+                    stream=True,
                     timeout=None,
                 )
                 if response.status_code != 200:
@@ -208,6 +210,7 @@ def upload(mD):
                 data=deepcopy(mD),
                 headers=headerD,
                 files={"uploadFile": tmp},
+                stream=True,
                 timeout=None,
             )
             if response.status_code != 200:
@@ -298,6 +301,7 @@ async def asyncChunk(index, mD):
             data=deepcopy(mD),
             headers=headerD,
             files={"uploadFile": tmp},
+            stream=True,
             timeout=None,
         )
         # if response.status_code != 200:

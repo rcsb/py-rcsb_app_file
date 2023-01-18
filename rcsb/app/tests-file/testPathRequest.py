@@ -318,7 +318,7 @@ class PathRequestTests(unittest.TestCase):
                 "repositoryTypeSource": "onedep-archive",
                 "contentTypeSource": "model",
                 "contentFormatSource": "pdbx",
-                "partNumberSource": 2,
+                "partNumberSource": 1,
                 "versionSource": 1,
                 "milestoneSource": "",
                 "depIdTarget": "D_3000000001",

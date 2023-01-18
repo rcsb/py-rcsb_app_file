@@ -103,8 +103,6 @@ app.include_router(
 
 app.include_router(serverStatus.router)
 
-
-"""
 @app.middleware("http")
 async def checkToken(request: Request, callNext):
     authorization: str = request.headers.get("Authorization", None)
@@ -122,5 +120,4 @@ async def checkToken(request: Request, callNext):
     else:
         response = await callNext(request)
         return response
-"""
 
