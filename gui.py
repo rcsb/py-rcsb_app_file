@@ -27,7 +27,7 @@ author James Smith
 base_url = "http://0.0.0.0:8000"
 maxChunkSize = 1024 * 1024 * 8  # default
 hashType = "MD5"
-FORWARDING = False  # for testing chunk forwarding to IoUtils.py, skipping uploadRequest.py
+FORWARDING = True  # for testing chunk forwarding to IoUtils.py, skipping uploadRequest.py
 
 """ do not alter from here
 """
@@ -1178,7 +1178,7 @@ class Gui(tk.Frame):
                 else:
                     sys.exit(f'error - {response.status_code}')
             if FORWARDING:
-                result = asyncio.run(iou.getNewUploadId())
+                result = iou.getNewUploadId()
                 if result:
                     mD["uploadId"] = result
             else:
@@ -1262,8 +1262,8 @@ class Gui(tk.Frame):
                 "allowOverwrite": allowOverwrite,
                 "emailAddress": email
             }
-            asyncio.run(self.asyncUpload(filePath, fileSize, mD))
-            print("upload complete")
+            responses = asyncio.run(self.asyncUpload(filePath, fileSize, mD))
+            print(responses)
             print(f'time {time.perf_counter() - t1} s')
 
     async def asyncUpload(self, filePath, fileSize, mD):
@@ -1282,6 +1282,8 @@ class Gui(tk.Frame):
         if FORWARDING:
             result = await iou.getUploadStatus(**parameters)
             if result:
+                print(f'{type(result)} {result}')
+                result = eval(result)
                 chunksSaved = result["chunksSaved"]
         else:
             url = os.path.join(base_url, "file-v2", "uploadStatus")
@@ -1300,41 +1302,47 @@ class Gui(tk.Frame):
         for index in range(0, len(chunksSaved)):
             if chunksSaved[index] == "0":
                 tasks.append(self.asyncChunk(index, filePath, fileSize, copy.deepcopy(mD)))
-        await asyncio.gather(*tasks)
+        responses = asyncio.gather(*tasks)
         self.upload_status.set('100%')
         self.master.update()
+        return responses
 
 
     async def asyncChunk(self, index, filePath, fileSize, mD):
         global iou
-        offset = index * mD["chunkSize"]
-        mD["chunkIndex"] = index
-        mD["chunkOffset"] = offset
         responses = []
-        tmp = io.BytesIO()
-        with open(filePath, "rb") as to_upload:
-            to_upload.seek(offset)
-            packet_size = min(
-                int(fileSize) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
-                int(mD["chunkSize"]),
-            )
-            tmp.truncate(packet_size)
-            tmp.seek(0)
-            tmp.write(to_upload.read(packet_size))
-            tmp.seek(0)
-            if FORWARDING:
-                mD["ifh"] = tmp
-                iou.asyncUpload(**mD)
-            else:
-                url = os.path.join(base_url, "file-v2", "asyncUpload")
-                requests.post(
-                    url,
-                    data=deepcopy(mD),
-                    headers=headerD,
-                    files={"uploadFile": tmp},
-                    stream=True,
-                    timeout=None,
+        try:
+            offset = index * mD["chunkSize"]
+            mD["chunkIndex"] = index
+            mD["chunkOffset"] = offset
+            tmp = io.BytesIO()
+            with open(filePath, "rb") as to_upload:
+                to_upload.seek(offset)
+                packet_size = min(
+                    int(fileSize) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
+                    int(mD["chunkSize"]),
                 )
+                tmp.truncate(packet_size)
+                tmp.seek(0)
+                tmp.write(to_upload.read(packet_size))
+                tmp.seek(0)
+                if FORWARDING:
+                    mD["ifh"] = tmp
+                    response = await iou.resumableUpload(**mD)
+                else:
+                    url = os.path.join(base_url, "file-v2", "resumableUpload")
+                    response = requests.post(
+                        url,
+                        data=mD,
+                        headers=headerD,
+                        files={"uploadFile": tmp},
+                        stream=True,
+                        timeout=None,
+                    )
+                responses.append(response)
+        except Exception as exc:
+            print(f'error {str(exc)}')
+        return responses
 
     def download(self):
         global headerD

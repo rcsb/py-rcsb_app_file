@@ -20,6 +20,7 @@ from typing import Optional
 from filelock import Timeout, FileLock
 import aiofiles
 from fastapi import APIRouter, Path, Query, File, Form, HTTPException, UploadFile, Depends
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -366,7 +367,7 @@ async def findUploadId(repositoryType: str = Query(),
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
     ioU = IoUtils(cP)
-    return await ioU.getResumedUpload(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)
+    return ioU.getResumedUpload(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)
 
 
 # clear kv entries from one user
@@ -389,8 +390,8 @@ async def clearKv():
     return await ioU.clearKv()
 
 
-@router.post("/asyncUpload", response_model=UploadResult)
-async def asyncUpload(
+@router.post("/resumableUpload")#, response_model=UploadResult)
+async def resumableUpload(
     # upload file parameters
     uploadFile: UploadFile = File(...),
     uploadId: str = Form(None),
@@ -426,7 +427,7 @@ async def asyncUpload(
         logger.debug("uploadFile %s (%r)", fn, ct)
         logger.debug("hashType.name %r hashDigest %r", hashType, hashDigest)
         ioU = IoUtils(cP)
-        ret = await ioU.asyncUpload(
+        ret = await ioU.resumableUpload(
             # upload file parameters
             ifh=uploadFile.file,
             uploadId=uploadId,

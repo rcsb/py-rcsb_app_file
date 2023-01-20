@@ -9,11 +9,11 @@
 			handleform = async () => {
               window.event.preventDefault();
               let base_url = "http://0.0.0.0:8000"
-              let stream_file_url = `${base_url}/file-v2/upload`;
-              let sequential_chunk_url = `${base_url}/file-v2/sequentialUpload`;
-              let async_chunk_url = `${base_url}/file-v2/asyncUpload`;
-              let upload_id_url = `${base_url}/file-v2/getNewUploadId`;
-              let save_path_url = `${base_url}/file-v2/getSaveFilePath`;
+              let stream_file_url = `${base_url}/file-v2/upload/`;
+              let sequential_chunk_url = `${base_url}/file-v2/sequentialUpload/`;
+              let async_chunk_url = `${base_url}/file-v2/resumableUpload/`;
+              let upload_id_url = `${base_url}/file-v2/getNewUploadId/`;
+              let save_path_url = `${base_url}/file-v2/getSaveFilePath/`;
               let file = document.getElementsByName('uploadFile')[0].files[0];
               let fileName = file.name;
               console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
@@ -44,9 +44,7 @@
               async function getUploadId() {
                 await fetch(upload_id_url, {
                   method: "GET",
-                    headers: new Headers({
-                        "Authorization": "Bearer jwtDisable"
-                    })
+                    // headers: {"Authorization": "Bearer jwtDisable"},
                 }).then(response => response.json()).then(json => uploadId = json.id).catch(err => console.log(err))
               }
 
@@ -63,9 +61,7 @@
                 let url = save_path_url + query
                 await fetch(url, {
                   method: "GET",
-                    headers: new Headers({
-                        "Authorization": "Bearer jwtDisable"
-                    })
+                    headers: {"Authorization": "Bearer jwtDisable"},
                 }).then(data => data.json()).then(json => filePath = json.path).catch(err => console.log(err));
               }
 
@@ -124,9 +120,7 @@
                 formdata.append("allowOverwrite", allowOverwrite);
                 fetch(stream_file_url, {
                     method: "POST",
-                    headers: new Headers({
-                        "Authorization": "Bearer jwtDisable"
-                    }),
+                    headers: {"Authorization": "Bearer jwtDisable"},
                     body: formdata
                 }).then(response => response.json()).then(json => console.log(`response ${JSON.stringify(json)}`)).catch(err => console.log(err));
               }
@@ -179,9 +173,7 @@
                   formdata.append("allowOverwrite", allowOverwrite);
                   fetch(sequential_chunk_url, {
                     method: "POST",
-                      headers: new Headers({
-                        "Authorization": "Bearer jwtDisable"
-                    }),
+                      headers: {"Authorization": "Bearer jwtDisable"},
                     body: formdata
                   }).then(() => {
                     chunkOffset += chunkSize;
@@ -263,9 +255,7 @@
 
                   fetch(async_chunk_url, {
                     method: "POST",
-                      headers: new Headers({
-                        "Authorization": "Bearer jwtDisable"
-                    }),
+                      headers: {"Authorization": "Bearer jwtDisable"},
                     body: formdata
                   })
                   //     .then(() => {

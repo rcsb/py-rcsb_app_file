@@ -12,6 +12,7 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
+import multiprocessing
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.cors import CORSMiddleware
 from fastapi.security.utils import get_authorization_scheme_param
@@ -74,6 +75,7 @@ async def startupEvent():
     _ = cp.getConfig()
     _ = cp.getData()
     #
+    multiprocessing.set_start_method('fork')
 
 
 @app.on_event("shutdown")
@@ -102,22 +104,4 @@ app.include_router(
 )
 
 app.include_router(serverStatus.router)
-
-@app.middleware("http")
-async def checkToken(request: Request, callNext):
-    authorization: str = request.headers.get("Authorization", None)
-    if not authorization:
-        return Response(status_code=403, content=b'{"detail":"Not authenticated"}', headers={"content-type": "application/json"})
-    scheme, credentials = get_authorization_scheme_param(authorization)
-    if scheme != "Bearer":
-        return Response(status_code=403, content=b'{"detail":"Missing Bearer details"}', headers={"content-type": "application/json"})
-    auth = JWTAuthBearer.JWTAuthBearer()
-    valid = auth.validateToken(credentials)
-    if not valid:
-        return Response(status_code=403, content=b'{"detail":"Invalid or expired token"}', headers={"content-type": "application/json"})
-        # logger.info("HTTPException %r ",  HTTPException(status_code=403, detail="Invalid or expired token"))  # How to get this to log in the main app output?
-        # return HTTPException(status_code=403, detail="Invalid or expired token")
-    else:
-        response = await callNext(request)
-        return response
 

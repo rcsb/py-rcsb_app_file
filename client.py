@@ -195,7 +195,7 @@ def upload(mD):
     tmp = io.BytesIO()
     with open(mD["filePath"], "rb") as to_upload:
         to_upload.seek(offset)
-        url = os.path.join(base_url, "file-v2", "asyncUpload")
+        url = os.path.join(base_url, "file-v2", "resumableUpload")
         for x in tqdm(range(offsetIndex, mD["expectedChunks"]), leave=False, desc=os.path.basename(mD["filePath"])):
             packet_size = min(
                 int(mD["fileSize"]) - ( int(mD["chunkIndex"]) * int(mD["chunkSize"]) ),
@@ -287,7 +287,7 @@ async def asyncChunk(index, mD):
     tmp = io.BytesIO()
     with open(filePath, "rb") as to_upload:
         to_upload.seek(offset)
-        url = os.path.join(base_url, "file-v2", "asyncUpload")
+        url = os.path.join(base_url, "file-v2", "resumableUpload")
         packet_size = min(
             mD["fileSize"] - (mD["chunkIndex"] * mD["chunkSize"]),
             mD["chunkSize"],

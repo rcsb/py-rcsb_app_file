@@ -24,6 +24,7 @@ rcsb.app.file.main:app \
     --bind ${ADDR} \
     --reload \
     --worker-class uvicorn.workers.UvicornWorker \
+    --workers 5 \
     --access-logfile - \
     --error-logfile - \
     --capture-output \

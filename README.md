@@ -51,21 +51,15 @@ The repository contains three upload endpoints, one download endpoint, and one l
 
 For uploading a complete file as a stream, use the 'file-v2/upload' endpoint.
 
-To upload a file in chunks, use either the 'file-v2/sequentialUpload' or 'file-v2/asyncUpload' endpoint.
+To upload a file in chunks, use either the 'file-v2/sequentialUpload' or 'file-v2/resumableUpload' endpoint.
 
 The sequential endpoint has a minimal code footprint but requires some setup by invoking the 'file-v2/getNewUploadId' and 'file-v2/getSaveFilePath' endpoints first, then passing the results as parameters.
 
 To maintain sequential order, the client must wait for each response before sending the next chunk.
 
-For the async endpoint, the client should send chunks concurrently or asynchronously, ignoring responses.
+For the resumable endpoint, chunks may be either sequential or async, depending on the chunk mode.
 
-Therefore, the async endpoint has an email parameter that sends an email informing users when their results are done, enabling early exit, which is yet to be implemented.
-
-The async endpoint also doubles as a sequential chunk endpoint if chunkMode = sequential rather than async.
-
-Only the async API has server-side support for resumable uploads.
-
-It requires a request to the 'file-v2/getUploadStatus' endpoint prior to the asyncUpload endpoint.
+Resumability requires a request to the 'file-v2/getUploadStatus' endpoint prior to the resumableUpload endpoint.
 
 The other endpoints would require client-side support for resumable uploads, most likely with local storage.
 
@@ -76,6 +70,8 @@ The list directory endpoint is found at 'file-v1/list-dir'.
 To skip endpoints and forward a chunk or file from Python, use functions by the same names in IoUtils.py.
 
 Examples of forwarding are found in gui.py when FORWARDING = True, and have yet to be implemented in client.py.
+
+The resumable async functions accept an email address and send an email on completion, provided for a feature which has not yet been implemented, early exit from the client side.
 
 
 # Uploads and downloads
