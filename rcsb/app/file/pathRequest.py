@@ -340,7 +340,7 @@ async def copyFilePath(
     return ret
 
 
-@router.post("/move-file")#, response_model=CopyFileResult)
+@router.post("/move-file")  # response_model=CopyFileResult)
 async def moveFile(
     depIdSource: str = Form(title="Source ID Code", description="Identifier code of file to move", example="D_0000000001"),
     repositoryTypeSource: str = Form(title="Source Repository Type", description="OneDep repository type of file to move", example="onedep-archive, onedep-deposit"),

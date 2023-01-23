@@ -20,7 +20,7 @@ from typing import Optional
 from filelock import Timeout, FileLock
 import aiofiles
 from fastapi import APIRouter, Path, Query, File, Form, HTTPException, UploadFile, Depends
-from fastapi.responses import PlainTextResponse
+# from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -81,8 +81,8 @@ async def upload(
     ifh = uploadFile.file
     ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
     try:
-        fn = uploadFile.filename
-        ct = uploadFile.content_type
+        # fn = uploadFile.filename
+        # ct = uploadFile.content_type
         cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(cachePath, configFilePath)
@@ -170,7 +170,7 @@ async def upload(
 @router.get("/getNewUploadId")
 async def getNewUploadId():
     return {"id": uuid.uuid4().hex}
-    #return PlainTextResponse(str(uuid.uuid4().hex))
+    # return PlainTextResponse(str(uuid.uuid4().hex))
 
 
 @router.get("/getSaveFilePath")
@@ -202,7 +202,7 @@ async def getSaveFilePath(repositoryType: str = Query(...),
         raise HTTPException(status_code=400, detail="Bad content type metadata - cannot build a valid path")
     if os.path.exists(outPath) and not allowOverwrite:
         raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
-    dirPath, fn = os.path.split(outPath)
+    dirPath, _ = os.path.split(outPath)
     os.makedirs(dirPath, mode=0o755, exist_ok=True)
     return {"path": outPath}
 
@@ -215,19 +215,19 @@ async def sequentialUpload(
     hashType: str = Form(None),
     hashDigest: str = Form(None),
     # chunk parameters
-    chunkSize: int = Form(None),
+    # chunkSize: int = Form(None),
     chunkIndex: int = Form(None),
     chunkOffset: int = Form(None),
     expectedChunks: int = Form(None),
-    chunkMode: str = Form("sequential"),
+    # chunkMode: str = Form("sequential"),
     # save file parameters
     filePath: str = Form(...),
     copyMode: str = Form("native"),
     allowOverwrite: bool = Query(default=False)
 ):
     ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
-    fn = uploadFile.filename
-    ct = uploadFile.content_type
+    # fn = uploadFile.filename
+    # ct = uploadFile.content_type
     dirPath, fn = os.path.split(filePath)
     tempPath = os.path.join(dirPath, "." + uploadId)
     contents = await uploadFile.read()
@@ -265,7 +265,7 @@ async def sequentialUpload(
                     lockPath = os.path.join(os.path.dirname(filePath), "." + os.path.basename(filePath) + ".lock")
                     lock = FileLock(lockPath)
                     try:
-                        with lock.acquire(timeout = 60 * 60 * 4):
+                        with lock.acquire(timeout=60 * 60 * 4):
                             # last minute race condition handling
                             if os.path.exists(filePath) and not allowOverwrite:
                                 raise HTTPException(status_code=400, detail="Encountered existing file - cannot overwrite")
@@ -377,7 +377,7 @@ async def clearSession(uploadIds: list = Form(...)):
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
     ioU = IoUtils(cP)
-    return await ioU.clearSession(uploadIds)
+    return await ioU.clearSession(uploadIds, None)
 
 
 # purge kv before testing
@@ -390,7 +390,7 @@ async def clearKv():
     return await ioU.clearKv()
 
 
-@router.post("/resumableUpload")#, response_model=UploadResult)
+@router.post("/resumableUpload")  # response_model=UploadResult)
 async def resumableUpload(
     # upload file parameters
     uploadFile: UploadFile = File(...),

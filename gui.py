@@ -898,8 +898,10 @@ class Gui(tk.Frame):
         self.streamFileRadio.pack(anchor=tk.W)
         self.sequentialChunkRadio = ttk.Radiobutton(self.upload_group, text="sequential chunks", variable=self.upload_radio, value=2)
         self.sequentialChunkRadio.pack(anchor=tk.W)
-        self.asyncChunkRadio = ttk.Radiobutton(self.upload_group, text="async chunks", variable=self.upload_radio, value=3)
-        self.asyncChunkRadio.pack(anchor=tk.W)
+        self.resumableRadio = ttk.Radiobutton(self.upload_group, text="resumable chunks", variable=self.upload_radio, value=3)
+        self.resumableRadio.pack(anchor=tk.W)
+        # self.asyncChunkRadio = ttk.Radiobutton(self.upload_group, text="async chunks", variable=self.upload_radio, value=4)
+        # self.asyncChunkRadio.pack(anchor=tk.W)
         self.allowOverwriteButton = ttk.Checkbutton(self.upload_group, text="allow overwrite", variable=self.allow_overwrite)
         self.allowOverwriteButton.pack(anchor=tk.W)
         self.compressCheckbox = ttk.Checkbutton(self.upload_group, text="compress", variable=self.compress)
@@ -1081,7 +1083,7 @@ class Gui(tk.Frame):
             expectedChunks = 1
         chunkIndex = 0
         chunkOffset = 0
-        chunkMode = "async"
+        # chunkMode = "sequential"
         copyMode = "native"
         if DECOMPRESS:
             copyMode = "gzip_decompress"
@@ -1141,7 +1143,7 @@ class Gui(tk.Frame):
                 "chunkIndex": chunkIndex,
                 "chunkOffset": chunkOffset,
                 "expectedChunks": expectedChunks,
-                "chunkMode": chunkMode,
+                # "chunkMode": "sequential",
                 # save file parameters
                 "filePath": filePath,
                 "copyMode": copyMode,
@@ -1237,7 +1239,7 @@ class Gui(tk.Frame):
             print(responses)
             print(f'time {time.perf_counter() - t1} s')
             return
-        # upload async chunks
+        # upload resumable sequential chunks
         elif self.upload_radio.get() == 3:
             mD = {
                 # upload file parameters
@@ -1249,7 +1251,95 @@ class Gui(tk.Frame):
                 "chunkIndex": chunkIndex,
                 "chunkOffset": chunkOffset,
                 "expectedChunks": expectedChunks,
-                "chunkMode": chunkMode,
+                "chunkMode": "sequential",
+                # save file parameters
+                "repositoryType": repositoryType,
+                "depId": depId,
+                "contentType": contentType,
+                "milestone": milestone,
+                "partNumber": partNumber,
+                "contentFormat": contentFormat,
+                "version": version,
+                "copyMode": copyMode,
+                "allowOverwrite": allowOverwrite
+            }
+            uploadCount = 0
+            # test for resumed upload
+            parameters = {"repositoryType": mD["repositoryType"],
+                          "depId": mD["depId"],
+                          "contentType": mD["contentType"],
+                          "milestone": mD["milestone"],
+                          "partNumber": str(mD["partNumber"]),
+                          "contentFormat": mD["contentFormat"],
+                          "version": mD["version"],
+                          "hashDigest": mD["hashDigest"]
+                          }
+            if FORWARDING:
+                result = asyncio.run(iou.getUploadStatus(**parameters))
+                if result:
+                    print(f'{type(result)} {result}')
+                    result = eval(result)
+                    uploadCount = result["uploadCount"]
+            else:
+                url = os.path.join(base_url, "file-v2", "uploadStatus")
+                response = requests.get(
+                    url,
+                    params=parameters,
+                    headers=headerD,
+                    timeout=None
+                )
+                if response.status_code == 200:
+                    result = json.loads(response.text)
+                    if result:
+                        result = eval(result)
+                        uploadCount = result["uploadCount"]
+            responses = []
+            for index in range(uploadCount, expectedChunks):
+                offset = index * mD["chunkSize"]
+                mD["chunkIndex"] = index
+                mD["chunkOffset"] = offset
+                tmp = io.BytesIO()
+                with open(filePath, "rb") as to_upload:
+                    to_upload.seek(offset)
+                    packet_size = min(
+                        int(fileSize) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
+                        int(mD["chunkSize"]),
+                    )
+                    tmp.truncate(packet_size)
+                    tmp.seek(0)
+                    tmp.write(to_upload.read(packet_size))
+                    tmp.seek(0)
+                    if FORWARDING:
+                        mD["ifh"] = tmp
+                        response = asyncio.run(iou.resumableUpload(**mD))
+                    else:
+                        url = os.path.join(base_url, "file-v2", "resumableUpload")
+                        response = requests.post(
+                            url,
+                            data=mD,
+                            headers=headerD,
+                            files={"uploadFile": tmp},
+                            stream=True,
+                            timeout=None,
+                        )
+                    responses.append(response)
+                    self.status = math.ceil(((mD["chunkIndex"]+1) / mD["expectedChunks"]) * 100)
+                    self.upload_status.set(f'{self.status}%')
+                    self.master.update()
+            print(responses)
+        # upload resumable async chunks
+        elif self.upload_radio.get() == 4:
+            mD = {
+                # upload file parameters
+                "uploadId": None,
+                "hashType": hashType,
+                "hashDigest": fullTestHash,
+                # chunk parameters
+                "chunkSize": chunkSize,
+                "chunkIndex": chunkIndex,
+                "chunkOffset": chunkOffset,
+                "expectedChunks": expectedChunks,
+                "chunkMode": "async",
                 # save file parameters
                 "repositoryType": repositoryType,
                 "depId": depId,

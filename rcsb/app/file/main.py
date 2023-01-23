@@ -12,9 +12,9 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI # Request, Response
 from starlette.middleware.cors import CORSMiddleware
-from fastapi.security.utils import get_authorization_scheme_param
+# from fastapi.security.utils import get_authorization_scheme_param
 
 # pylint: disable=wrong-import-position
 # This environment must be set before JWTAuthBearer is imported
@@ -30,7 +30,7 @@ from . import serverStatus
 from . import uploadRequest
 from . import pathRequest
 from . import mergeRequest
-from . import JWTAuthBearer
+# from . import JWTAuthBearer
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -75,8 +75,8 @@ async def startupEvent():
     _ = cp.getData()
     #
 
-
-
+#
+#
 @app.on_event("shutdown")
 def shutdownEvent():
     logger.debug("Shutdown - running application shutdown placeholder method")
@@ -103,4 +103,3 @@ app.include_router(
 )
 
 app.include_router(serverStatus.router)
-

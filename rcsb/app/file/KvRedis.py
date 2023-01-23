@@ -17,7 +17,7 @@ class KvRedis:
             self.kV = redis.Redis(host="localhost", decode_responses=True)
         except Exception as exc:
             # already exists
-            logging.warning(f"exception in KvRedis: {type(exc)} {exc}")
+            logging.warning("exception in KvRedis: %s %s", type(exc), exc)
 
         if self.kV is None:
             raise Exception("error in KvRedis - no database")
@@ -108,4 +108,3 @@ class KvRedis:
     # clear everything
     def clearTable(self):
         self.kV.flushall()
-

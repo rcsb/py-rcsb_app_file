@@ -47,6 +47,7 @@ headerD = {
     + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)
 }
 SEQUENTIAL = False
+RESUMABLE = False
 ASYNCHRONOUS = False
 COMPRESS = False
 DECOMPRESS = False
@@ -70,6 +71,7 @@ def upload(mD):
     global COMPRESS
     global DECOMPRESS
     global SEQUENTIAL
+    global RESUMABLE
     global ASYNCHRONOUS
     global OVERWRITE
     global EMAIL_ADDRESS
@@ -158,70 +160,71 @@ def upload(mD):
                 mD["chunkIndex"] += 1
                 mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
         return responses
-    # sequential chunk upload (old version)
-    responses = []
-    uploadId = mD["uploadId"]
-    url = os.path.join(base_url, "file-v2", "uploadStatus")
-    parameters = {"repositoryType": mD["repositoryType"],
-              "depId": mD["depId"],
-              "contentType": mD["contentType"],
-              "milestone": mD["milestone"],
-              "partNumber": str(mD["partNumber"]),
-              "contentFormat": mD["contentFormat"],
-              "hashDigest": mD["hashDigest"]
-              }
-    response = requests.get(
-        url,
-        params=parameters,
-        headers=headerD,
-        timeout=None
-    )
-    offsetIndex = 0
-    offset = 0
-    if response.status_code == 200:
-        result = json.loads(response.text)
-        if result:
-            if not isinstance(result, dict):
-                result = eval(result)
-            offsetIndex = int(result["uploadCount"])
-            packet_size = min(
-                int(mD["fileSize"]) - ( int(mD["chunkIndex"]) * int(mD["chunkSize"]) ),
-                int(mD["chunkSize"]),
-            )
-            offset = offsetIndex * packet_size
-            mD["chunkIndex"] = offsetIndex
-            mD["chunkOffset"] = offset
-    # chunk file and upload
-    tmp = io.BytesIO()
-    with open(mD["filePath"], "rb") as to_upload:
-        to_upload.seek(offset)
-        url = os.path.join(base_url, "file-v2", "resumableUpload")
-        for x in tqdm(range(offsetIndex, mD["expectedChunks"]), leave=False, desc=os.path.basename(mD["filePath"])):
-            packet_size = min(
-                int(mD["fileSize"]) - ( int(mD["chunkIndex"]) * int(mD["chunkSize"]) ),
-                int(mD["chunkSize"]),
-            )
-            tmp.truncate(packet_size)
-            tmp.seek(0)
-            tmp.write(to_upload.read(packet_size))
-            tmp.seek(0)
-            response = requests.post(
-                url,
-                data=deepcopy(mD),
-                headers=headerD,
-                files={"uploadFile": tmp},
-                stream=True,
-                timeout=None,
-            )
-            if response.status_code != 200:
-                print(
-                    f"error - status code {response.status_code} {response.text}...terminating"
+    elif RESUMABLE:
+        # resumable sequential chunk upload
+        responses = []
+        uploadId = mD["uploadId"]
+        url = os.path.join(base_url, "file-v2", "uploadStatus")
+        parameters = {"repositoryType": mD["repositoryType"],
+                  "depId": mD["depId"],
+                  "contentType": mD["contentType"],
+                  "milestone": mD["milestone"],
+                  "partNumber": str(mD["partNumber"]),
+                  "contentFormat": mD["contentFormat"],
+                  "hashDigest": mD["hashDigest"]
+                  }
+        response = requests.get(
+            url,
+            params=parameters,
+            headers=headerD,
+            timeout=None
+        )
+        offsetIndex = 0
+        offset = 0
+        if response.status_code == 200:
+            result = json.loads(response.text)
+            if result:
+                if not isinstance(result, dict):
+                    result = eval(result)
+                offsetIndex = int(result["uploadCount"])
+                packet_size = min(
+                    int(mD["fileSize"]) - ( int(mD["chunkIndex"]) * int(mD["chunkSize"]) ),
+                    int(mD["chunkSize"]),
                 )
-                break
-            responses.append(response)
-            mD["chunkIndex"] += 1
-            mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
-    return responses
+                offset = offsetIndex * packet_size
+                mD["chunkIndex"] = offsetIndex
+                mD["chunkOffset"] = offset
+        # chunk file and upload
+        tmp = io.BytesIO()
+        with open(mD["filePath"], "rb") as to_upload:
+            to_upload.seek(offset)
+            url = os.path.join(base_url, "file-v2", "resumableUpload")
+            for x in tqdm(range(offsetIndex, mD["expectedChunks"]), leave=False, desc=os.path.basename(mD["filePath"])):
+                packet_size = min(
+                    int(mD["fileSize"]) - ( int(mD["chunkIndex"]) * int(mD["chunkSize"]) ),
+                    int(mD["chunkSize"]),
+                )
+                tmp.truncate(packet_size)
+                tmp.seek(0)
+                tmp.write(to_upload.read(packet_size))
+                tmp.seek(0)
+                response = requests.post(
+                    url,
+                    data=deepcopy(mD),
+                    headers=headerD,
+                    files={"uploadFile": tmp},
+                    stream=True,
+                    timeout=None,
+                )
+                if response.status_code != 200:
+                    print(
+                        f"error - status code {response.status_code} {response.text}...terminating"
+                    )
+                    break
+                responses.append(response)
+                mD["chunkIndex"] += 1
+                mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
+        return responses
 
 
 async def asyncFiles(uploads):
@@ -378,7 +381,8 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--list", nargs=2, metavar=("repository-type", "dep-id"), help="***** list contents of requested directory *****")
     parser.add_argument("-e", "--email", nargs=1, metavar=("email_address"), help="***** set email address *****")
     parser.add_argument("-s", "--sequential", action="store_true", help="***** upload sequential chunks *****")
-    parser.add_argument("-a", "--asynchronous", action="store_true", help="***** upload async chunks *****")
+    parser.add_argument("-r", "--resumable", action="store_true", help="***** upload resumable sequential chunks *****")
+    parser.add_argument("-a", "--asynchronous", action="store_true", help="***** upload resumable async chunks *****")
     parser.add_argument("-o", "--overwrite", action="store_true", help="***** overwrite files with same name *****")
     parser.add_argument("-z", "--zip", action="store_true", help="***** zip files prior to upload *****")
     parser.add_argument("-x", "--expand", action="store_true", help="***** unzip files after upload *****")
@@ -389,10 +393,12 @@ if __name__ == "__main__":
     description()
     if args.sequential:
         SEQUENTIAL = True
+    if args.resumable:
+        RESUMABLE = True
     if args.asynchronous:
         ASYNCHRONOUS = True
-    if SEQUENTIAL and ASYNCHRONOUS:
-        sys.exit('error - cannot upload asynchronously and sequentially simultaneously')
+    if SEQUENTIAL and ASYNCHRONOUS or SEQUENTIAL and RESUMABLE or ASYNCHRONOUS and RESUMABLE:
+        sys.exit('error - mututally incompatible options')
     if args.zip:
         COMPRESS = True
     if args.expand:
@@ -464,7 +470,7 @@ if __name__ == "__main__":
                     "allowOverwrite": allowOverwrite
                 })
             # upload chunks
-            else:
+            elif RESUMABLE or ASYNCHRONOUS:
                 uploads.append(
                     {
                         # upload file parameters

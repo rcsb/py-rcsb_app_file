@@ -18,9 +18,7 @@ __license__ = "Apache 2.0"
 # Tasks:
 # Improve email service
 
-import asyncio
 import datetime
-import functools
 import gzip
 import hashlib
 import logging
@@ -31,19 +29,17 @@ import uuid
 import aiofiles
 import re
 import requests
-import multiprocessing
-import time
 from filelock import Timeout, FileLock
 from fastapi import HTTPException
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.app.file.KvSqlite import KvSqlite
 from rcsb.app.file.KvRedis import KvRedis
+# import asyncio
+# import functools
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
-# logger.setLevel(logging.INFO)
-# logger.propagate = False
 
 
 # def wrapAsync(fnc: typing.Callable) -> typing.Awaitable:
@@ -488,8 +484,8 @@ class IoUtils:
         else:
             raise HTTPException(status_code=400, detail="error - unknown chunk mode")
 
-
     # in-place resumable sequential chunk
+
     def sequentialChunk(
         self,
         ifh: typing.IO,
@@ -536,10 +532,10 @@ class IoUtils:
                         lockPath = os.path.join(os.path.dirname(outPath), "." + os.path.basename(outPath) + ".lock")
                         lock = FileLock(lockPath)
                         try:
-                            with lock.acquire(timeout = 60 * 60 * 4):
+                            with lock.acquire(timeout=60 * 60 * 4):
                                 # last minute race condition handling
                                 if os.path.exists(outPath) and not allowOverwrite:
-                                    raise HTTPException(status_code=400, detail=f'error - encountered existing file without overwrite')
+                                    raise HTTPException(status_code=400, detail='error - encountered existing file without overwrite')
                                 else:
                                     # save final version
                                     os.replace(tempPath, outPath)
@@ -603,7 +599,6 @@ class IoUtils:
         emailAddress: str = None,
         allowOverwrite: bool = False
     ) -> typing.Dict:
-        ok = False
         tempDir = None
         tempPath = None
         fn = None
@@ -665,7 +660,7 @@ class IoUtils:
             tempDir = self.getTempDirPath(uploadId, dirPath)
             os.makedirs(dirPath, mode=0o755, exist_ok=True)
             os.makedirs(tempDir, mode=0o755, exist_ok=True)
-            chunkPath = os.path.join(tempDir, str(chunkIndex))
+            # chunkPath = os.path.join(tempDir, str(chunkIndex))
             ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
             tempPath = self.joinChunks(uploadId, dirPath, fn, tempDir, chunkSize)
             if not tempPath:
@@ -728,8 +723,8 @@ class IoUtils:
             raise HTTPException(status_code=400, detail=f"Store fails with {str(exc)}")
         return ret
 
-
     # join chunks into one file
+
     def joinChunks(self, uploadId, dirPath, fn, tempDir, chunkSize):
         tempPath = self.getTempFilePath(uploadId, dirPath)
         try:
@@ -745,9 +740,9 @@ class IoUtils:
                     with open(chunkPath, "rb") as r:
                         w.write(r.read())
                     os.unlink(chunkPath)
-        except HTTPException as exc:
+        except HTTPException:
             tempPath = None
-        except Exception as exc:
+        except Exception:
             tempPath = None
         finally:
             try:
@@ -765,9 +760,9 @@ class IoUtils:
 
     # please change to legitimate email service
     def sendEmail(self,
-                        emailAddress: str = None,
-                        msg: str = None
-                        ):
+                emailAddress: str = None,
+                msg: str = None
+                ):
         if not emailAddress or not msg:
             return None
         url = "https://springbootemailwebservice.000webhostapp.com"
@@ -982,7 +977,7 @@ class IoUtils:
             os.unlink(tempFile)
             tempDir = self.getTempDirPath(uploadId, dirPath)
             shutil.rmtree(tempDir, ignore_errors=True)
-        except Exception as exc:
+        except Exception:
             # either tempFile or tempDir was not found
             pass
 
@@ -995,7 +990,7 @@ class IoUtils:
         response = None
         try:
             response = self.__kV.clearSessionKey(uid)
-        except Exception as exc:
+        except Exception:
             return False
         return response
 
@@ -1010,7 +1005,7 @@ class IoUtils:
                 self.__kV.clearLogVal(uid)
             elif self.__cP.get("KV_MODE") == "redis":
                 self.__kV.clearLog(logKey)
-        except Exception as exc:
+        except Exception:
             return False
         return response
 
@@ -1018,4 +1013,3 @@ class IoUtils:
     async def clearKv(self):
         self.__kV.clearTable(self.__kV.sessionTable)
         self.__kV.clearTable(self.__kV.logTable)
-
