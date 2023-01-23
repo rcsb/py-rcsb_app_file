@@ -44,7 +44,7 @@
               async function getUploadId() {
                 await fetch(upload_id_url, {
                   method: "GET",
-                    // headers: {"Authorization": "Bearer jwtDisable"},
+                    headers: {"Authorization": "Bearer jwtDisable"},
                 }).then(response => response.json()).then(json => uploadId = json.id).catch(err => console.log(err))
               }
 

@@ -12,7 +12,6 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
-import multiprocessing
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.cors import CORSMiddleware
 from fastapi.security.utils import get_authorization_scheme_param
@@ -75,7 +74,7 @@ async def startupEvent():
     _ = cp.getConfig()
     _ = cp.getData()
     #
-    multiprocessing.set_start_method('fork')
+
 
 
 @app.on_event("shutdown")
