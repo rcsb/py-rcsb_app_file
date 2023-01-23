@@ -441,7 +441,7 @@ class IoUtils:
                 # allowOverwrite
             )
             if chunkIndex + 1 == expectedChunks:
-                self.syncFiles(outPath, chunkSize, uploadId, key, "ab", copyMode, hashType, hashDigest, logKey, emailAddress, allowOverwrite)
+                self.syncFiles(outPath, uploadId, key, copyMode, hashType, hashDigest, logKey, emailAddress, allowOverwrite)
             ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
             return ret
         else:
@@ -477,7 +477,7 @@ class IoUtils:
             os.makedirs(dirPath, mode=0o755, exist_ok=True)
             # save, then hash, then decompress
             # should lock, however client must wait for each response before sending next chunk, precluding race conditions (unless multifile upload problem)
-            with open(tempPath, mode) as ofh:
+            with open(tempPath, "ab") as ofh:
                 ofh.seek(chunkOffset)
                 ofh.write(ifh.read())
                 ofh.flush()
@@ -572,7 +572,7 @@ class IoUtils:
             os.makedirs(dirPath, mode=0o755, exist_ok=True)
             os.makedirs(tempDir, mode=0o755, exist_ok=True)
             chunkPath = os.path.join(tempDir, str(chunkIndex))
-            with open(chunkPath, mode) as ofh:
+            with open(chunkPath, "wb") as ofh:
                 ofh.seek(chunkOffset)
                 ofh.write(ifh.read())
                 ofh.flush()
@@ -601,7 +601,7 @@ class IoUtils:
             # chunkIndex: int,
             # chunkOffset: int,
             # expectedChunks: int,
-            chunkSize: int,
+            # chunkSize: int,
             uploadId: str,
             key: str,
             # val: str,
@@ -691,9 +691,9 @@ class IoUtils:
     def joinChunks(self, uploadId, dirPath, tempDir):
         tempPath = self.getTempFilePath(uploadId, dirPath)
         try:
-            files = sorted([f for f in os.listdir(tempDir) if re.match(r"[0-9]+", f)], key=lambda x: int(x))
+            files = sorted([f for f in os.listdir(tempDir) if re.match(r"[0-9]+", f)], key=int)
             previous = 0
-            with open(tempPath, "wb") as w:
+            with open(tempPath, "ab") as w:
                 for f in files:
                     index = int(f)
                     if index < previous:
@@ -715,13 +715,13 @@ class IoUtils:
                 tempPath = None
         return tempPath
 
-    """
-    utility functions
-    """
+    # utility functions
+
     def getNewUploadId(self) -> str:
         return uuid.uuid4().hex
 
-    # please change to legitimate email service
+    # change to in-house email service (if used)
+
     def sendEmail(self, emailAddress: str = None, msg: str = None):
         if not emailAddress or not msg:
             return None
@@ -739,9 +739,7 @@ class IoUtils:
             logging.warning('email response %s', response.status_code)
             return response.status_code
 
-    """
-    file path functions
-    """
+    # file path functions
 
     async def getSaveFilePath(self,
                               repositoryType: str,
@@ -834,9 +832,7 @@ class IoUtils:
         filename = repositoryType + "_" + filename
         return filename
 
-    """
-    database functions
-    """
+    # database functions
 
     # return kv entry from file parameters, if have resumed upload, or None if don't
     # if have resumed upload, kv response has chunk indices and count

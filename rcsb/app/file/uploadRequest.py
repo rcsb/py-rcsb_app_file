@@ -102,7 +102,7 @@ async def upload(
             raise HTTPException(status_code=405, detail="Bad content type metadata - cannot build a valid path")
         if os.path.exists(outPath) and not allowOverwrite:
             raise HTTPException(status_code=405, detail="Encountered existing file - overwrite prohibited")
-        dirPath, fn = os.path.split(outPath)
+        dirPath, _ = os.path.split(outPath)
         uploadId = await getNewUploadId()
         uploadId = uploadId["id"]
         tempPath = os.path.join(dirPath, "." + uploadId)
@@ -228,7 +228,7 @@ async def sequentialUpload(
     ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
     # fn = uploadFile.filename
     # ct = uploadFile.content_type
-    dirPath, fn = os.path.split(filePath)
+    dirPath, _ = os.path.split(filePath)
     tempPath = os.path.join(dirPath, "." + uploadId)
     contents = await uploadFile.read()
     # empty chunk beyond loop index from client side, don't erase tempPath so keep out of try block
