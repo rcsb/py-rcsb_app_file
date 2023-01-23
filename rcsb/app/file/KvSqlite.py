@@ -26,7 +26,7 @@ class KvSqlite:
         return str(_d)
 
     def deconvert(self, _s):
-        return eval(_s)
+        return eval(_s)  # pylint: disable=W0123
 
     def getSession(self, key, val):
         if not key:

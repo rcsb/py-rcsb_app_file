@@ -398,7 +398,7 @@ async def resumableUpload(
     hashType: HashType = Form(None),
     hashDigest: str = Form(None),
     # chunk parameters
-    chunkSize: int = Form(None),
+    # chunkSize: int = Form(None),
     chunkIndex: int = Form(0),
     chunkOffset: int = Form(0),
     expectedChunks: int = Form(1),

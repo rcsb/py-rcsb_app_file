@@ -470,7 +470,7 @@ if __name__ == "__main__":
                     "allowOverwrite": allowOverwrite
                 })
             # upload chunks
-            elif RESUMABLE or ASYNCHRONOUS:
+            elif RESUMABLE or ASYNCHRONOUS or SEQUENTIAL:
                 uploads.append(
                     {
                         # upload file parameters
