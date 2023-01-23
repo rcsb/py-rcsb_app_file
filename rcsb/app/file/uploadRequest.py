@@ -62,7 +62,7 @@ class UploadResult(BaseModel):
 async def upload(
     # upload file parameters
     uploadFile: UploadFile = File(...),
-    uploadId: str = Form(None),
+    # uploadId: str = Form(None),
     hashType: HashType = Form(None),
     hashDigest: str = Form(None),
     # save file parameters
@@ -88,7 +88,7 @@ async def upload(
         cP = ConfigProvider(cachePath, configFilePath)
         pathU = PathUtils(cP)
         if not pathU.checkContentTypeFormat(contentType, contentFormat):
-            raise HTTPException(status_code=405, detail = "Bad content type and/or format - upload rejected")
+            raise HTTPException(status_code=405, detail="Bad content type and/or format - upload rejected")
         outPath = pathU.getVersionedPath(
             repositoryType=repositoryType,
             depId=depId,
@@ -99,9 +99,9 @@ async def upload(
             version=version
         )
         if not outPath:
-            raise HTTPException(status_code=405, detail = "Bad content type metadata - cannot build a valid path")
+            raise HTTPException(status_code=405, detail="Bad content type metadata - cannot build a valid path")
         if os.path.exists(outPath) and not allowOverwrite:
-            raise HTTPException(status_code=405, detail = "Encountered existing file - overwrite prohibited")
+            raise HTTPException(status_code=405, detail="Encountered existing file - overwrite prohibited")
         dirPath, fn = os.path.split(outPath)
         uploadId = await getNewUploadId()
         uploadId = uploadId["id"]
@@ -125,13 +125,13 @@ async def upload(
             hexdigest = hashObj.hexdigest()
             ok = (hexdigest == hashDigest)
             if not ok:
-                raise HTTPException(status_code=400, detail = f"{hashType} hash check failed {hexdigest} != {hashDigest}")
+                raise HTTPException(status_code=400, detail=f"{hashType} hash check failed {hexdigest} != {hashDigest}")
             else:
                 # lock before saving
                 lockPath = os.path.join(os.path.dirname(outPath), "." + os.path.basename(outPath) + ".lock")
                 lock = FileLock(lockPath)
                 try:
-                    with lock.acquire(timeout = 60 * 60 * 4):
+                    with lock.acquire(timeout=60 * 60 * 4):
                         # last minute race condition prevention
                         if os.path.exists(outPath) and not allowOverwrite:
                             raise HTTPException(status_code=400, detail="Encountered existing file - cannot overwrite")
@@ -151,7 +151,7 @@ async def upload(
                             w.write(r.read())
                     os.replace(tempPath, outPath)
         else:
-            raise HTTPException(status_code=500, detail = "Error - missing hash")
+            raise HTTPException(status_code=500, detail="Error - missing hash")
     except HTTPException as exc:
         ret = {"success": False, "statusCode": exc.status_code, "statusMessage": f"Store fails with {exc.detail}"}
         logging.warning(ret["statusMessage"])
@@ -205,6 +205,7 @@ async def getSaveFilePath(repositoryType: str = Query(...),
     dirPath, _ = os.path.split(outPath)
     os.makedirs(dirPath, mode=0o755, exist_ok=True)
     return {"path": outPath}
+
 
 # upload chunk
 @router.post("/sequentialUpload")

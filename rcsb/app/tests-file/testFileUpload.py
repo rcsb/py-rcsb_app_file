@@ -112,7 +112,7 @@ class FileUploadTests(unittest.TestCase):
     def testSimpleUpload(self):
         """Test - basic file upload operations"""
         hashType = testHash = None
-        endPoint = "asyncUpload"
+        endPoint = "upload"
         hashType = "MD5"
         #
         for testFilePath, copyMode, partNumber, allowOverwrite, responseCode in [
@@ -134,17 +134,17 @@ class FileUploadTests(unittest.TestCase):
                 startTime = time.time()
                 try:
                     mD = {
-                        "depId": "D_1000000001",
+                        "hashType": hashType,
+                        "hashDigest": testHash,
                         "repositoryType": "onedep-archive",
+                        "depId": "D_1000000001",
                         "contentType": "model",
-                        "contentFormat": "pdbx",
+                        "milestone": "",
                         "partNumber": partNumber,
+                        "contentFormat": "pdbx",
                         "version": str(version),
                         "copyMode": copyMode,
                         "allowOverwrite": allowOverwrite,
-                        "hashType": hashType,
-                        "hashDigest": testHash,
-                        "milestone": ""
                     }
                     #
                     with TestClient(app) as client:
@@ -177,7 +177,7 @@ class FileUploadTests(unittest.TestCase):
             testHash = hD["hashDigest"]
 
         headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, "badSubject")}
-        for endPoint in ["asyncUpload"]:
+        for endPoint in ["upload"]:
             startTime = time.time()
             try:
                 mD = {"depId": "D_1000000001", "hashDigest": testHash, "hashType": hashType}
@@ -197,7 +197,7 @@ class FileUploadTests(unittest.TestCase):
                 logger.exception("Failing with %s", str(e))
                 self.fail()
         headerD = {}
-        for endPoint in ["asyncUpload"]:
+        for endPoint in ["upload"]:
             startTime = time.time()
             try:
                 mD = {"depId": "D_1000000001", "hashDigest": testHash, "hashType": hashType}

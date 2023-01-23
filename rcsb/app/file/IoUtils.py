@@ -167,7 +167,7 @@ class IoUtils:
                 raise HTTPException(status_code=405, detail="Bad content type metadata - cannot build a valid path")
             if os.path.exists(outPath) and not allowOverwrite:
                 raise HTTPException(status_code=405, detail="Encountered existing file - overwrite prohibited")
-            dirPath, fn = os.path.split(outPath)
+            dirPath, _ = os.path.split(outPath)
             uploadId = self.getNewUploadId()
             tempPath = os.path.join(dirPath, "." + uploadId)
             os.makedirs(dirPath, mode=0o755, exist_ok=True)
@@ -241,18 +241,18 @@ class IoUtils:
             hashType: str,
             hashDigest: str,
             # chunk parameters
-            chunkSize: int,
+            # chunkSize: int,
             chunkIndex: int,
             chunkOffset: int,
             expectedChunks: int,
-            chunkMode: str,
+            # chunkMode: str,
             # save file parameters
             filePath: str,
             copyMode: str,
             allowOverwrite: bool
     ):
         ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
-        dirPath, fn = os.path.split(filePath)
+        dirPath, _ = os.path.split(filePath)
         tempPath = os.path.join(dirPath, "." + uploadId)
         try:
             # save, then hash, then decompress
@@ -332,8 +332,8 @@ class IoUtils:
         hashType: str = "MD5",
         hashDigest: typing.Optional[str] = None,
         # optional upload file parameters
-        fileName: str = None,
-        mimeType: str = None,
+        # fileName: str = None,
+        # mimeType: str = None,
         # chunk parameters
         chunkSize: int = 0,
         chunkIndex: int = 0,
@@ -490,7 +490,7 @@ class IoUtils:
         self,
         ifh: typing.IO,
         outPath: str,
-        chunkIndex: int,
+        # chunkIndex: int,
         chunkOffset: int,
         expectedChunks: int,
         uploadId: str,
@@ -586,18 +586,18 @@ class IoUtils:
         outPath: str,
         chunkIndex: int,
         chunkOffset: int,
-        expectedChunks: int,
-        chunkSize: int,
+        # expectedChunks: int,
+        # chunkSize: int,
         uploadId: str,
         key: str,
         val: str,
         mode: typing.Optional[str] = "wb",
-        copyMode: typing.Optional[str] = "native",
-        hashType: typing.Optional[str] = None,
-        hashDigest: typing.Optional[str] = None,
-        logKey: str = None,
-        emailAddress: str = None,
-        allowOverwrite: bool = False
+        # copyMode: typing.Optional[str] = "native",
+        # hashType: typing.Optional[str] = None,
+        # hashDigest: typing.Optional[str] = None,
+        # logKey: str = None,
+        # emailAddress: str = None,
+        # allowOverwrite: bool = False
     ) -> typing.Dict:
         tempDir = None
         tempPath = None
@@ -635,14 +635,14 @@ class IoUtils:
     def syncFiles(
             self,
             outPath: str,
-            chunkIndex: int,
-            chunkOffset: int,
-            expectedChunks: int,
+            # chunkIndex: int,
+            # chunkOffset: int,
+            # expectedChunks: int,
             chunkSize: int,
             uploadId: str,
             key: str,
-            val: str,
-            mode: typing.Optional[str] = "wb",
+            # val: str,
+            # mode: typing.Optional[str] = "wb",
             copyMode: typing.Optional[str] = "native",
             hashType: typing.Optional[str] = None,
             hashDigest: typing.Optional[str] = None,
@@ -662,7 +662,7 @@ class IoUtils:
             os.makedirs(tempDir, mode=0o755, exist_ok=True)
             # chunkPath = os.path.join(tempDir, str(chunkIndex))
             ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
-            tempPath = self.joinChunks(uploadId, dirPath, fn, tempDir, chunkSize)
+            tempPath = self.joinChunks(uploadId, dirPath, tempDir)
             if not tempPath:
                 raise HTTPException(status_code=400, detail=f"error saving {fn}")
             else:
@@ -725,7 +725,7 @@ class IoUtils:
 
     # join chunks into one file
 
-    def joinChunks(self, uploadId, dirPath, fn, tempDir, chunkSize):
+    def joinChunks(self, uploadId, dirPath, tempDir):
         tempPath = self.getTempFilePath(uploadId, dirPath)
         try:
             files = sorted([f for f in os.listdir(tempDir) if re.match(r"[0-9]+", f)], key=lambda x: int(x))
@@ -748,7 +748,7 @@ class IoUtils:
             try:
                 os.rmdir(tempDir)
             except Exception:
-                logging.warning(f'error - could not delete {tempDir}')
+                logging.warning('error - could not delete %s', tempDir)
                 tempPath = None
         return tempPath
 
@@ -772,11 +772,11 @@ class IoUtils:
             "recipient": emailAddress,
             "body": msg
         }
-        response = requests.post(url, data=body)
+        response = requests.post(url, data=body, timeout=None)
         if response.status_code == 200:
             return response.text
         else:
-            logging.warning(f'email response {response.status_code}')
+            logging.warning('email response %s', response.status_code)
             return response.status_code
 
     """
@@ -807,7 +807,7 @@ class IoUtils:
             raise HTTPException(status_code=400, detail="Bad content type metadata - cannot build a valid path")
         if os.path.exists(outPath) and not allowOverwrite:
             raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
-        dirPath, fn = os.path.split(outPath)
+        dirPath, _ = os.path.split(outPath)
         os.makedirs(dirPath, mode=0o755, exist_ok=True)
         return outPath
 

@@ -125,7 +125,7 @@ class FileUpdateTests(unittest.TestCase):
         with open(self.__updatedFilePath, "w", encoding="utf-8") as ofh:
             ofh.write(dataContent.replace("PROC", "REL"))
 
-        endPoint = "asyncUpload"
+        endPoint = "upload"
         hashType = "MD5"
         hD = CryptUtils().getFileHash(self.__updatedFilePath, hashType=hashType)
         testHash = hD["hashDigest"]
@@ -133,16 +133,17 @@ class FileUpdateTests(unittest.TestCase):
         startTime = time.time()
         try:
             mD = {
-                "depId": "D_8000210008",
-                "repositoryType": "onedep-archive",  # First upload into "onedep-archive"
-                "contentType": "model",
-                "contentFormat": "pdbx",
-                "partNumber": 1,
-                "version": "next",  # Upload "next"
-                "copyMode": "native",
-                "allowOverwrite": True,
                 "hashType": hashType,
                 "hashDigest": testHash,
+                "repositoryType": "onedep-archive",  # First upload into "onedep-archive"
+                "depId": "D_8000210008",
+                "contentType": "model",
+                "milestone": "none",
+                "partNumber": 1,
+                "contentFormat": "pdbx",
+                "version": "1",  # Upload "next"
+                "copyMode": "native",
+                "allowOverwrite": True
             }
             #
             with TestClient(app) as client:
@@ -169,16 +170,17 @@ class FileUpdateTests(unittest.TestCase):
         startTime = time.time()
         try:
             mD = {
-                "depId": "D_8000210008",
-                "repositoryType": "onedep-deposit",  # Second upload into "onedep-deposit"
-                "contentType": "model",
-                "contentFormat": "pdbx",
-                "partNumber": 1,
-                "version": "next",  # Upload "next"
-                "copyMode": "native",
-                "allowOverwrite": True,
                 "hashType": hashType,
                 "hashDigest": testHash,
+                "repositoryType": "onedep-deposit",  # Second upload into "onedep-deposit"
+                "depId": "D_8000210008",
+                "contentType": "model",
+                "milestone": "none",
+                "partNumber": 1,
+                "contentFormat": "pdbx",
+                "version": "1",  # Upload "next"
+                "copyMode": "native",
+                "allowOverwrite": True,
             }
             #
             with TestClient(app) as client:

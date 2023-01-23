@@ -14,13 +14,10 @@ from enum import Enum
 from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
-# from fastapi import Path
 from fastapi import Query
 from fastapi.responses import FileResponse
-from fastapi.responses import Response
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
-# from rcsb.app.file.AwsUtils import AwsUtils
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
@@ -96,52 +93,6 @@ async def download(
         else:
             raise HTTPException(status_code=403, detail="Bad or incomplete path metadata")
     return FileResponse(path=filePath, media_type=mimeType, filename=os.path.basename(filePath), headers=tD)
-
-
-# @router.get("/download-aws")
-# async def downloadAws(
-#     depId: str = Query(None, title="ID Code", description="Identifier code", example="D_0000000001"),
-#     repositoryType: str = Query(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
-#     contentType: str = Query(None, title="Content type", description="Content type", example="model, structure-factors, val-report-full"),
-#     contentFormat: str = Query(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
-#     partNumber: int = Query(1, title="Content part", description="Content part", example="1,2,3"),
-#     version: str = Query("1", title="Version string", description="Version number or description", example="1,2,3, latest, previous"),
-#     hashType: HashType = Query(None, title="Hash type", description="Hash type", example="SHA256")
-# ):
-    """Asynchronous download with aioboto3.
-    Args:
-        key (str): name of file to be retrieved from s3 bucket
-    Returns:
-        (dict): {"content": Downloaded Data, "status_code": 200|403}
-    """
-    # cachePath = os.environ.get("CACHE_PATH", ".")
-    # configFilePath = os.environ.get("CONFIG_FILE")
-    # cP = ConfigProvider(cachePath, configFilePath)
-    #
-    # pathU = PathUtils(cP)
-    # awsU = AwsUtils(cP)
-    # try:
-    #     filePath = pathU.getVersionedPath(repositoryType, depId, contentType, partNumber, contentFormat, version)
-    #     fileExists = await awsU.checkExists(key=filePath)
-    #     if fileExists:
-    #         downloads3 = await awsU.download(key=filePath)
-    #
-    # except Exception as e:
-    #     logger.exception("Failing with %s", str(e))
-    #
-    # if not fileExists:
-    #     raise HTTPException(status_code=403, detail="Download from S3 failed - File does not exist.")
-
-    # Check hash
-    # Will need to add checking to upload when supported by aioboto3
-    # https://github.com/terrycain/aioboto3/issues/265
-    # if hashType:  # and success:
-    #     hD = CryptUtils().getFileHash(filePath, hashType.name)
-    #     hashDigest = hD["hashDigest"]
-    #     tD = {"rcsb_hash_type": hashType.name, "rcsb_hexdigest": hashDigest}
-    #     logger.info("Hash digest %r", tD)
-    #
-    # return Response(content=downloads3, status_code=200)
 
 
 def isPositiveInteger(tS):

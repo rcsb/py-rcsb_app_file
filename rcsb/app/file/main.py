@@ -12,7 +12,7 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
-from fastapi import FastAPI # Request, Response
+from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 # from fastapi.security.utils import get_authorization_scheme_param
 
@@ -30,7 +30,7 @@ from . import serverStatus
 from . import uploadRequest
 from . import pathRequest
 from . import mergeRequest
-# from . import JWTAuthBearer
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -63,20 +63,16 @@ app.add_middleware(
 async def startupEvent():
     # Note that this will run every time a test is performed via, "with TestClient(app) as...",
     # but in production will only run once at startup
-    #
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
-    #
     logger.debug("Startup - running application startup placeholder method")
     logger.debug("Using cachePath %r", cachePath)
     logger.debug("Using configFilePath %r", configFilePath)
     cp = ConfigProvider.ConfigProvider(cachePath, configFilePath)
     _ = cp.getConfig()
     _ = cp.getData()
-    #
 
-#
-#
+
 @app.on_event("shutdown")
 def shutdownEvent():
     logger.debug("Shutdown - running application shutdown placeholder method")

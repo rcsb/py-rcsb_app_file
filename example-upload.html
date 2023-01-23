@@ -11,7 +11,7 @@
               let base_url = "http://0.0.0.0:8000";
               let upload_id_url = `${base_url}/file-v2/getNewUploadId/`;
               let save_path_url = `${base_url}/file-v2/getSaveFilePath/`;
-              let upload_status_url = `${base_url}/file-v2/getUploadStatus`
+              let upload_status_url = `${base_url}/file-v2/uploadStatus`
               let stream_file_url = `${base_url}/file-v2/upload/`;
               let sequential_chunk_url = `${base_url}/file-v2/sequentialUpload/`;
               let resumable_chunk_url = `${base_url}/file-v2/resumableUpload/`;
@@ -209,7 +209,7 @@
                 var chunkSize = 1024 * 1024 * 8; // bytes
                 var expectedChunks = Math.ceil((fileSize) / chunkSize);
                 var chunkIndex = 0;
-                if(uploadCount and uploadCount > 0){
+                if(uploadCount && uploadCount > 0){
                     chunkIndex = uploadCount - 1;
                 }
                 var chunkOffset = 0;
@@ -321,41 +321,42 @@
                 }
 
                 async function postChunk(blob) {
-                  var uploadFile = blob;
-                  console.log(`size of upload file = ${blob.size}`)
-                  if (blob.size <= 0) {
-                    return;
-                  }
-                  formdata = new FormData();
-                  // upload file parameters;
-                  formdata.append("uploadFile", uploadFile, fileName);
-                  formdata.append("uploadId", uploadId);
-                  formdata.append("hashType", hashType);
-                  formdata.append("hashDigest", hashDigest);
-                  // chunk parameters
-                  formdata.append("chunkIndex", chunkIndex);
-                  formdata.append("expectedChunks", expectedChunks);
-                  formdata.append("chunkOffset", chunkOffset);
-                  formdata.append("chunkSize", chunkSize);
-                  formdata.append("chunkMode", chunkMode);
-                  // save file parameters
-                  formdata.append("filePath", filePath);
-                  formdata.append("repositoryType", repositoryType);
-                  formdata.append("depId", depId);
-                  formdata.append("contentType", contentType);
-                  formdata.append("milestone", milestone);
-                  formdata.append("partNumber", partNumber);
-                  formdata.append("contentFormat", contentFormat);
-                  formdata.append("version", version);
-                  formdata.append("emailAddress", emailAddress);
-                  formdata.append("copyMode", copyMode);
-                  formdata.append("allowOverwrite", allowOverwrite);
+                    var uploadFile = blob;
+                    console.log(`size of upload file = ${blob.size}`)
+                    if (blob.size <= 0) {
+                        return;
+                    }
+                    formdata = new FormData();
+                    // upload file parameters;
+                    formdata.append("uploadFile", uploadFile, fileName);
+                    formdata.append("uploadId", uploadId);
+                    formdata.append("hashType", hashType);
+                    formdata.append("hashDigest", hashDigest);
+                    // chunk parameters
+                    formdata.append("chunkIndex", chunkIndex);
+                    formdata.append("expectedChunks", expectedChunks);
+                    formdata.append("chunkOffset", chunkOffset);
+                    formdata.append("chunkSize", chunkSize);
+                    formdata.append("chunkMode", chunkMode);
+                    // save file parameters
+                    formdata.append("filePath", filePath);
+                    formdata.append("repositoryType", repositoryType);
+                    formdata.append("depId", depId);
+                    formdata.append("contentType", contentType);
+                    formdata.append("milestone", milestone);
+                    formdata.append("partNumber", partNumber);
+                    formdata.append("contentFormat", contentFormat);
+                    formdata.append("version", version);
+                    formdata.append("emailAddress", emailAddress);
+                    formdata.append("copyMode", copyMode);
+                    formdata.append("allowOverwrite", allowOverwrite);
 
-                  fetch(async_chunk_url, {
-                    method: "POST",
-                      headers: {"Authorization": "Bearer jwtDisable"},
-                    body: formdata
-                  })
+                    fetch(async_chunk_url, {
+                        method: "POST",
+                        headers: {"Authorization": "Bearer jwtDisable"},
+                        body: formdata
+                    })
+                }
               }
             }
         </script>
