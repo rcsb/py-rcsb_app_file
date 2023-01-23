@@ -15,9 +15,6 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
-# Tasks:
-# Improve email service
-
 import datetime
 import gzip
 import hashlib
@@ -35,21 +32,9 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.app.file.KvSqlite import KvSqlite
 from rcsb.app.file.KvRedis import KvRedis
-# import asyncio
-# import functools
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
-
-
-# def wrapAsync(fnc: typing.Callable) -> typing.Awaitable:
-#     @functools.wraps(fnc)
-#     def wrap(*args, **kwargs):
-#         loop = asyncio.get_event_loop()
-#         func = functools.partial(fnc, *args, **kwargs)
-#         return loop.run_in_executor(executor=None, func=func)
-#
-#     return wrap
 
 
 class IoUtils:
@@ -80,14 +65,6 @@ class IoUtils:
         elif self.__cP.get("KV_MODE") == "redis":
             self.__kV = KvRedis(self.__cP)
         self.__pathU = PathUtils(self.__cP)
-        # self.__makedirs = wrapAsync(os.makedirs)
-        # self.__rmtree = wrapAsync(shutil.rmtree)
-        # self.__replace = wrapAsync(os.replace)
-        # self.__hashSHA1 = wrapAsync(hashlib.sha1)
-        # self.__hashMD5 = wrapAsync(hashlib.md5)
-        # self.__hashSHA256 = wrapAsync(hashlib.sha256)
-        # self.__checkHashAsync = wrapAsync(self.checkHash)
-        # self.__getHashDigestAsync = wrapAsync(self.getHashDigest)
 
     def checkHash(self, pth: str, hashDigest: str, hashType: str) -> bool:
         tHash = self.getHashDigest(pth, hashType)
@@ -428,7 +405,7 @@ class IoUtils:
             ret = self.sequentialChunk(
                 ifh,
                 outPath,
-                chunkIndex,
+                # chunkIndex,
                 chunkOffset,
                 expectedChunks,
                 uploadId,
@@ -450,35 +427,21 @@ class IoUtils:
                 outPath,
                 chunkIndex,
                 chunkOffset,
-                expectedChunks,
-                chunkSize,
+                # expectedChunks,
+                # chunkSize,
                 uploadId,
                 key,
                 val,
                 "ab",
-                copyMode,
-                hashType,
-                hashDigest,
-                logKey,
-                emailAddress,
-                allowOverwrite
+                # copyMode,
+                # hashType,
+                # hashDigest,
+                # logKey,
+                # emailAddress,
+                # allowOverwrite
             )
             if chunkIndex + 1 == expectedChunks:
-                self.syncFiles(outPath,
-                    chunkIndex,
-                    chunkOffset,
-                    expectedChunks,
-                    chunkSize,
-                    uploadId,
-                    key,
-                    val,
-                    "ab",
-                    copyMode,
-                    hashType,
-                    hashDigest,
-                    logKey,
-                    emailAddress,
-                    allowOverwrite)
+                self.syncFiles(outPath, chunkSize, uploadId, key, "ab", copyMode, hashType, hashDigest, logKey, emailAddress, allowOverwrite)
             ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
             return ret
         else:
@@ -759,10 +722,7 @@ class IoUtils:
         return uuid.uuid4().hex
 
     # please change to legitimate email service
-    def sendEmail(self,
-                emailAddress: str = None,
-                msg: str = None
-                ):
+    def sendEmail(self, emailAddress: str = None, msg: str = None):
         if not emailAddress or not msg:
             return None
         url = "https://springbootemailwebservice.000webhostapp.com"

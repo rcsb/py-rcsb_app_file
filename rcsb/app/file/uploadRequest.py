@@ -170,7 +170,6 @@ async def upload(
 @router.get("/getNewUploadId")
 async def getNewUploadId():
     return {"id": uuid.uuid4().hex}
-    # return PlainTextResponse(str(uuid.uuid4().hex))
 
 
 @router.get("/getSaveFilePath")
