@@ -25,7 +25,7 @@ author James Smith
 """ modifiable global variables
 """
 base_url = "http://0.0.0.0:8000"
-maxChunkSize = 1024 * 1024 * 8  # default
+chunkSize = 1024 * 1024 * 8  # default
 hashType = "MD5"
 FORWARDING = True  # for testing chunk forwarding to IoUtils.py, skipping uploadRequest.py
 
@@ -1031,7 +1031,7 @@ class Gui(tk.Frame):
     def upload(self):
         global headerD
         global hashType
-        global maxChunkSize
+        global chunkSize
         global base_url
         global contentTypeInfoD
         global fileFormatExtensionD
@@ -1072,7 +1072,7 @@ class Gui(tk.Frame):
         # hash
         hD = CryptUtils().getFileHash(filePath, hashType=hashType)
         fullTestHash = hD["hashDigest"]
-        chunkSize = maxChunkSize
+        # chunkSize = maxChunkSize
         fileSize = os.path.getsize(filePath)
         expectedChunks = 0
         if chunkSize < fileSize:
@@ -1139,7 +1139,7 @@ class Gui(tk.Frame):
                 "hashType": hashType,
                 "hashDigest": fullTestHash,
                 # chunk parameters
-                "chunkSize": chunkSize,
+                # "chunkSize": chunkSize,
                 "chunkIndex": chunkIndex,
                 "chunkOffset": chunkOffset,
                 "expectedChunks": expectedChunks,
@@ -1206,8 +1206,8 @@ class Gui(tk.Frame):
                 url = os.path.join(base_url, "file-v2", "sequentialUpload")
                 for x in range(offsetIndex, mD["expectedChunks"]):
                     packet_size = min(
-                        int(fileSize) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
-                        int(mD["chunkSize"]),
+                        int(fileSize) - (int(mD["chunkIndex"]) * int(chunkSize)),
+                        int(chunkSize),
                     )
                     tmp.truncate(packet_size)
                     tmp.seek(0)
@@ -1232,7 +1232,7 @@ class Gui(tk.Frame):
                             break
                     responses.append(response)
                     mD["chunkIndex"] += 1
-                    mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
+                    mD["chunkOffset"] = mD["chunkIndex"] * chunkSize
                     self.status = math.ceil((mD["chunkIndex"] / mD["expectedChunks"]) * 100)
                     self.upload_status.set(f'{self.status}%')
                     self.master.update()
@@ -1247,7 +1247,7 @@ class Gui(tk.Frame):
                 "hashType": hashType,
                 "hashDigest": fullTestHash,
                 # chunk parameters
-                "chunkSize": chunkSize,
+                # "chunkSize": chunkSize,
                 "chunkIndex": chunkIndex,
                 "chunkOffset": chunkOffset,
                 "expectedChunks": expectedChunks,
@@ -1295,15 +1295,15 @@ class Gui(tk.Frame):
                         uploadCount = result["uploadCount"]
             responses = []
             for index in range(uploadCount, expectedChunks):
-                offset = index * mD["chunkSize"]
+                offset = index * chunkSize
                 mD["chunkIndex"] = index
                 mD["chunkOffset"] = offset
                 tmp = io.BytesIO()
                 with open(filePath, "rb") as to_upload:
                     to_upload.seek(offset)
                     packet_size = min(
-                        int(fileSize) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
-                        int(mD["chunkSize"]),
+                        int(fileSize) - (int(mD["chunkIndex"]) * int(chunkSize)),
+                        int(chunkSize),
                     )
                     tmp.truncate(packet_size)
                     tmp.seek(0)
@@ -1335,7 +1335,7 @@ class Gui(tk.Frame):
                 "hashType": hashType,
                 "hashDigest": fullTestHash,
                 # chunk parameters
-                "chunkSize": chunkSize,
+                # "chunkSize": chunkSize,
                 "chunkIndex": chunkIndex,
                 "chunkOffset": chunkOffset,
                 "expectedChunks": expectedChunks,
@@ -1402,15 +1402,15 @@ class Gui(tk.Frame):
         global iou
         responses = []
         try:
-            offset = index * mD["chunkSize"]
+            offset = index * chunkSize
             mD["chunkIndex"] = index
             mD["chunkOffset"] = offset
             tmp = io.BytesIO()
             with open(filePath, "rb") as to_upload:
                 to_upload.seek(offset)
                 packet_size = min(
-                    int(fileSize) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
-                    int(mD["chunkSize"]),
+                    int(fileSize) - (int(mD["chunkIndex"]) * int(chunkSize)),
+                    int(chunkSize),
                 )
                 tmp.truncate(packet_size)
                 tmp.seek(0)
@@ -1436,7 +1436,7 @@ class Gui(tk.Frame):
 
     def download(self):
         global headerD
-        global maxChunkSize
+        global chunkSize
         global hashType
         global base_url
         global contentTypeInfoD
@@ -1488,7 +1488,7 @@ class Gui(tk.Frame):
             print(f'error - no response for {downloadFilePath}')
             return None
         fileSize = int(fileSize)
-        chunkSize = maxChunkSize
+        # chunkSize = maxChunkSize
         chunks = math.ceil(fileSize / chunkSize)
         url = os.path.join(base_url, "file-v1", "download")
         url = f'{url}?repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}&partNumber={partNumber}&contentFormat={contentFormat}&version={version}&hashType={hashType}'

@@ -15,14 +15,12 @@ import os
 import re
 import shutil
 import uuid
-import typing
 import json
 from enum import Enum
 from typing import Optional
 from filelock import Timeout, FileLock
 import aiofiles
 from fastapi import APIRouter, Path, Query, File, Form, HTTPException, UploadFile, Depends
-# from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
