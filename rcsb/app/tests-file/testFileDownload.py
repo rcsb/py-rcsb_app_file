@@ -101,7 +101,7 @@ class FileDownloadTests(unittest.TestCase):
                     "contentFormat": "pdbx",
                     "partNumber": 1,
                     "version": 1,
-                    "hashType": refHashType,
+                    "hashType": "MD5",
                     "milestone": None
                 }
                 #
