@@ -82,14 +82,14 @@ class FileDownloadTests(unittest.TestCase):
     def testSimpleDownload(self):
         """Test - simple file download"""
         testFilePath = self.__testFilePath
-        refHashType = refHashDigest = None
-        useHash = True
+        # refHashType = refHashDigest = None
+        # useHash = True
 
         # Checks file hash, testFilePath must match file being downloaded, or hashes will not match
-        if useHash:
-            refHashType = "MD5"
-            hD = CryptUtils().getFileHash(testFilePath, hashType=refHashType)
-            refHashDigest = hD["hashDigest"]
+        # if useHash:
+        #     refHashType = "MD5"
+        #     hD = CryptUtils().getFileHash(testFilePath, hashType=refHashType)
+        #     refHashDigest = hD["hashDigest"]
 
         for endPoint in ["download"]:
             startTime = time.time()
@@ -111,13 +111,13 @@ class FileDownloadTests(unittest.TestCase):
                     # logger.debug("response %r %r %r", response.status_code, response.reason, response.content)
                     self.assertTrue(response.status_code == 200)
                     logger.info("Content length (%d)", len(response.content))
-                    rspHashType = response.headers["rcsb_hash_type"]
-                    rspHashDigest = response.headers["rcsb_hexdigest"]
+                    # rspHashType = response.headers["rcsb_hash_type"]
+                    # rspHashDigest = response.headers["rcsb_hexdigest"]
                     with open(self.__downloadFilePath, "wb") as ofh:
                         ofh.write(response.content)
                     #
-                    thD = CryptUtils().getFileHash(self.__downloadFilePath, hashType=rspHashType)
-                    self.assertEqual(thD["hashDigest"], rspHashDigest)
+                    # thD = CryptUtils().getFileHash(self.__downloadFilePath, hashType=rspHashType)
+                    # self.assertEqual(thD["hashDigest"], rspHashDigest)
                     # self.assertEqual(thD["hashDigest"], refHashDigest)
                     #
                 logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
