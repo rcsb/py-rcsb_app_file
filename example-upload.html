@@ -18,6 +18,7 @@
               let async_chunk_url = `${base_url}/file-v2/resumableUpload/`;
               let file = document.getElementsByName('uploadFile')[0].files[0];
               let fileName = file.name;
+              let uploadCount = 0;
               console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
               let upload_radio = 0;
               for(let index = 1; index <= document.getElementsByName('upload_radio').length; ++index){
@@ -38,9 +39,6 @@
               if(! filePath){
                   return;
               }
-              let uploadCount = 0;
-              await getUploadStatus();
-              console.log('upload count = ' + uploadCount);
               // if file is a zip file, file has been compressed before hashing/upload
               let hashDigest = null;
               await getHashDigest(file);
@@ -78,12 +76,12 @@
                 let partNumber = document.getElementsByName('partNumber')[0].value;
                 let contentFormat = document.getElementsByName('contentFormat')[0].value;
                 let version = document.getElementsByName('version')[0].value;
-                let query = `?repositoryType=${repositoryType}&depId=${depId}&contentType=${contentType}&milestone=${milestone}&partNumber=${partNumber}&contentFormat=${contentFormat}&version=${version}`
+                let query = `?repositoryType=${repositoryType}&depId=${depId}&contentType=${contentType}&milestone=${milestone}&partNumber=${partNumber}&contentFormat=${contentFormat}&version=${version}&hashDigest=${hashDigest}`
                 let url = upload_status_url + query
                 await fetch(url, {
                   method: "GET",
                     headers: {"Authorization": "Bearer jwtDisable"},
-                }).then(data => data.json()).then(json => uploadCount = json.path).catch(err => console.log(err));
+                }).then(data => data.json()).then(json => uploadCount = json.uploadCount).catch(err => console.log(err));
               }
 
               async function getHashDigest(file){
@@ -209,10 +207,14 @@
                 var chunkSize = 1024 * 1024 * 8; // bytes
                 var expectedChunks = Math.ceil((fileSize) / chunkSize);
                 var chunkIndex = 0;
-                if(uploadCount && uploadCount > 0){
-                    chunkIndex = uploadCount - 1;
-                }
                 var chunkOffset = 0;
+                await getUploadStatus();
+                console.log('upload count = ' + uploadCount);
+                if(uploadCount && uploadCount > 0){
+                    chunkIndex = uploadCount;
+                    chunkOffset = chunkSize * chunkIndex;
+                }
+                console.log('chunk index = ' + chunkIndex);
                 var chunkMode = "sequential";
                 var hashType = "MD5";
                 var copyMode = "native";
@@ -250,7 +252,7 @@
                   formdata = new FormData();
                   // upload file parameters;
                   formdata.append("uploadFile", uploadFile, fileName);
-                  formdata.append("uploadId", uploadId);
+                  // formdata.append("uploadId", null);
                   formdata.append("hashType", hashType);
                   formdata.append("hashDigest", hashDigest);
                   // chunk parameters
@@ -329,7 +331,7 @@
                     formdata = new FormData();
                     // upload file parameters;
                     formdata.append("uploadFile", uploadFile, fileName);
-                    formdata.append("uploadId", uploadId);
+                    // formdata.append("uploadId", null);
                     formdata.append("hashType", hashType);
                     formdata.append("hashDigest", hashDigest);
                     // chunk parameters

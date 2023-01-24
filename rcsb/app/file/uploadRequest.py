@@ -15,6 +15,8 @@ import os
 import re
 import shutil
 import uuid
+import typing
+import json
 from enum import Enum
 from typing import Optional
 from filelock import Timeout, FileLock
@@ -312,7 +314,8 @@ async def getUploadStatus(repositoryType: str = Query(...),
                           partNumber: int = Query(...),
                           contentFormat: str = Query(...),
                           version: str = Query(default="next"),
-                          hashDigest: str = Query(default=None)):
+                          hashDigest: str = Query(default=None)
+                          ):
     cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(cachePath, configFilePath)
@@ -340,6 +343,8 @@ async def getUploadStatus(repositoryType: str = Query(...),
     if not uploadId:
         return None
     status = await ioU.getSession(uploadId)
+    status = status.replace("'", '"')
+    status = json.loads(status)
     return status
 
 
@@ -435,7 +440,7 @@ async def resumableUpload(
             hashDigest=hashDigest,
             copyMode=copyMode,
             # chunk parameters
-            chunkSize=chunkSize,
+            # chunkSize=chunkSize,
             chunkIndex=chunkIndex,
             chunkOffset=chunkOffset,
             expectedChunks=expectedChunks,

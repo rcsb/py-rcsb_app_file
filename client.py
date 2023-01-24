@@ -75,7 +75,7 @@ def upload(mD):
     global ASYNCHRONOUS
     global OVERWRITE
     global EMAIL_ADDRESS
-    if not SEQUENTIAL:
+    if not SEQUENTIAL and not ASYNCHRONOUS and not RESUMABLE:
         # upload as one file
         response = None
         with open(mD["filePath"], "rb") as to_upload:
@@ -128,13 +128,13 @@ def upload(mD):
                 mD["uploadId"] = result["id"]
         # chunk file and upload
         offset = 0
-        offsetIndex = 0
+        uploadCount = 0
         responses = []
         tmp = io.BytesIO()
         with open(readFilePath, "rb") as to_upload:
             to_upload.seek(offset)
             url = os.path.join(base_url, "file-v2", "sequentialUpload")
-            for x in tqdm(range(offsetIndex, mD["expectedChunks"]), leave=False, desc=os.path.basename(mD["filePath"])):
+            for x in tqdm(range(uploadCount, mD["expectedChunks"]), leave=False, desc=os.path.basename(mD["filePath"])):
                 packet_size = min(
                     int(mD["fileSize"]) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
                     int(mD["chunkSize"]),
@@ -179,27 +179,27 @@ def upload(mD):
             headers=headerD,
             timeout=None
         )
-        offsetIndex = 0
+        uploadCount = 0
         offset = 0
         if response.status_code == 200:
             result = json.loads(response.text)
             if result:
                 if not isinstance(result, dict):
                     result = eval(result)
-                offsetIndex = int(result["uploadCount"])
+                uploadCount = int(result["uploadCount"])
                 packet_size = min(
                     int(mD["fileSize"]) - ( int(mD["chunkIndex"]) * int(mD["chunkSize"]) ),
                     int(mD["chunkSize"]),
                 )
-                offset = offsetIndex * packet_size
-                mD["chunkIndex"] = offsetIndex
+                offset = uploadCount * packet_size
+                mD["chunkIndex"] = uploadCount
                 mD["chunkOffset"] = offset
         # chunk file and upload
         tmp = io.BytesIO()
         with open(mD["filePath"], "rb") as to_upload:
             to_upload.seek(offset)
             url = os.path.join(base_url, "file-v2", "resumableUpload")
-            for x in tqdm(range(offsetIndex, mD["expectedChunks"]), leave=False, desc=os.path.basename(mD["filePath"])):
+            for x in tqdm(range(uploadCount, mD["expectedChunks"]), leave=False, desc=os.path.basename(mD["filePath"])):
                 packet_size = min(
                     int(mD["fileSize"]) - ( int(mD["chunkIndex"]) * int(mD["chunkSize"]) ),
                     int(mD["chunkSize"]),
@@ -391,12 +391,15 @@ if __name__ == "__main__":
     uploadIds = []
     downloads = []
     description()
+    chunkMode = None
     if args.sequential:
         SEQUENTIAL = True
     if args.resumable:
         RESUMABLE = True
+        chunkMode = "sequential"
     if args.asynchronous:
         ASYNCHRONOUS = True
+        chunkMode = "async"
     if SEQUENTIAL and ASYNCHRONOUS or SEQUENTIAL and RESUMABLE or ASYNCHRONOUS and RESUMABLE:
         sys.exit('error - mututally incompatible options')
     if args.zip:
@@ -445,12 +448,11 @@ if __name__ == "__main__":
                 expectedChunks = 1
             chunkIndex = 0
             chunkOffset = 0
-            chunkMode = "async"
             copyMode = "native"
             if DECOMPRESS:
                 copyMode = "gzip_decompress"
             # upload complete file
-            if not SEQUENTIAL and not ASYNCHRONOUS:
+            if not SEQUENTIAL and not ASYNCHRONOUS and not RESUMABLE:
                 uploads.append({
                     # upload file parameters
                     "filePath": filePath,
