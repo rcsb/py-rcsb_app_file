@@ -36,20 +36,20 @@ FORWARDING = True  # for testing chunk forwarding to IoUtils.py, skipping upload
 contentTypeInfoD = None
 fileFormatExtensionD = None
 headerD = None
-os.environ["CACHE_PATH"] = os.path.join(
-    ".", "rcsb", "app", "tests-file", "test-data", "data"
-)
+# os.environ["CACHE_PATH"] = os.path.join(
+#     ".", "rcsb", "app", "tests-file", "test-data", "data"
+# )
 os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
-cachePath = os.environ.get("CACHE_PATH")
+# cachePath = os.environ.get("CACHE_PATH")
 configFilePath = os.environ.get("CONFIG_FILE")
-cP = ConfigProvider(cachePath)
+cP = ConfigProvider(configFilePath)
 cP.getConfig()
 if FORWARDING:
     iou = IoUtils(cP)
 subject = cP.get("JWT_SUBJECT")
 headerD = {
     "Authorization": "Bearer "
-    + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)
+    + JWTAuthToken(configFilePath).createToken({}, subject)
 }
 
 repoTypeList = ["deposit", "archive", "workflow", "session"]

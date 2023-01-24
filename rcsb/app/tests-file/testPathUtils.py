@@ -32,7 +32,7 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 # os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
@@ -42,9 +42,9 @@ logger.setLevel(logging.INFO)
 
 class PathUtilsTests(unittest.TestCase):
     def setUp(self):
-        cachePath = os.environ.get("CACHE_PATH")
+        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
-        self.cP = ConfigProvider(cachePath, configFilePath)
+        self.cP = ConfigProvider(configFilePath)
         self.pathU = PathUtils(self.cP)
         self.__startTime = time.time()
         logger.debug("Running tests on version %s", __version__)

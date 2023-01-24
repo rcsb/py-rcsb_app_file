@@ -30,9 +30,7 @@ from rcsb.app.file import __version__
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-# os.environ["CONFIG_FILE"] = "./rcsb/app/config/config.yml"
-# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data", "data"))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
@@ -43,10 +41,10 @@ logger.setLevel(logging.INFO)
 class ConfigProviderTests(unittest.TestCase):
     def setUp(self):
         self.__startTime = time.time()
-        self.__cachePath = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+        # self.__cachePath = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
         self.__configFilePath = os.environ.get("CONFIG_FILE")
-        logger.info("Using cache path %r", self.__cachePath)
-        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
+        # logger.info("Using cache path %r", self.__cachePath)
+        cP = ConfigProvider(self.__configFilePath)
         #
         self.__cD = {}
         if self.__configFilePath:
@@ -57,16 +55,8 @@ class ConfigProviderTests(unittest.TestCase):
             #
         #
         if not self.__cD:
-            self.__cD = {
-                "JWT_SUBJECT": "aTestSubject",
-                "JWT_ALGORITHM": "HS256",
-                "JWT_SECRET": "aTestSecret",
-                "SESSION_DIR_PATH": os.path.join(self.__cachePath, "sessions"),
-                "REPOSITORY_DIR_PATH": os.path.join(self.__cachePath, "repository"),
-                "SHARED_LOCK_PATH": os.path.join(self.__cachePath, "shared-locks"),
-            }
-            # cP.setConfig(configData=self.__cD)
-        #
+            raise Exception("Could not make config dictionary")
+
         logger.debug("Running tests on version %s", __version__)
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
 
@@ -79,12 +69,12 @@ class ConfigProviderTests(unittest.TestCase):
 
     def testConfigAccessors(self):
         """Test -configuration accessors"""
-        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
+        cP = ConfigProvider(self.__configFilePath)
         for ky, vl in self.__cD.items():
             tv = cP.get(ky)
             self.assertEqual(tv, vl)
 
-        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
+        cP = ConfigProvider(self.__configFilePath)
         for ky, vl in self.__cD.items():
             tv = cP.get(ky)
             self.assertEqual(tv, vl)

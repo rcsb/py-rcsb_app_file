@@ -32,19 +32,19 @@ hashType = "MD5"
 
 """ do not alter from here
 """
-os.environ["CACHE_PATH"] = os.path.join(
-    ".", "rcsb", "app", "tests-file", "test-data", "data"
-)
+# os.environ["CACHE_PATH"] = os.path.join(
+#     ".", "rcsb", "app", "tests-file", "test-data", "data"
+# )
 os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
-cachePath = os.environ.get("CACHE_PATH")
+# cachePath = os.environ.get("CACHE_PATH")
 configFilePath = os.environ.get("CONFIG_FILE")
-cP = ConfigProvider(cachePath)
+cP = ConfigProvider(configFilePath)
 cP.getConfig()
 subject = cP.get("JWT_SUBJECT")
 ioU = IoUtils(cP)
 headerD = {
     "Authorization": "Bearer "
-    + JWTAuthToken(cachePath, configFilePath).createToken({}, subject)
+    + JWTAuthToken(configFilePath).createToken({}, subject)
 }
 SEQUENTIAL = False
 RESUMABLE = False

@@ -36,6 +36,7 @@ class PathUtils:
         self.__sharedLockDirPath = self.__cP.get("SHARED_LOCK_PATH")
         self.__contentTypeInfoD = self.__cP.get("CONTENT_TYPE")
         self.__fileFormatExtensionD = self.__cP.get("FILE_FORMAT_EXTENSION")
+        self.__milestoneList = ["upload", "upload-convert", "deposit", "annotate", "release", "review", "none"]
 
     def getSessionDirPath(self) -> str:
         return self.__sessionDirPath
@@ -200,8 +201,9 @@ class PathUtils:
             "-" + str, or blank string
 
         """
-        if milestone and milestone != "":
-            return '-' + milestone
+        if milestone and milestone.lstrip().rstrip() != "" and milestone.lower().lstrip().rstrip() != "none" and milestone.lower().lstrip().rstrip() != "null":
+            if milestone in self.__milestoneList:
+                return '-' + milestone
         return ""
 
     def getBaseFileName(self,

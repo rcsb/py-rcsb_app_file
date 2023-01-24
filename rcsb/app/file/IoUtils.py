@@ -125,9 +125,9 @@ class IoUtils:
         outPath = None
         ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
         try:
-            cachePath = os.environ.get("CACHE_PATH")
+            # cachePath = os.environ.get("CACHE_PATH")
             configFilePath = os.environ.get("CONFIG_FILE")
-            cP = ConfigProvider(cachePath, configFilePath)
+            cP = ConfigProvider(configFilePath)
             pathU = PathUtils(cP)
             if not pathU.checkContentTypeFormat(contentType, contentFormat):
                 raise HTTPException(status_code=405, detail="Bad content type and/or format - upload rejected")

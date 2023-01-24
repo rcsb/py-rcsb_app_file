@@ -83,9 +83,9 @@ async def upload(
     try:
         # fn = uploadFile.filename
         # ct = uploadFile.content_type
-        cachePath = os.environ.get("CACHE_PATH")
+        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(cachePath, configFilePath)
+        cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
         if not pathU.checkContentTypeFormat(contentType, contentFormat):
             raise HTTPException(status_code=405, detail="Bad content type and/or format - upload rejected")
@@ -181,9 +181,9 @@ async def getSaveFilePath(repositoryType: str = Query(...),
                           contentFormat: str = Query(...),
                           version: str = Query(default="next"),
                           allowOverwrite: bool = Query(default=False)):
-    cachePath = os.environ.get("CACHE_PATH")
+    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
+    cP = ConfigProvider(configFilePath)
     pathU = PathUtils(cP)
     if not pathU.checkContentTypeFormat(contentType, contentFormat):
         raise HTTPException(status_code=400, detail="Bad content type and/or format - upload rejected")
@@ -314,9 +314,9 @@ async def getUploadStatus(repositoryType: str = Query(...),
                           version: str = Query(default="next"),
                           hashDigest: str = Query(default=None)
                           ):
-    cachePath = os.environ.get("CACHE_PATH")
+    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
+    cP = ConfigProvider(configFilePath)
     ioU = IoUtils(cP)
     if version is None or not re.match(r"\d+", version):
         version = await ioU.findVersion(
@@ -349,9 +349,9 @@ async def getUploadStatus(repositoryType: str = Query(...),
 # return kv entry from upload id
 @router.get("/uploadStatusFromId/{uploadId}")
 async def getUploadStatusFromId(uploadId: str = Path(...)):
-    cachePath = os.environ.get("CACHE_PATH")
+    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
+    cP = ConfigProvider(configFilePath)
     ioU = IoUtils(cP)
     status = await ioU.getSession(uploadId)
     return status
@@ -366,9 +366,9 @@ async def findUploadId(repositoryType: str = Query(),
                        partNumber: int = Query(...),
                        contentFormat: str = Query(...),
                        version: str = Query(...)):
-    cachePath = os.environ.get("CACHE_PATH")
+    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
+    cP = ConfigProvider(configFilePath)
     ioU = IoUtils(cP)
     return ioU.getResumedUpload(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)
 
@@ -376,9 +376,9 @@ async def findUploadId(repositoryType: str = Query(),
 # clear kv entries from one user
 @router.post("/clearSession")
 async def clearSession(uploadIds: list = Form(...)):
-    cachePath = os.environ.get("CACHE_PATH")
+    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
+    cP = ConfigProvider(configFilePath)
     ioU = IoUtils(cP)
     return await ioU.clearSession(uploadIds, None)
 
@@ -386,9 +386,9 @@ async def clearSession(uploadIds: list = Form(...)):
 # purge kv before testing
 @router.post("/clearKv")
 async def clearKv():
-    cachePath = os.environ.get("CACHE_PATH")
+    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
+    cP = ConfigProvider(configFilePath)
     ioU = IoUtils(cP)
     return await ioU.clearKv()
 
@@ -421,9 +421,9 @@ async def resumableUpload(
     fn = None
     ct = None
     try:
-        cachePath = os.environ.get("CACHE_PATH")
+        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(cachePath, configFilePath)
+        cP = ConfigProvider(configFilePath)
         logger.debug("depId %r hash %r hashType %r", depId, hashDigest, hashType)
         fn = uploadFile.filename
         ct = uploadFile.content_type

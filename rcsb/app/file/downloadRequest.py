@@ -39,9 +39,9 @@ class HashType(str, Enum):
 
 @router.get("/downloadSize")
 async def downloadSize(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version):  # hashType=None):
-    cachePath = os.environ.get("CACHE_PATH")
+    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
+    cP = ConfigProvider(configFilePath)
     pathU = PathUtils(cP)
     filePath = pathU.getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)
     return os.path.getsize(filePath)
@@ -58,9 +58,9 @@ async def download(
     version: str = Query("1", title="Version string", description="Version number or description", example="1,2,3, latest, previous"),
     hashType: HashType = Query(None, title="Hash type", description="Hash type", example="SHA256")
 ):
-    cachePath = os.environ.get("CACHE_PATH")
+    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(cachePath, configFilePath)
+    cP = ConfigProvider(configFilePath)
     pathU = PathUtils(cP)
     filePath = fileName = mimeType = hashDigest = None
     success = False

@@ -30,7 +30,7 @@ import unittest
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 # os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data", "data"))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
+# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 from fastapi.testclient import TestClient
@@ -47,17 +47,17 @@ logger.setLevel(logging.INFO)
 
 class FileUpdateTests(unittest.TestCase):
     def setUp(self):
-        self.__cachePath = os.environ.get("CACHE_PATH")
+        # self.__cachePath = os.environ.get("CACHE_PATH")
         self.__configFilePath = os.environ.get("CONFIG_FILE")
-#       self.__dataPath = os.path.join(HERE, "test-data")
-#       self.__testFilePath = os.path.join(self.__dataPath, "config", "example-data.cif")
-        self.__downloadFilePath = os.path.join(self.__cachePath, "downloadFile.cif")
-        self.__updatedFilePath = os.path.join(self.__cachePath, "updatedFile.cif")
+        self.__dataPath = os.path.join(HERE, "data")
+        self.__testFilePath = os.path.join(self.__dataPath, "config", "example-data.cif")
+        # self.__downloadFilePath = os.path.join(self.__dataPath, "downloadFile.cif")
+        self.__updatedFilePath = os.path.join(self.__dataPath, "updatedFile.cif")
 
         # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
-        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
+        cP = ConfigProvider(self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
-        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
+        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
         logger.info("header %r", self.__headerD)
         self.__startTime = time.time()
         #
@@ -72,7 +72,7 @@ class FileUpdateTests(unittest.TestCase):
         logger.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
 
     def testSimpleUpdate(self):
-        """Test - simple file download/upload"""
+        """Test - simple file overwrite"""
 
         refHashType = None
         useHash = True
@@ -81,54 +81,13 @@ class FileUpdateTests(unittest.TestCase):
             # hD = CryptUtils().getFileHash(testFilePath, hashType=refHashType)
             # refHashDigest = hD["hashDigest"]
 
-        responseCode = 200
-        for endPoint in ["download"]:
-            startTime = time.time()
-            try:
-                mD = {
-                    "repositoryType": "archive",
-                    "depId": "D_8000210008",
-                    "contentType": "model",
-                    "contentFormat": "pdbx",
-                    "partNumber": 1,
-                    "version": 1,  # Download latest
-                    "hashType": refHashType,
-                    "milestone": None
-                }
-                #
-                with TestClient(app) as client:
-                    response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
-                    logger.info("download response status code %r", response.status_code)
-                    # logger.debug("response %r %r %r", response.status_code, response.reason, response.content)
-                    self.assertTrue(response.status_code == 200)
-                    logger.info("Content length (%d)", len(response.content))
-#                   rspHashType = response.headers["rcsb_hash_type"]
-#                   rspHashDigest = response.headers["rcsb_hexdigest"]
-                    with open(self.__downloadFilePath, "wb") as ofh:
-                        ofh.write(response.content)
-                    #
-#                   thD = CryptUtils().getFileHash(self.__downloadFilePath, hashType=rspHashType)
-#                   self.assertEqual(thD["hashDigest"], rspHashDigest)
-#                   self.assertEqual(thD["hashDigest"], refHashDigest)
-                    #
-                logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
-            except Exception as e:
-                logger.exception("Failing with %s", str(e))
-                self.fail()
-            #
-        #
-
         # Update file content
-        # TO DO: apply a more substantial of a change/update to the file
-        with open(self.__downloadFilePath, "r", encoding="utf-8") as ifh:
-            dataContent = ifh.read()
-        with open(self.__updatedFilePath, "w", encoding="utf-8") as ofh:
-            ofh.write(dataContent.replace("PROC", "REL"))
 
         endPoint = "upload"
         hashType = "MD5"
         hD = CryptUtils().getFileHash(self.__updatedFilePath, hashType=hashType)
         testHash = hD["hashDigest"]
+        responseCode = 200
 
         startTime = time.time()
         try:
@@ -136,9 +95,9 @@ class FileUpdateTests(unittest.TestCase):
                 "hashType": hashType,
                 "hashDigest": testHash,
                 "repositoryType": "onedep-archive",  # First upload into "onedep-archive"
-                "depId": "D_8000210008",
+                "depId": "D_2000000001",
                 "contentType": "model",
-                "milestone": "none",
+                "milestone": "None",
                 "partNumber": 1,
                 "contentFormat": "pdbx",
                 "version": "1",  # Upload "next"
@@ -173,7 +132,7 @@ class FileUpdateTests(unittest.TestCase):
                 "hashType": hashType,
                 "hashDigest": testHash,
                 "repositoryType": "onedep-deposit",  # Second upload into "onedep-deposit"
-                "depId": "D_8000210008",
+                "depId": "D_2000000001",
                 "contentType": "model",
                 "milestone": "none",
                 "partNumber": 1,

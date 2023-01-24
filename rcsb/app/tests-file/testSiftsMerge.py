@@ -30,7 +30,7 @@ import resource
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 # TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data", "data"))
+# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data", "data"))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
 
 from fastapi.testclient import TestClient
@@ -47,12 +47,12 @@ logger.setLevel(logging.INFO)
 
 class SIFTSMergeTests(unittest.TestCase):
     def setUp(self):
-        self.__cachePath = os.path.join(HERE, "test-data", "data")
+        self.__cachePath = os.path.join(HERE, "data")
         self.__configFilePath = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
 
-        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
+        cP = ConfigProvider(self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
-        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
+        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
         logger.info("header %r", self.__headerD)
         self.__startTime = time.time()
         #

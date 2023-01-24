@@ -94,9 +94,9 @@ async def fileExists(
     success = False
     try:
         fU = FileUtil()
-        cachePath = os.environ.get("CACHE_PATH")
+        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(cachePath, configFilePath)
+        cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
         #
         logger.info("Checking repositoryType %r depId %r contentType %r milestone %r format %r version %r", repositoryType, depId, contentType, milestone, contentFormat, version)
@@ -131,9 +131,9 @@ async def dirExists(
     success = False
     try:
         fU = FileUtil()
-        cachePath = os.environ.get("CACHE_PATH")
+        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(cachePath, configFilePath)
+        cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
         #
         logger.info("Checking repositoryType %r depId %r", repositoryType, depId)
@@ -203,9 +203,9 @@ async def latestFileVersion(
     fileVersion = None
     try:
         fU = FileUtil()
-        cachePath = os.environ.get("CACHE_PATH")
+        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(cachePath, configFilePath)
+        cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
         #
         logger.info(
@@ -263,9 +263,9 @@ async def copyFile(
     success = False
     try:
         fU = FileUtil()
-        cachePath = os.environ.get("CACHE_PATH")
+        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(cachePath, configFilePath)
+        cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
         #
         logger.info(
@@ -362,9 +362,9 @@ async def moveFile(
     success = False
     try:
         fU = FileUtil()
-        cachePath = os.environ.get("CACHE_PATH")
+        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(cachePath, configFilePath)
+        cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
         #
         logger.info(
@@ -448,9 +448,9 @@ async def listDir(
     dirExistsCheck = None
     try:
         fU = FileUtil()
-        cachePath = os.environ.get("CACHE_PATH")
+        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(cachePath, configFilePath)
+        cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
         #
         # List directory of requested repositoryType and depId
@@ -525,9 +525,9 @@ async def compressDir(
     dirRemovedBool = None
     try:
         fU = FileUtil()
-        cachePath = os.environ.get("CACHE_PATH")
+        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(cachePath, configFilePath)
+        cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
         #
         # Compress directory of requested repositoryType and depId

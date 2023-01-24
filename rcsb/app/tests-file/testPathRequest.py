@@ -32,7 +32,7 @@ TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 # os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output"))
 # os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "tests-file", "test-data", "config", "config.yml"))
 # Use custom cache and config path for this set of tests
-os.environ["CACHE_PATH"] = os.path.join(HERE, "test-output")
+# os.environ["CACHE_PATH"] = os.path.join(HERE, "test-output")
 os.environ["CONFIG_FILE"] = os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml")
 # os.environ["CONFIG_FILE"] = os.path.join(TOPDIR, "rcsb", "app", "tests-file", "test-data", "config", "config.yml")
 
@@ -49,49 +49,15 @@ logger.setLevel(logging.INFO)
 
 
 class PathRequestTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        """Fixture to create file test data"""
-        cls.__dataPath = os.path.join(HERE, "test-data")
-        cls.__cachePath = os.environ.get("CACHE_PATH")
-        cls.__repoTestPath = os.path.join(cls.__cachePath, "data", "repository", "archive")
-        logger.info("cls.__repoTestPath %s", cls.__repoTestPath)
-
-        fU = FileUtil()
-        cls.__testFilePath = os.path.join(cls.__dataPath, "example-data.cif")
-        for fn in ["example-data.cif"]:  # Only needed for ConfigProvider init
-            fU.put(cls.__testFilePath, os.path.join(cls.__cachePath, fn))
-        #
-        PathRequestTests.__repoFixture()
-
-    @classmethod
-    def __repoFixture(cls):
-        ctFmtTupL = [
-            ("model", "cif"),
-            ("sf-convert-report", "cif"),
-            ("sf-convert-report", "txt"),
-            ("sf-upload-convert", "cif"),
-            ("sf-upload", "cif"),
-            ("sf", "cif"),
-        ]
-        # Example - D_1000258919_model_P1.cif.V1
-        for depId in ["D_1000000001", "D_2000000001"]:
-            dirPath = os.path.join(cls.__repoTestPath, depId)
-            FileUtil().mkdir(dirPath)
-            for pNo in ["P1", "P2"]:
-                for contentType, fmt in ctFmtTupL[:6]:
-                    for vS in ["V1", "V2"]:
-                        fn = depId + "_" + contentType + "_" + pNo + "." + fmt + "." + vS
-                        pth = os.path.join(dirPath, fn)
-                        FileUtil().put(cls.__testFilePath, pth)
 
     def setUp(self):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
-
+        self.__dataPath = os.path.join(HERE, "data")
+        self.__repoTestPath = os.path.join(self.__dataPath, "repository", "archive")
         # Note - testConfigProvider() must (maybe?) precede this test to install a bootstrap configuration file
-        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
+        cP = ConfigProvider(self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
-        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
+        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
         logger.info("header %r", self.__headerD)
         self.__startTime = time.time()
         #
@@ -110,7 +76,6 @@ class PathRequestTests(unittest.TestCase):
         endPoint = "file-exists"
         startTime = time.time()
         try:
-            # First test for file that actually exists (created in fixture above)
             mD = {
                 "depId": "D_2000000001",
                 "repositoryType": "onedep-archive",
@@ -314,18 +279,18 @@ class PathRequestTests(unittest.TestCase):
         try:
             # Move file from one repositoryType to another
             mD = {
-                "depIdSource": "D_2000000001",
+                "depIdSource": "D_1000000001",
                 "repositoryTypeSource": "onedep-archive",
                 "contentTypeSource": "model",
                 "contentFormatSource": "pdbx",
                 "partNumberSource": 1,
-                "versionSource": 2,
+                "versionSource": 1,
                 "milestoneSource": "",
-                "depIdTarget": "D_3000000001",
-                "repositoryTypeTarget": "onedep-archive",
+                "depIdTarget": "D_2000000001",
+                "repositoryTypeTarget": "onedep-deposit",
                 "contentTypeTarget": "model",
                 "contentFormatTarget": "pdbx",
-                "partNumberTarget": 2,
+                "partNumberTarget": 1,
                 "versionTarget": 2,
                 "milestoneTarget": ""
             }
@@ -393,7 +358,7 @@ def pathRequestTestSuite():
     suiteSelect.addTest(PathRequestTests("testListDir"))
     suiteSelect.addTest(PathRequestTests("testLatestFileVersion"))
     suiteSelect.addTest(PathRequestTests("testCopyFile"))
-    suiteSelect.addTest(PathRequestTests("testMoveFile"))
+    # suiteSelect.addTest(PathRequestTests("testMoveFile"))  # deletes a file and ruins other tests that rely on that file
     suiteSelect.addTest(PathRequestTests("testCompressDir"))
     return suiteSelect
 
