@@ -52,10 +52,7 @@ RUN chmod +x /app/launch.sh
 
 COPY ./deploy/gunicorn_conf.py /app/gunicorn_conf.py
 
-COPY ./rcsb/app/tests-file/test-data/config/example-data.cif    /app/CACHE/config/example-data.cif
-
 RUN chown -R ubuntu /app
-
 
 EXPOSE 8000
 USER ubuntu
