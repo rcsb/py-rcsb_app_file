@@ -52,7 +52,7 @@ class FileUpdateTests(unittest.TestCase):
         self.__dataPath = os.path.join(HERE, "data")
         self.__testFilePath = os.path.join(self.__dataPath, "config", "example-data.cif")
         # self.__downloadFilePath = os.path.join(self.__dataPath, "downloadFile.cif")
-        self.__updatedFilePath = os.path.join(self.__dataPath, "updatedFile.cif")
+        self.__updatedFilePath = os.path.join(self.__dataPath, "testFile.dat")
 
         # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
         cP = ConfigProvider(self.__configFilePath)

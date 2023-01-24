@@ -20,7 +20,7 @@ import logging
 import os
 import typing
 
-from mmcif.api.DataCategoryBase import DataCategoryBase
+# from mmcif.api.DataCategoryBase import DataCategoryBase
 from rcsb.utils.config.ConfigUtil import ConfigUtil
 from rcsb.utils.io.SingletonClass import SingletonClass
 # from rcsb.utils.io.MarshalUtil import MarshalUtil
