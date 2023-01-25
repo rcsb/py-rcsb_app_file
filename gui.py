@@ -27,7 +27,7 @@ author James Smith 2023
 base_url = "http://0.0.0.0:8000"
 chunkSize = 1024 * 1024 * 8
 hashType = "MD5"
-FORWARDING = True  # for testing chunk forwarding to IoUtils.py, skipping uploadRequest.py
+FORWARDING = False  # for testing chunk forwarding to IoUtils.py, skipping uploadRequest.py
 
 """ do not alter from here
 """
@@ -825,7 +825,6 @@ class Gui(tk.Frame):
         self.part_number = tk.StringVar(master)
         self.file_format = tk.StringVar(master)
         self.version_number = tk.StringVar(master)
-        self.email_address = tk.StringVar(master)
         self.upload_radio = tk.IntVar(master)
         self.allow_overwrite = tk.IntVar(master)
         self.compress = tk.IntVar(master)
@@ -881,11 +880,6 @@ class Gui(tk.Frame):
         self.versionEntry = ttk.Entry(self.uploadTab, textvariable=self.version_number)
         self.versionEntry.insert(1, "next")
         self.versionEntry.pack()
-
-        self.emailLabel = ttk.Label(self.uploadTab, text="EMAIL ADDRESS")
-        self.emailLabel.pack()
-        self.emailEntry = ttk.Entry(self.uploadTab, textvariable=self.email_address)
-        self.emailEntry.pack()
 
         self.upload_group = ttk.Frame(self.uploadTab)
         self.streamFileRadio = ttk.Radiobutton(self.upload_group, text="stream file", variable=self.upload_radio, value=1)
@@ -1046,7 +1040,6 @@ class Gui(tk.Frame):
         partNumber = self.part_number.get()
         contentFormat = self.file_format.get()
         version = self.version_number.get()
-        email = self.email_address.get()
         if not filePath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
             print('error - missing values')
             sys.exit()
@@ -1129,9 +1122,9 @@ class Gui(tk.Frame):
                 "hashType": hashType,
                 "hashDigest": fullTestHash,
                 # chunk parameters
-                # "chunkSize": chunkSize,
+                "chunkSize": chunkSize,
                 "chunkIndex": chunkIndex,
-                "chunkOffset": chunkOffset,
+                # "chunkOffset": chunkOffset,
                 "expectedChunks": expectedChunks,
                 # save file parameters
                 "filePath": filePath,
@@ -1221,7 +1214,7 @@ class Gui(tk.Frame):
                             break
                     responses.append(response)
                     mD["chunkIndex"] += 1
-                    mD["chunkOffset"] = mD["chunkIndex"] * chunkSize
+                    chunkOffset = mD["chunkIndex"] * chunkSize
                     self.status = math.ceil((mD["chunkIndex"] / mD["expectedChunks"]) * 100)
                     self.upload_status.set(f'{self.status}%')
                     self.master.update()
@@ -1236,9 +1229,9 @@ class Gui(tk.Frame):
                 "hashType": hashType,
                 "hashDigest": fullTestHash,
                 # chunk parameters
-                # "chunkSize": chunkSize,
+                "chunkSize": chunkSize,
                 "chunkIndex": chunkIndex,
-                "chunkOffset": chunkOffset,
+                # "chunkOffset": chunkOffset,
                 "expectedChunks": expectedChunks,
                 # save file parameters
                 "repositoryType": repositoryType,
@@ -1285,7 +1278,7 @@ class Gui(tk.Frame):
             for index in range(uploadCount, expectedChunks):
                 offset = index * chunkSize
                 mD["chunkIndex"] = index
-                mD["chunkOffset"] = offset
+                chunkOffset = offset
                 tmp = io.BytesIO()
                 with open(filePath, "rb") as to_upload:
                     to_upload.seek(offset)
@@ -1444,7 +1437,6 @@ class Gui(tk.Frame):
         self.compress.set(0)
         self.decompress.set(0)
         self.upload_radio.set(1)
-        self.email_address.set("")
 
         self.download_repo_type.set("")
         self.download_dep_id.set("")

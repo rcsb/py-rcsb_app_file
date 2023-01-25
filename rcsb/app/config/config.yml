@@ -21,6 +21,8 @@ configuration:
   SECRET_KEY: awsSecret
   AWS_REGION: awsRegion
   AWS_BUCKET: awsBucket
+  MILESTONE_LIST: ['upload', 'upload-convert', 'deposit', 'annotate', 'release', 'review', 'none']
+  REPO_TYPE_LIST: ['deposit', 'archive', 'workflow', 'session']
   CONTENT_TYPE:
     model:
       -

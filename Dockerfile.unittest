@@ -41,6 +41,7 @@ RUN set -eux \
     && pip install  --no-cache-dir -r /app/requirements.txt
 
 COPY ./rcsb /app/rcsb
+
 # Testing files
 COPY ./tox.ini /app/tox.ini
 COPY ./setup.py /app/setup.py
@@ -52,9 +53,8 @@ RUN chmod +x /app/launch.sh
 
 COPY ./deploy/gunicorn_conf.py /app/gunicorn_conf.py
 
-COPY ./rcsb/app/tests-file/data/example-data.cif    /app/rcsb/app/tests-file/data/example-data.cif
-COPY ./rcsb/app/tests-file/data/testFile.dat /app/rcsb/app/tests-file/data/testFile.dat
-COPY ./rcsb/app/tests-file/data/repository/archive/D_1000000001/D_1000000001_model_P1.cif.V1 /app/rcsb/app/tests-file/data/repository/archive/D_1000000001/D_1000000001_model_P1.cif.V1
+COPY ./rcsb/app/tests-file/data/example-data.cif    /app/CACHE/example-data.cif
+COPY ./rcsb/app/tests-file/data/config/example-config.json /app/CACHE/config/example-config.json
 
 RUN chown -R ubuntu /app
 

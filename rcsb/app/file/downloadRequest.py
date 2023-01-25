@@ -12,7 +12,6 @@ import logging
 import os
 from enum import Enum
 from fastapi import APIRouter
-from fastapi import Depends
 from fastapi import HTTPException
 from fastapi import Query
 from fastapi.responses import FileResponse

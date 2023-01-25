@@ -214,15 +214,16 @@ class IoUtils:
             hashType: str,
             hashDigest: str,
             # chunk parameters
-            # chunkSize: int,
+            chunkSize: int,
             chunkIndex: int,
-            chunkOffset: int,
+            # chunkOffset: int,
             expectedChunks: int,
             # save file parameters
             filePath: str,
             copyMode: str,
             allowOverwrite: bool
     ):
+        chunkOffset = chunkIndex * chunkSize
         ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
         dirPath, _ = os.path.split(filePath)
         tempPath = os.path.join(dirPath, "." + uploadId)
@@ -307,9 +308,9 @@ class IoUtils:
         # fileName: str = None,
         # mimeType: str = None,
         # chunk parameters
-        # chunkSize: int = 0,
+        chunkSize: int = 0,
         chunkIndex: int = 0,
-        chunkOffset: int = 0,
+        # chunkOffset: int = 0,
         expectedChunks: int = 1,
         # save file parameters
         depId: str = None,
@@ -321,9 +322,8 @@ class IoUtils:
         version: str = "next",
         allowOverwrite: bool = True,
         copyMode: str = "native",  # whether file is a zip file
-        emailAddress: str = None
     ):
-
+        chunkOffset = chunkIndex * chunkSize
         # validate parameters
         if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
             raise HTTPException(status_code=400, detail="Bad content type and/or format - upload rejected")
@@ -415,7 +415,6 @@ class IoUtils:
         hashType: typing.Optional[str] = None,
         hashDigest: typing.Optional[str] = None,
         logKey: str = None,
-        emailAddress: str = None,
         allowOverwrite: bool = None
     ) -> typing.Dict:
 
@@ -454,10 +453,6 @@ class IoUtils:
                                     # save final version
                                     os.replace(tempPath, outPath)
                                     ret = {"success": True, "statusCode": 200, "statusMessage": f"Store uploaded for {fn}"}
-                                    msg = ret["statusMessage"]
-                                    response = self.sendEmail(emailAddress, msg)
-                                    if response:
-                                        ret["statusMessage"] = response
                         except Timeout:
                             raise HTTPException(status_code=400, detail=f'error - lock timed out on {outPath}')
                         finally:
@@ -497,25 +492,6 @@ class IoUtils:
 
     def getNewUploadId(self) -> str:
         return uuid.uuid4().hex
-
-    # change to in-house email service (if used)
-
-    def sendEmail(self, emailAddress: str = None, msg: str = None):
-        if not emailAddress or not msg:
-            return None
-        url = "https://springbootemailwebservice.000webhostapp.com"
-        body = {
-            "sender": "PDB",
-            "subject": "one-dep upload status",
-            "recipient": emailAddress,
-            "body": msg
-        }
-        response = requests.post(url, data=body, timeout=None)
-        if response.status_code == 200:
-            return response.text
-        else:
-            logging.warning('email response %s', response.status_code)
-            return response.status_code
 
     # file path functions
 

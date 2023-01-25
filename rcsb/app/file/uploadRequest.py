@@ -211,15 +211,16 @@ async def sequentialUpload(
     hashType: str = Form(None),
     hashDigest: str = Form(None),
     # chunk parameters
-    # chunkSize: int = Form(None),
+    chunkSize: int = Form(None),
     chunkIndex: int = Form(None),
-    chunkOffset: int = Form(None),
+    # chunkOffset: int = Form(None),
     expectedChunks: int = Form(None),
     # save file parameters
     filePath: str = Form(...),
     copyMode: str = Form("native"),
     allowOverwrite: bool = Query(default=False)
 ):
+    chunkOffset = chunkIndex * chunkSize
     ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
     dirPath, _ = os.path.split(filePath)
     tempPath = os.path.join(dirPath, "." + uploadId)
@@ -389,9 +390,9 @@ async def resumableUpload(
     hashType: HashType = Form(None),
     hashDigest: str = Form(None),
     # chunk parameters
-    # chunkSize: int = Form(None),
+    chunkSize: int = Form(None),
     chunkIndex: int = Form(0),
-    chunkOffset: int = Form(0),
+    # chunkOffset: int = Form(0),
     expectedChunks: int = Form(1),
     # save file parameters
     depId: str = Form(...),
@@ -403,8 +404,8 @@ async def resumableUpload(
     version: str = Form(...),
     copyMode: str = Form("native"),
     allowOverwrite: bool = Form(None),
-    emailAddress: str = Form(None)
 ):
+    chunkOffset = chunkIndex * chunkSize
     fn = None
     ct = None
     try:
@@ -424,9 +425,9 @@ async def resumableUpload(
             hashDigest=hashDigest,
             copyMode=copyMode,
             # chunk parameters
-            # chunkSize=chunkSize,
+            chunkSize=chunkSize,
             chunkIndex=chunkIndex,
-            chunkOffset=chunkOffset,
+            # chunkOffset=chunkOffset,
             expectedChunks=expectedChunks,
             # save file parameters
             depId=depId,
@@ -437,7 +438,6 @@ async def resumableUpload(
             contentFormat=contentFormat,
             version=version,
             allowOverwrite=allowOverwrite,
-            emailAddress=emailAddress
         )
     except Exception as e:
         logger.exception("Failing for %r %r with %s", fn, ct, str(e))

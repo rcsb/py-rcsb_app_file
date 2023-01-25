@@ -181,7 +181,7 @@
                   // chunk parameters
                   formdata.append("chunkIndex", chunkIndex);
                   formdata.append("expectedChunks", expectedChunks);
-                  formdata.append("chunkOffset", chunkOffset);
+                  // formdata.append("chunkOffset", chunkOffset);
                   formdata.append("chunkSize", chunkSize);
                   // save file parameters
                   formdata.append("filePath", filePath);
@@ -225,7 +225,6 @@
                 let partNumber = document.getElementsByName('partNumber')[0].value;
                 let contentFormat = document.getElementsByName('contentFormat')[0].value;
                 let version = document.getElementsByName('version')[0].value;
-                let emailAddress = document.getElementsByName('emailAddress')[0].value;
                 let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
                 readChunks(chunkIndex, chunkOffset);
 
@@ -254,7 +253,7 @@
                   // chunk parameters
                   formdata.append("chunkIndex", chunkIndex);
                   formdata.append("expectedChunks", expectedChunks);
-                  formdata.append("chunkOffset", chunkOffset);
+                  // formdata.append("chunkOffset", chunkOffset);
                   formdata.append("chunkSize", chunkSize);
                   // save file parameters
                   formdata.append("filePath", filePath);
@@ -265,7 +264,6 @@
                   formdata.append("partNumber", partNumber);
                   formdata.append("contentFormat", contentFormat);
                   formdata.append("version", version);
-                  formdata.append("emailAddress", emailAddress);
                   formdata.append("copyMode", copyMode);
                   formdata.append("allowOverwrite", allowOverwrite);
 
@@ -318,8 +316,6 @@
             <input type="text" name="contentFormat">
             <label>Version</label>
             <input type="text" name="version">
-            <label>Email address</label>
-            <input type="text" name="emailAddress">
 
             <table>
                 <tr>

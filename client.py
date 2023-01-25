@@ -48,7 +48,6 @@ RESUMABLE = False
 COMPRESS = False
 DECOMPRESS = False
 OVERWRITE = False
-EMAIL_ADDRESS = None
 uploadIds = []
 uploadResults = []
 uploadTexts = []
@@ -69,7 +68,6 @@ def upload(mD):
     global SEQUENTIAL
     global RESUMABLE
     global OVERWRITE
-    global EMAIL_ADDRESS
     if not SEQUENTIAL and not RESUMABLE:
         # upload as one file
         response = None
@@ -153,7 +151,7 @@ def upload(mD):
                     break
                 responses.append(response)
                 mD["chunkIndex"] += 1
-                mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
+                # mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
         return responses
     elif RESUMABLE:
         # resumable sequential chunk upload
@@ -188,7 +186,7 @@ def upload(mD):
                 )
                 offset = uploadCount * packet_size
                 mD["chunkIndex"] = uploadCount
-                mD["chunkOffset"] = offset
+                # mD["chunkOffset"] = offset
         # chunk file and upload
         tmp = io.BytesIO()
         with open(mD["filePath"], "rb") as to_upload:
@@ -218,7 +216,7 @@ def upload(mD):
                     break
                 responses.append(response)
                 mD["chunkIndex"] += 1
-                mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
+                # mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
         return responses
 
 def download(downloadFilePath, downloadDict):
@@ -228,7 +226,6 @@ def download(downloadFilePath, downloadDict):
     global DECOMPRESS
     global SEQUENTIAL
     global OVERWRITE
-    global EMAIL_ADDRESS
     url = os.path.join(base_url, "file-v1", "downloadSize")
     fileSize = requests.get(url, params=downloadDict, headers=headerD, timeout=None).text
     if not fileSize.isnumeric():
@@ -281,7 +278,6 @@ if __name__ == "__main__":
                         metavar=("file-path", "repo-type", "dep-id", "content-type", "milestone", "part-number", "content-format", "version"),
                         help="***** multiple downloads allowed *****")
     parser.add_argument("-l", "--list", nargs=2, metavar=("repository-type", "dep-id"), help="***** list contents of requested directory *****")
-    parser.add_argument("-e", "--email", nargs=1, metavar=("email_address"), help="***** set email address *****")
     parser.add_argument("-s", "--sequential", action="store_true", help="***** upload sequential chunks *****")
     parser.add_argument("-r", "--resumable", action="store_true", help="***** upload resumable sequential chunks *****")
     parser.add_argument("-o", "--overwrite", action="store_true", help="***** overwrite files with same name *****")
@@ -304,8 +300,6 @@ if __name__ == "__main__":
         DECOMPRESS = True
     if args.overwrite:
         OVERWRITE = True
-    if args.email:
-        EMAIL_ADDRESS = args.email[0]
     if args.upload:
         for arglist in args.upload:
             if len(arglist) < 8:
@@ -380,7 +374,7 @@ if __name__ == "__main__":
                         # chunk parameters
                         "chunkSize": chunkSize,
                         "chunkIndex": chunkIndex,
-                        "chunkOffset": chunkOffset,
+                        # "chunkOffset": chunkOffset,
                         "expectedChunks": expectedChunks,
                         # save file parameters
                         "repositoryType": repositoryType,
@@ -392,7 +386,6 @@ if __name__ == "__main__":
                         "version": version,
                         "copyMode": copyMode,  # whether file is a zip file
                         "allowOverwrite": allowOverwrite,
-                        "emailAddress": EMAIL_ADDRESS
                     }
                 )
     if args.download:

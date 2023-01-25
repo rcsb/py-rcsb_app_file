@@ -1,0 +1,11 @@
+{
+   "version": 0.3,
+   "data": {
+      "JWT_SUBJECT": "aTestSubject",
+      "JWT_ALGORITHM": "HS256",
+      "JWT_SECRET": "aTestSecret",
+      "SESSION_DIR_PATH": "app/CACHE/sessions",
+      "REPOSITORY_DIR_PATH": "app/CACHE/repository",
+      "SHARED_LOCK_PATH": "app/CACHE/shared-locks"
+   }
+}

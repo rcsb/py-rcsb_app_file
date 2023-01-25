@@ -27,8 +27,6 @@ from . import downloadRequest  # This triggers JWTAuthBearer
 from . import serverStatus
 from . import uploadRequest
 from . import pathRequest
-from . import mergeRequest
-
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -75,11 +73,6 @@ def shutdownEvent():
 
 app.include_router(
     downloadRequest.router,
-    prefix="/file-v1",
-)
-
-app.include_router(
-    mergeRequest.router,
     prefix="/file-v1",
 )
 

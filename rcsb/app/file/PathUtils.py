@@ -36,7 +36,7 @@ class PathUtils:
         self.__sharedLockDirPath = self.__cP.get("SHARED_LOCK_PATH")
         self.__contentTypeInfoD = self.__cP.get("CONTENT_TYPE")
         self.__fileFormatExtensionD = self.__cP.get("FILE_FORMAT_EXTENSION")
-        self.__milestoneList = ["upload", "upload-convert", "deposit", "annotate", "release", "review", "none"]
+        self.__milestoneList = self.__cP.get("MILESTONE_LIST")
 
     def getSessionDirPath(self) -> str:
         return self.__sessionDirPath
