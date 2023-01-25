@@ -4,7 +4,7 @@
 # Date:    25-Aug-2021
 # Version: 0.001
 #
-# Updates:
+# Updates: James Smith 2023
 ##
 """
 Collected utilities for file system path and file name access.
@@ -89,7 +89,6 @@ class PathUtils:
             if version.isdigit():
                 filePath = filePattern + str(version)
             else:
-                # JDW wrap this for async?
                 for pth in glob.iglob(filePattern + "*"):
                     vNo = int(pth.split(".")[-1][1:])
                     fTupL.append((pth, vNo))
@@ -145,19 +144,16 @@ class PathUtils:
                 if contentType in self.__contentTypeInfoD:
                     if contentFormat:
                         if contentFormat in self.__contentTypeInfoD[contentType][0]:
-                            # logger.info("System supports %s contentType with %s contentFormat.", contentType, contentFormat)
                             ok = True
                         else:
                             logger.info("System does not support %s contentType with %s contentFormat.", contentType, contentFormat)
                     else:
-                        # logger.info("System supports %s contentType.", contentType)
                         ok = True
                 else:
                     logger.info("System does not support %s contentType.", contentType)
                 #
             elif contentFormat:
                 if contentFormat in self.__fileFormatExtensionD:
-                    # logger.info("System supports %s contentFormat.", contentFormat)
                     ok = True
                 else:
                     logger.info("System does not support %s contentFormat.", contentFormat)

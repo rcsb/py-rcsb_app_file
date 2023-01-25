@@ -4,7 +4,7 @@
 # Date:    16-Aug-2021
 # Version: 0.001
 #
-# Updates:
+# Updates: James Smith 2023
 ##
 """
 Accessors for configuration details.
@@ -20,10 +20,8 @@ import logging
 import os
 import typing
 
-# from mmcif.api.DataCategoryBase import DataCategoryBase
 from rcsb.utils.config.ConfigUtil import ConfigUtil
 from rcsb.utils.io.SingletonClass import SingletonClass
-# from rcsb.utils.io.MarshalUtil import MarshalUtil
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +29,10 @@ logger = logging.getLogger(__name__)
 class ConfigProvider(SingletonClass):
     """Accessors for configuration details."""
 
-    def __init__(self, configFilePath: typing.Optional[str] = None):  # cachePath: typing.Optional[str] = None,
+    def __init__(self, configFilePath: typing.Optional[str] = None):
         # ---
-        # self.__cachePath = cachePath if cachePath else os.environ.get("CACHE_PATH", os.path.abspath("./CACHE"))
         self.__configFilePath = configFilePath if configFilePath else os.environ.get("CONFIG_FILE")
         self.__configD = None
-        # self.__dataObj = None
         # ---
 
     def get(self, ky: str) -> typing.Optional[str]:
@@ -44,9 +40,6 @@ class ConfigProvider(SingletonClass):
             if not self.__configD:
                 if self.__configFilePath:
                     self.__readConFigFromConFigYmlFile()
-                # else:
-                #    self.__readConfig()
-                #
             return self.__configD["data"][ky]
         except Exception:
             pass
@@ -57,9 +50,6 @@ class ConfigProvider(SingletonClass):
             if not self.__configD:
                 if self.__configFilePath:
                     self.__readConFigFromConFigYmlFile()
-                # else:
-                #    self.__readConfig()
-                #
         except Exception as e:
             logger.exception("Failing with %s", str(e))
         return self.__configD["data"]

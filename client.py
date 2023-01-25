@@ -21,7 +21,7 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 
 """
-author James Smith
+author James Smith 2023
 """
 
 """ modifiable variables
@@ -32,11 +32,8 @@ hashType = "MD5"
 
 """ do not alter from here
 """
-# os.environ["CACHE_PATH"] = os.path.join(
-#     ".", "rcsb", "app", "tests-file", "test-data", "data"
-# )
+
 os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
-# cachePath = os.environ.get("CACHE_PATH")
 configFilePath = os.environ.get("CONFIG_FILE")
 cP = ConfigProvider(configFilePath)
 cP.getConfig()
@@ -48,7 +45,6 @@ headerD = {
 }
 SEQUENTIAL = False
 RESUMABLE = False
-ASYNCHRONOUS = False
 COMPRESS = False
 DECOMPRESS = False
 OVERWRITE = False
@@ -72,10 +68,9 @@ def upload(mD):
     global DECOMPRESS
     global SEQUENTIAL
     global RESUMABLE
-    global ASYNCHRONOUS
     global OVERWRITE
     global EMAIL_ADDRESS
-    if not SEQUENTIAL and not ASYNCHRONOUS and not RESUMABLE:
+    if not SEQUENTIAL and not RESUMABLE:
         # upload as one file
         response = None
         with open(mD["filePath"], "rb") as to_upload:
@@ -226,104 +221,12 @@ def upload(mD):
                 mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
         return responses
 
-
-async def asyncFiles(uploads):
-    tasks = [asyncFile(upload) for upload in uploads]
-    return await asyncio.gather(*tasks)
-
-
-async def asyncFile(mD):
-    global headerD
-    global ioU
-    global COMPRESS
-    global DECOMPRESS
-    global SEQUENTIAL
-    global ASYNCHRONOUS
-    global OVERWRITE
-    global EMAIL_ADDRESS
-    responses = []
-    # test for resumed upload
-    uploadId = mD["uploadId"]
-    url = os.path.join(base_url, "file-v2", "uploadStatus")
-    parameters = {"repositoryType": mD["repositoryType"],
-              "depId": mD["depId"],
-              "contentType": mD["contentType"],
-              "milestone": mD["milestone"],
-              "partNumber": str(mD["partNumber"]),
-              "contentFormat": mD["contentFormat"],
-              "hashDigest": mD["hashDigest"]
-              }
-    response = requests.get(
-        url,
-        params=parameters,
-        headers=headerD,
-        timeout=None
-    )
-    chunksSaved = "0" * mD["expectedChunks"]
-    if response.status_code == 200:
-        result = json.loads(response.text)
-        if result:
-            result = eval(result)
-            chunksSaved = result["chunksSaved"]
-    tasks = []
-    for index in range(0, len(chunksSaved)):
-        if chunksSaved[index] == "0":
-            tasks.append(asyncChunk(index, copy.deepcopy(mD)))
-    await asyncio.gather(*tasks)
-    return "upload complete"
-    # results = []
-    # for response in responses:
-    #     status = response.status_code
-    #     text = json.loads(response.text)
-    #     uploadId = text["uploadId"]
-    #     results.append(status)
-    # return results
-
-
-async def asyncChunk(index, mD):
-    filePath = mD["filePath"]
-    offset = index * mD["chunkSize"]
-    mD["chunkIndex"] = index
-    mD["chunkOffset"] = offset
-    response = None
-    # chunk file and upload
-    tmp = io.BytesIO()
-    with open(filePath, "rb") as to_upload:
-        to_upload.seek(offset)
-        url = os.path.join(base_url, "file-v2", "resumableUpload")
-        packet_size = min(
-            mD["fileSize"] - (mD["chunkIndex"] * mD["chunkSize"]),
-            mD["chunkSize"],
-        )
-        tmp.truncate(packet_size)
-        tmp.seek(0)
-        tmp.write(to_upload.read(packet_size))
-        tmp.seek(0)
-        requests.post(
-            url,
-            data=deepcopy(mD),
-            headers=headerD,
-            files={"uploadFile": tmp},
-            stream=True,
-            timeout=None,
-        )
-        # if response.status_code != 200:
-        #     print(
-        #         f"error - status code {response.status_code} {response.text}...terminating"
-        #     )
-        # else:
-        #     mD["chunkIndex"] += 1
-        #     mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
-    # return response
-
-
 def download(downloadFilePath, downloadDict):
     global headerD
     global maxChunkSize
     global COMPRESS
     global DECOMPRESS
     global SEQUENTIAL
-    global ASYNCHRONOUS
     global OVERWRITE
     global EMAIL_ADDRESS
     url = os.path.join(base_url, "file-v1", "downloadSize")
@@ -348,7 +251,6 @@ def download(downloadFilePath, downloadDict):
             for chunk in tqdm(response.iter_content(chunk_size=chunkSize), leave=False, total=chunks, desc=os.path.basename(downloadFilePath)):
                 if chunk:
                     ofh.write(chunk)
-                # print(f"wrote chunk {count} of {chunks} of size {chunkSize} for {downloadFilePath}")
                 count += 1
         responseCode = response.status_code
         rspHashType = response.headers["rcsb_hash_type"]
@@ -382,7 +284,6 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--email", nargs=1, metavar=("email_address"), help="***** set email address *****")
     parser.add_argument("-s", "--sequential", action="store_true", help="***** upload sequential chunks *****")
     parser.add_argument("-r", "--resumable", action="store_true", help="***** upload resumable sequential chunks *****")
-    parser.add_argument("-a", "--asynchronous", action="store_true", help="***** upload resumable async chunks *****")
     parser.add_argument("-o", "--overwrite", action="store_true", help="***** overwrite files with same name *****")
     parser.add_argument("-z", "--zip", action="store_true", help="***** zip files prior to upload *****")
     parser.add_argument("-x", "--expand", action="store_true", help="***** unzip files after upload *****")
@@ -391,16 +292,11 @@ if __name__ == "__main__":
     uploadIds = []
     downloads = []
     description()
-    chunkMode = None
     if args.sequential:
         SEQUENTIAL = True
     if args.resumable:
         RESUMABLE = True
-        chunkMode = "sequential"
-    if args.asynchronous:
-        ASYNCHRONOUS = True
-        chunkMode = "async"
-    if SEQUENTIAL and ASYNCHRONOUS or SEQUENTIAL and RESUMABLE or ASYNCHRONOUS and RESUMABLE:
+    if SEQUENTIAL and RESUMABLE:
         sys.exit('error - mututally incompatible options')
     if args.zip:
         COMPRESS = True
@@ -452,7 +348,7 @@ if __name__ == "__main__":
             if DECOMPRESS:
                 copyMode = "gzip_decompress"
             # upload complete file
-            if not SEQUENTIAL and not ASYNCHRONOUS and not RESUMABLE:
+            if not SEQUENTIAL and not RESUMABLE:
                 uploads.append({
                     # upload file parameters
                     "filePath": filePath,
@@ -472,7 +368,7 @@ if __name__ == "__main__":
                     "allowOverwrite": allowOverwrite
                 })
             # upload chunks
-            elif RESUMABLE or ASYNCHRONOUS or SEQUENTIAL:
+            elif RESUMABLE or SEQUENTIAL:
                 uploads.append(
                     {
                         # upload file parameters
@@ -486,7 +382,6 @@ if __name__ == "__main__":
                         "chunkIndex": chunkIndex,
                         "chunkOffset": chunkOffset,
                         "expectedChunks": expectedChunks,
-                        "chunkMode": chunkMode,
                         # save file parameters
                         "repositoryType": repositoryType,
                         "depId": depId,
@@ -528,23 +423,19 @@ if __name__ == "__main__":
             }
             downloads.append((downloadFilePath, downloadDict))
     if len(uploads) > 0:
-        if ASYNCHRONOUS:
-            # upload concurrent files concurrent chunks
-            uploadResults = asyncio.run(asyncFiles(uploads))
-        else:
-            # upload concurrent files sequential chunks or no chunks
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                futures = {executor.submit(upload, u): u for u in uploads}
-                results = []
-                for future in concurrent.futures.as_completed(futures):
-                    results.append(future.result())
-                for result in results:
-                    for response in result:
-                        uploadResults.append(response.status_code)
-                        res = json.loads(response.text)
-                        if res and res.get("uploadId"):
-                            uploadIds.append(res["uploadId"])
-                        uploadTexts.append(res)
+        # upload concurrent files sequential chunks or no chunks
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(upload, u): u for u in uploads}
+            results = []
+            for future in concurrent.futures.as_completed(futures):
+                results.append(future.result())
+            for result in results:
+                for response in result:
+                    uploadResults.append(response.status_code)
+                    res = json.loads(response.text)
+                    if res and res.get("uploadId"):
+                        uploadIds.append(res["uploadId"])
+                    uploadTexts.append(res)
     if len(downloads) > 0:
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {executor.submit(download, tpl[0], tpl[1]): tpl for tpl in downloads}

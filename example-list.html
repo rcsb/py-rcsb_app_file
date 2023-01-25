@@ -18,6 +18,17 @@
 				border: 1px solid black;
 				padding: 20px;
 			}
+			section {
+				margin:20px;
+				width:300px;
+				height:200px;
+				background-color:white;
+				border:1px solid gray;
+				overflow:scroll;
+			}
+			section ul {
+				list-style-type: none;
+			}
 		</style>
         <script type="text/javascript">
           handleform = () => {
@@ -29,13 +40,15 @@
             }
             let url = `http://0.0.0.0:8000/file-v1/list-dir?repositoryType=${repositoryType}&depId=${depId}`
             fetch(url, {
-              method: 'GET'
+              method: 'GET',
+				headers: {
+				  'Authorization': 'Bearer jwtDisable'
+				}
             }).then(response => response.json()).then(json => populate(json.dirList)).catch(err => console.log(err));
           }
           populate = (dirlist) => {
             if(document.getElementById('dirlist')) {
 				document.getElementById('dirlist').innerHTML = '';
-              // document.body.removeChild(document.getElementById('dirlist'));
             }
             if(! dirlist){
               return;
@@ -52,7 +65,6 @@
             }
             div.append(ul);
 			document.getElementById('dirlist').innerHTML = ul.innerHTML;
-            // document.body.append(div);
           }
         </script>
 	</head>
@@ -65,8 +77,8 @@
 				<input type="text" name="depId">
 				<input type="submit" value="submit">
 			</form>
-			<section style="margin:20px;width:300px;height:200px;background-color:white;border:1px solid gray;overflow:scroll;">
-				<ul id="dirlist" style="list-style-type: none;"></ul>
+			<section>
+				<ul id="dirlist"></ul>
 			</section>
 		</div>
 	</body>

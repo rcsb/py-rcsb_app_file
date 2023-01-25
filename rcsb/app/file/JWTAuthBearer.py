@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class JWTAuthBearer(HTTPBearer):
     def __init__(self, auto_error: bool = True):
         super(JWTAuthBearer, self).__init__(auto_error=auto_error)
-        self.__au = JWTAuthToken(os.environ["CONFIG_FILE"])  # os.environ["CACHE_PATH"],
+        self.__au = JWTAuthToken(os.environ["CONFIG_FILE"])
 
     async def __call__(self, request: Request):
         credentials: HTTPAuthorizationCredentials = await super(JWTAuthBearer, self).__call__(request)
@@ -34,7 +34,6 @@ class JWTAuthBearer(HTTPBearer):
             raise HTTPException(status_code=403, detail="Invalid authorization ")
 
     def validateToken(self, token: str) -> bool:
-        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         if token == cP.get("JWT_DISABLE"):

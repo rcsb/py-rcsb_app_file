@@ -20,15 +20,10 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.utils.io.FileUtil import FileUtil
-from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
-
-# from pydantic import BaseModel  # pylint: disable=no-name-in-module
-# from pydantic import Field
-
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["download"])
+router = APIRouter(tags=["download"])
 
 
 class HashType(str, Enum):
@@ -39,7 +34,6 @@ class HashType(str, Enum):
 
 @router.get("/downloadSize")
 async def downloadSize(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version):  # hashType=None):
-    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(configFilePath)
     pathU = PathUtils(cP)
@@ -58,7 +52,6 @@ async def download(
     version: str = Query("1", title="Version string", description="Version number or description", example="1,2,3, latest, previous"),
     hashType: HashType = Query(None, title="Hash type", description="Hash type", example="SHA256")
 ):
-    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(configFilePath)
     pathU = PathUtils(cP)

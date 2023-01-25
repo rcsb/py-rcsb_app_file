@@ -19,13 +19,13 @@ from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
 """
-author James Smith
+author James Smith 2023
 """
 
 """ modifiable global variables
 """
 base_url = "http://0.0.0.0:8000"
-chunkSize = 1024 * 1024 * 8  # default
+chunkSize = 1024 * 1024 * 8
 hashType = "MD5"
 FORWARDING = True  # for testing chunk forwarding to IoUtils.py, skipping uploadRequest.py
 
@@ -36,11 +36,7 @@ FORWARDING = True  # for testing chunk forwarding to IoUtils.py, skipping upload
 contentTypeInfoD = None
 fileFormatExtensionD = None
 headerD = None
-# os.environ["CACHE_PATH"] = os.path.join(
-#     ".", "rcsb", "app", "tests-file", "test-data", "data"
-# )
 os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
-# cachePath = os.environ.get("CACHE_PATH")
 configFilePath = os.environ.get("CONFIG_FILE")
 cP = ConfigProvider(configFilePath)
 cP.getConfig()
@@ -804,12 +800,10 @@ class Gui(tk.Frame):
 
         self.tabs = ttk.Notebook(master)
         self.splashTab = ttk.Frame(master)
-        # self.instructionsTab = ttk.Frame(master)
         self.uploadTab = ttk.Frame(master)
         self.downloadTab = ttk.Frame(master)
         self.listTab = ttk.Frame(master)
         self.tabs.add(self.splashTab, text='HOME')
-        # self.tabs.add(self.instructionsTab, text='INSTRUCTIONS')
         self.tabs.add(self.uploadTab, text='UPLOAD')
         self.tabs.add(self.downloadTab, text='DOWNLOAD')
         self.tabs.add(self.listTab, text='LIST')
@@ -900,8 +894,6 @@ class Gui(tk.Frame):
         self.sequentialChunkRadio.pack(anchor=tk.W)
         self.resumableRadio = ttk.Radiobutton(self.upload_group, text="resumable chunks", variable=self.upload_radio, value=3)
         self.resumableRadio.pack(anchor=tk.W)
-        # self.asyncChunkRadio = ttk.Radiobutton(self.upload_group, text="async chunks", variable=self.upload_radio, value=4)
-        # self.asyncChunkRadio.pack(anchor=tk.W)
         self.allowOverwriteButton = ttk.Checkbutton(self.upload_group, text="allow overwrite", variable=self.allow_overwrite)
         self.allowOverwriteButton.pack(anchor=tk.W)
         self.compressCheckbox = ttk.Checkbutton(self.upload_group, text="compress", variable=self.compress)
@@ -1072,7 +1064,6 @@ class Gui(tk.Frame):
         # hash
         hD = CryptUtils().getFileHash(filePath, hashType=hashType)
         fullTestHash = hD["hashDigest"]
-        # chunkSize = maxChunkSize
         fileSize = os.path.getsize(filePath)
         expectedChunks = 0
         if chunkSize < fileSize:
@@ -1083,7 +1074,6 @@ class Gui(tk.Frame):
             expectedChunks = 1
         chunkIndex = 0
         chunkOffset = 0
-        # chunkMode = "sequential"
         copyMode = "native"
         if DECOMPRESS:
             copyMode = "gzip_decompress"
@@ -1143,7 +1133,6 @@ class Gui(tk.Frame):
                 "chunkIndex": chunkIndex,
                 "chunkOffset": chunkOffset,
                 "expectedChunks": expectedChunks,
-                # "chunkMode": "sequential",
                 # save file parameters
                 "filePath": filePath,
                 "copyMode": copyMode,
@@ -1251,7 +1240,6 @@ class Gui(tk.Frame):
                 "chunkIndex": chunkIndex,
                 "chunkOffset": chunkOffset,
                 "expectedChunks": expectedChunks,
-                "chunkMode": "sequential",
                 # save file parameters
                 "repositoryType": repositoryType,
                 "depId": depId,
@@ -1327,112 +1315,6 @@ class Gui(tk.Frame):
                     self.upload_status.set(f'{self.status}%')
                     self.master.update()
             print(responses)
-        # upload resumable async chunks
-        elif self.upload_radio.get() == 4:
-            mD = {
-                # upload file parameters
-                "uploadId": None,
-                "hashType": hashType,
-                "hashDigest": fullTestHash,
-                # chunk parameters
-                # "chunkSize": chunkSize,
-                "chunkIndex": chunkIndex,
-                "chunkOffset": chunkOffset,
-                "expectedChunks": expectedChunks,
-                "chunkMode": "async",
-                # save file parameters
-                "repositoryType": repositoryType,
-                "depId": depId,
-                "contentType": contentType,
-                "milestone": milestone,
-                "partNumber": partNumber,
-                "contentFormat": contentFormat,
-                "version": version,
-                "copyMode": copyMode,
-                "allowOverwrite": allowOverwrite,
-                "emailAddress": email
-            }
-            responses = asyncio.run(self.asyncUpload(filePath, fileSize, mD))
-            print(responses)
-            print(f'time {time.perf_counter() - t1} s')
-
-    async def asyncUpload(self, filePath, fileSize, mD):
-        global iou
-        chunksSaved = "0" * mD["expectedChunks"]
-        # test for resumed upload
-        parameters = {"repositoryType": mD["repositoryType"],
-                      "depId": mD["depId"],
-                      "contentType": mD["contentType"],
-                      "milestone": mD["milestone"],
-                      "partNumber": str(mD["partNumber"]),
-                      "contentFormat": mD["contentFormat"],
-                      "version": mD["version"],
-                      "hashDigest": mD["hashDigest"]
-                      }
-        if FORWARDING:
-            result = await iou.getUploadStatus(**parameters)
-            if result:
-                print(f'{type(result)} {result}')
-                result = eval(result)
-                chunksSaved = result["chunksSaved"]
-        else:
-            url = os.path.join(base_url, "file-v2", "uploadStatus")
-            response = requests.get(
-                url,
-                params=parameters,
-                headers=headerD,
-                timeout=None
-            )
-            if response.status_code == 200:
-                result = json.loads(response.text)
-                if result:
-                    result = eval(result)
-                    chunksSaved = result["chunksSaved"]
-        tasks = []
-        for index in range(0, len(chunksSaved)):
-            if chunksSaved[index] == "0":
-                tasks.append(self.asyncChunk(index, filePath, fileSize, copy.deepcopy(mD)))
-        responses = asyncio.gather(*tasks)
-        self.upload_status.set('100%')
-        self.master.update()
-        return responses
-
-
-    async def asyncChunk(self, index, filePath, fileSize, mD):
-        global iou
-        responses = []
-        try:
-            offset = index * chunkSize
-            mD["chunkIndex"] = index
-            mD["chunkOffset"] = offset
-            tmp = io.BytesIO()
-            with open(filePath, "rb") as to_upload:
-                to_upload.seek(offset)
-                packet_size = min(
-                    int(fileSize) - (int(mD["chunkIndex"]) * int(chunkSize)),
-                    int(chunkSize),
-                )
-                tmp.truncate(packet_size)
-                tmp.seek(0)
-                tmp.write(to_upload.read(packet_size))
-                tmp.seek(0)
-                if FORWARDING:
-                    mD["ifh"] = tmp
-                    response = await iou.resumableUpload(**mD)
-                else:
-                    url = os.path.join(base_url, "file-v2", "resumableUpload")
-                    response = requests.post(
-                        url,
-                        data=mD,
-                        headers=headerD,
-                        files={"uploadFile": tmp},
-                        stream=True,
-                        timeout=None,
-                    )
-                responses.append(response)
-        except Exception as exc:
-            print(f'error {str(exc)}')
-        return responses
 
     def download(self):
         global headerD
@@ -1488,7 +1370,6 @@ class Gui(tk.Frame):
             print(f'error - no response for {downloadFilePath}')
             return None
         fileSize = int(fileSize)
-        # chunkSize = maxChunkSize
         chunks = math.ceil(fileSize / chunkSize)
         url = os.path.join(base_url, "file-v1", "download")
         url = f'{url}?repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}&partNumber={partNumber}&contentFormat={contentFormat}&version={version}&hashType={hashType}'
@@ -1499,8 +1380,6 @@ class Gui(tk.Frame):
                 for chunk in response.iter_content(chunk_size=chunkSize):
                     if chunk:
                         ofh.write(chunk)
-                    # ofh.flush()
-                    # os.fsync(ofh.fileno())
                     count += 1
                     self.status = math.ceil((count / chunks) * 100)
                     self.download_status.set(f'{self.status}%')

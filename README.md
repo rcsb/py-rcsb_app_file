@@ -57,11 +57,9 @@ The sequential endpoint has a minimal code footprint but requires some setup by 
 
 To maintain sequential order, the client must wait for each response before sending the next chunk.
 
-For the resumable endpoint, chunks may be either sequential or async, depending on the chunk mode.
+The resumable endpoint has server-side resumability support, and also uses sequential chunks, with the same requirements.
 
-Resumability requires a request to the 'file-v2/getUploadStatus' endpoint prior to the resumableUpload endpoint.
-
-The other endpoints would require client-side support for resumable uploads, most likely with local storage.
+Resumability first requires a request to the 'file-v2/getUploadStatus' endpoint prior to the resumableUpload endpoint.
 
 The download endpoint is found at 'file-v1/download'.
 
@@ -70,9 +68,6 @@ The list directory endpoint is found at 'file-v1/list-dir'.
 To skip endpoints and forward a chunk or file from Python, use functions by the same names in IoUtils.py.
 
 Examples of forwarding are found in gui.py when FORWARDING = True, and have yet to be implemented in client.py.
-
-The resumable async functions accept an email address and send an email on completion, provided for a feature which has not yet been implemented, early exit from the client side.
-
 
 # Uploads and downloads
 
@@ -94,9 +89,8 @@ python3 client.py
 [--upload source_file repo_type id content_type milestone part format version]
 [--download target_file repo_type id content_type milestone part format version]
 [--list repo_type dep_id (list directory)]
-[-e address (set email address)]
 [-s (chunk file sequentially)]
-[-a (chunk file asynchronously)]
+[-r (chunk file resumably)]
 [-o (overwrite files with same name)]
 [-z (zip files prior to upload)]
 [-x (expand files after upload)]
@@ -126,7 +120,7 @@ From base repository directory (in `py-rcsb_app_file/`), start app with:
 
 # Sqlite3
 
-When uploading async chunks, server processes coordinate through a database named KV (key-value)
+When uploading resumable chunks, server processes coordinate through a database named KV (key-value)
 
 If KV_MODE is set to sqlite in rcsb/app/config/config.yml, chunk information is coordinated with a sqlite3 database
 
@@ -153,7 +147,7 @@ find / -name kv.sqlite
 
 # Redis
 
-If KV_MODE is set to redis in rcsb/app/config/config.yml, async chunks coordinate through a Redis database
+If KV_MODE is set to redis in rcsb/app/config/config.yml, resumable chunks coordinate through a Redis database
 
 Install Redis
 ```

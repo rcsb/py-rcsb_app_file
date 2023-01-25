@@ -36,7 +36,6 @@ async def merge(
     Returns:
         (dict): {"success": True|False, "statusMessage": <text>}
     """
-    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(configFilePath)
 

@@ -4,7 +4,7 @@
 # Date:    11-Aug-2020
 # Version: 0.001
 #
-# Update:
+# Update: James Smith 2023
 #
 #
 # Notes:
@@ -21,20 +21,17 @@ __author__ = "John Westbrook"
 __email__ = "jwest@rcsb.rutgers.edu"
 __license__ = "Apache 2.0"
 
-# import asyncio
 import logging
 import os
 import platform
 import resource
 import time
 import unittest
-# import uuid
 
 # pylint: disable=wrong-import-position
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 from fastapi.testclient import TestClient
@@ -48,14 +45,10 @@ from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.utils.io.LogUtil import StructFormatter
 
 
-# sl = logging.StreamHandler()
-# sl.setFormatter(StructFormatter(fmt=None, mask=None))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
 root_handler = logger.handlers[0]
 root_handler.setFormatter(StructFormatter(fmt=None, mask=None))
-# logger.addHandler(sl)
-# logger.propagate = True
 logger.setLevel(logging.INFO)
 
 
@@ -65,29 +58,16 @@ class FileUploadTests(unittest.TestCase):
     def setUp(self):
 
         self.__dataPath = os.path.join(HERE, "data")
-        # self.__cachePath = os.environ.get("CACHE_PATH")
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         logger.info("self.__dataPath %s", self.__dataPath)
-        # logger.info("self.__cachePath %s", self.__cachePath)
         logger.info("self.__configFilePath %s", self.__configFilePath)
-        # self.__sessionPath = os.path.join(self.__dataPath, "sessions")
         self.__fU = FileUtil()
-        # self.__fU.remove(self.__sessionPath)
-        # self.__fU.mkdir(self.__sessionPath)
-        #
-        # for fn in ["example-data.cif"]:  # Only needed for ConfigProvider init
-        #     self.__fU.put(os.path.join(self.__dataPath, fn), os.path.join(self.__cachePath, fn))
-        #
+
         # Generate testFile.dat and gzipped version of file for testing gzip upload (must retain unzipped file for hash-comparison purposes)
         nB = 2500000
         self.__testFileDatPath = os.path.join(self.__dataPath, "testFile.dat")
-        # with open(self.__testFileDatPath, "wb") as ofh:
-        #     ofh.write(os.urandom(nB))  # generate random content file
-        #
         self.__testFileGzipPath = os.path.join(self.__dataPath, "testFile.dat.gz")
         self.__fU.compress(self.__testFileDatPath, self.__testFileGzipPath)
-        #
-        # self.__testFilePath = "emd_13856.map.gz"  # 52GB file test
         #
         self.__testFilePath = os.path.join(self.__dataPath, "example-data.cif")  # This is needed to prepare input for testFileDownlaod to work
         #
@@ -121,12 +101,7 @@ class FileUploadTests(unittest.TestCase):
             (self.__testFilePath, "native", 1, False, 405),
             (self.__testFileGzipPath, "decompress_gzip", 3, True, 200),
         ]:
-            # print(testFilePath)
             print(f'{copyMode} {partNumber} {allowOverwrite} {responseCode}')
-            #  Using the uncompressed hash
-            # if copyMode == "decompress_gzip":
-            #     hD = CryptUtils().getFileHash(testFilePath.split(".gz")[0], hashType=hashType)
-            # else:
             hD = CryptUtils().getFileHash(testFilePath, hashType=hashType)
             testHash = hD['hashDigest']
             print("testHash", testHash)
@@ -153,13 +128,7 @@ class FileUploadTests(unittest.TestCase):
                             logging.warning(f'UPLOADING {version}')
                             response = client.post("/file-v2/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
                         print(f'STATUS CODE {response.status_code}')
-                        # if response.status_code != responseCode:
-                        #     logger.info("response %r %r %r", response.status_code, response.reason, response.content)
                         self.assertTrue(response.status_code == responseCode or (response.status_code != 200 and responseCode != 200))
-                        # rD = response.json()
-                        # logger.info("rD %r", rD.items())
-                        # if responseCode == 200:
-                        #     self.assertTrue(rD["success"])
                     #
                     logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
                 except Exception as e:

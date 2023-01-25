@@ -4,7 +4,7 @@
 # Date:    11-Aug-2020
 # Version: 0.001
 #
-# Update:
+# Update: James Smith 2023
 #
 #
 ##
@@ -29,8 +29,6 @@ import unittest
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data", "data"))
-# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 from fastapi.testclient import TestClient
@@ -47,11 +45,9 @@ logger.setLevel(logging.INFO)
 
 class FileUpdateTests(unittest.TestCase):
     def setUp(self):
-        # self.__cachePath = os.environ.get("CACHE_PATH")
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__dataPath = os.path.join(HERE, "data")
         self.__testFilePath = os.path.join(self.__dataPath, "config", "example-data.cif")
-        # self.__downloadFilePath = os.path.join(self.__dataPath, "downloadFile.cif")
         self.__updatedFilePath = os.path.join(self.__dataPath, "testFile.dat")
 
         # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
@@ -78,8 +74,6 @@ class FileUpdateTests(unittest.TestCase):
         useHash = True
         if useHash:
             refHashType = "MD5"
-            # hD = CryptUtils().getFileHash(testFilePath, hashType=refHashType)
-            # refHashDigest = hD["hashDigest"]
 
         # Update file content
 
@@ -100,7 +94,7 @@ class FileUpdateTests(unittest.TestCase):
                 "milestone": "None",
                 "partNumber": 1,
                 "contentFormat": "pdbx",
-                "version": "1",  # Upload "next"
+                "version": "1",
                 "copyMode": "native",
                 "allowOverwrite": True
             }
@@ -109,10 +103,7 @@ class FileUpdateTests(unittest.TestCase):
                 with open(self.__updatedFilePath, "rb") as ifh:
                     files = {"uploadFile": ifh}
                     response = client.post("/file-v2/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
-                #
-                # if response.status_code != responseCode:
-                #     logger.info("response %r %r %r", response.status_code, response.reason, response.content)
-                #
+
                 self.assertTrue(response.status_code == responseCode)
                 rD = response.json()
                 logger.info("rD %r", rD.items())
@@ -137,7 +128,7 @@ class FileUpdateTests(unittest.TestCase):
                 "milestone": "none",
                 "partNumber": 1,
                 "contentFormat": "pdbx",
-                "version": "1",  # Upload "next"
+                "version": "1",
                 "copyMode": "native",
                 "allowOverwrite": True,
             }
@@ -146,10 +137,7 @@ class FileUpdateTests(unittest.TestCase):
                 with open(self.__updatedFilePath, "rb") as ifh:
                     files = {"uploadFile": ifh}
                     response = client.post("/file-v2/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
-                #
-                # if response.status_code != responseCode:
-                #     logger.info("response %r %r %r", response.status_code, response.reason, response.content)
-                #
+
                 self.assertTrue(response.status_code == responseCode)
                 rD = response.json()
                 logger.info("rD %r", rD.items())

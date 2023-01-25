@@ -14,13 +14,11 @@ import logging
 import os
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
-# from fastapi.security.utils import get_authorization_scheme_param
 
 # pylint: disable=wrong-import-position
 # This environment must be set before JWTAuthBearer is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "tests-file", "test-data"))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
 
 from . import ConfigProvider
@@ -63,14 +61,11 @@ app.add_middleware(
 async def startupEvent():
     # Note that this will run every time a test is performed via, "with TestClient(app) as...",
     # but in production will only run once at startup
-    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     logger.debug("Startup - running application startup placeholder method")
-    # logger.debug("Using cachePath %r", cachePath)
     logger.debug("Using configFilePath %r", configFilePath)
     cp = ConfigProvider.ConfigProvider(configFilePath)
     _ = cp.getConfig()
-    # _ = cp.getData()
 
 
 @app.on_event("shutdown")

@@ -4,7 +4,7 @@
 # Date:    24-May-2022
 # Version: 0.001
 #
-# Update:
+# Update: James Smith 2023
 #
 #
 ##
@@ -29,12 +29,7 @@ import unittest
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-# os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output"))
-# os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "tests-file", "test-data", "config", "config.yml"))
-# Use custom cache and config path for this set of tests
-# os.environ["CACHE_PATH"] = os.path.join(HERE, "test-output")
 os.environ["CONFIG_FILE"] = os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml")
-# os.environ["CONFIG_FILE"] = os.path.join(TOPDIR, "rcsb", "app", "tests-file", "test-data", "config", "config.yml")
 
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
@@ -358,7 +353,7 @@ def pathRequestTestSuite():
     suiteSelect.addTest(PathRequestTests("testListDir"))
     suiteSelect.addTest(PathRequestTests("testLatestFileVersion"))
     suiteSelect.addTest(PathRequestTests("testCopyFile"))
-    # suiteSelect.addTest(PathRequestTests("testMoveFile"))  # deletes a file and ruins other tests that rely on that file
+    # suiteSelect.addTest(PathRequestTests("testMoveFile"))  # deletes a file and breaks other tests that rely on that file
     suiteSelect.addTest(PathRequestTests("testCompressDir"))
     return suiteSelect
 

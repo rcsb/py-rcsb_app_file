@@ -94,7 +94,6 @@ async def fileExists(
     success = False
     try:
         fU = FileUtil()
-        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
@@ -131,7 +130,6 @@ async def dirExists(
     success = False
     try:
         fU = FileUtil()
-        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
@@ -174,7 +172,6 @@ async def pathExists(
     except Exception as e:
         logger.exception("Failing with %s", str(e))
         ret = {"path": path, "success": False, "statusCode": 400, "statusMessage": "File checking fails with %s" % str(e)}
-        # raise HTTPException(status_code=400, detail="File checking fails with %s" % str(e))
     #
     if not success:
         if path:
@@ -203,7 +200,6 @@ async def latestFileVersion(
     fileVersion = None
     try:
         fU = FileUtil()
-        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
@@ -263,7 +259,6 @@ async def copyFile(
     success = False
     try:
         fU = FileUtil()
-        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
@@ -275,14 +270,6 @@ async def copyFile(
         filePathSource = pathU.getVersionedPath(repositoryTypeSource, depIdSource, contentTypeSource, milestone, partNumberSource, contentFormatSource, versionSource)
         logger.info("filePathSource %r", filePathSource)
         if not versionTarget:
-            # if versionSource == "latest":
-            #     versionTarget = latestFileVersion(
-            #         depId=depIdSource,
-            #         repositoryType=repositoryTypeSource,
-            #         contentType=contentTypeSource,
-            #         contentFormat=contentFormatSource,
-            #         partNumber=partNumberSource,
-            #     )
             sourceFileEnd = filePathSource.split(".")[-1]
             if "V" in sourceFileEnd:
                 # set target version to the same as source version
@@ -362,7 +349,6 @@ async def moveFile(
     success = False
     try:
         fU = FileUtil()
-        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
@@ -448,7 +434,6 @@ async def listDir(
     dirExistsCheck = None
     try:
         fU = FileUtil()
-        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
@@ -459,7 +444,6 @@ async def listDir(
         dirExistsCheck = fU.exists(dirPath)
         if dirExistsCheck:
             dirList = os.listdir(dirPath)
-            # logger.info("dirList (len %d): %r", len(dirList), dirList)
             success = True
     #
     except Exception as e:
@@ -525,7 +509,6 @@ async def compressDir(
     dirRemovedBool = None
     try:
         fU = FileUtil()
-        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)

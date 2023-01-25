@@ -81,9 +81,6 @@ async def upload(
     ifh = uploadFile.file
     ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
     try:
-        # fn = uploadFile.filename
-        # ct = uploadFile.content_type
-        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
@@ -181,7 +178,6 @@ async def getSaveFilePath(repositoryType: str = Query(...),
                           contentFormat: str = Query(...),
                           version: str = Query(default="next"),
                           allowOverwrite: bool = Query(default=False)):
-    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(configFilePath)
     pathU = PathUtils(cP)
@@ -219,15 +215,12 @@ async def sequentialUpload(
     chunkIndex: int = Form(None),
     chunkOffset: int = Form(None),
     expectedChunks: int = Form(None),
-    # chunkMode: str = Form("sequential"),
     # save file parameters
     filePath: str = Form(...),
     copyMode: str = Form("native"),
     allowOverwrite: bool = Query(default=False)
 ):
     ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
-    # fn = uploadFile.filename
-    # ct = uploadFile.content_type
     dirPath, _ = os.path.split(filePath)
     tempPath = os.path.join(dirPath, "." + uploadId)
     contents = await uploadFile.read()
@@ -314,7 +307,6 @@ async def getUploadStatus(repositoryType: str = Query(...),
                           version: str = Query(default="next"),
                           hashDigest: str = Query(default=None)
                           ):
-    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(configFilePath)
     ioU = IoUtils(cP)
@@ -349,7 +341,6 @@ async def getUploadStatus(repositoryType: str = Query(...),
 # return kv entry from upload id
 @router.get("/uploadStatusFromId/{uploadId}")
 async def getUploadStatusFromId(uploadId: str = Path(...)):
-    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(configFilePath)
     ioU = IoUtils(cP)
@@ -366,7 +357,6 @@ async def findUploadId(repositoryType: str = Query(),
                        partNumber: int = Query(...),
                        contentFormat: str = Query(...),
                        version: str = Query(...)):
-    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(configFilePath)
     ioU = IoUtils(cP)
@@ -376,7 +366,6 @@ async def findUploadId(repositoryType: str = Query(),
 # clear kv entries from one user
 @router.post("/clearSession")
 async def clearSession(uploadIds: list = Form(...)):
-    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(configFilePath)
     ioU = IoUtils(cP)
@@ -386,7 +375,6 @@ async def clearSession(uploadIds: list = Form(...)):
 # purge kv before testing
 @router.post("/clearKv")
 async def clearKv():
-    # cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(configFilePath)
     ioU = IoUtils(cP)
@@ -405,7 +393,6 @@ async def resumableUpload(
     chunkIndex: int = Form(0),
     chunkOffset: int = Form(0),
     expectedChunks: int = Form(1),
-    chunkMode: str = Form("async"),
     # save file parameters
     depId: str = Form(...),
     repositoryType: str = Form(...),
@@ -421,7 +408,6 @@ async def resumableUpload(
     fn = None
     ct = None
     try:
-        # cachePath = os.environ.get("CACHE_PATH")
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         logger.debug("depId %r hash %r hashType %r", depId, hashDigest, hashType)
@@ -442,7 +428,6 @@ async def resumableUpload(
             chunkIndex=chunkIndex,
             chunkOffset=chunkOffset,
             expectedChunks=expectedChunks,
-            chunkMode=chunkMode,
             # save file parameters
             depId=depId,
             repositoryType=repositoryType,

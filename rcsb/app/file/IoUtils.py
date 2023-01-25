@@ -85,13 +85,10 @@ class IoUtils:
             return None
         try:
             if hashType == "SHA1":
-                # hashObj = await self.__hashSHA1()
                 hashObj = hashlib.sha1()
             elif hashType == "SHA256":
-                # hashObj = await self.__hashSHA256()
                 hashObj = hashlib.sha256()
             elif hashType == "MD5":
-                # hashObj = await self.__hashMD5()
                 hashObj = hashlib.md5()
 
             with open(filePath, "rb") as ifh:
@@ -125,7 +122,6 @@ class IoUtils:
         outPath = None
         ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
         try:
-            # cachePath = os.environ.get("CACHE_PATH")
             configFilePath = os.environ.get("CONFIG_FILE")
             cP = ConfigProvider(configFilePath)
             pathU = PathUtils(cP)
@@ -222,7 +218,6 @@ class IoUtils:
             chunkIndex: int,
             chunkOffset: int,
             expectedChunks: int,
-            # chunkMode: str,
             # save file parameters
             filePath: str,
             copyMode: str,
@@ -316,7 +311,6 @@ class IoUtils:
         chunkIndex: int = 0,
         chunkOffset: int = 0,
         expectedChunks: int = 1,
-        chunkMode: str = "sequential",
         # save file parameters
         depId: str = None,
         repositoryType: str = "archive",
@@ -336,7 +330,6 @@ class IoUtils:
 
         # get path for saving file, test if file exists and is overwritable
         outPath = None
-        # could change when have race condition, resulting in different names for different chunks of same file, stopped by hash check prior to saving
         outPath = self.__pathU.getVersionedPath(
             repositoryType=repositoryType,
             depId=depId,
@@ -353,7 +346,6 @@ class IoUtils:
             raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
         # test if file name in log table (resumed upload or later chunk)
         # if find resumed upload then set uid = previous uid, otherwise new uid
-        # lock so that even for concurrent chunks the first chunk will write an upload id that subsequent chunks will use
         if uploadId is None:
             uploadId = await self.getResumedUpload(
                 repositoryType=repositoryType,
@@ -383,69 +375,28 @@ class IoUtils:
             # for async mode and return value expected from get session
             chunksSaved = "0" * expectedChunks
             self.__kV.setSession(key, "chunksSaved", chunksSaved)
-        if chunkMode == "async":
-            chunksSaved = self.__kV.getSession(key, "chunksSaved")
-            chunksSaved = list(chunksSaved)
-            # do nothing if already have that chunk
-            if chunksSaved[chunkIndex] == "1":
-                return {
-                    "success": True,
-                    "statusCode": 200,
-                    "uploadId": uploadId,
-                    "statusMessage": f"Error - redundant chunk {chunkIndex} of {expectedChunks} for id {uploadId} is less than {currentCount}"
-                }
-            # otherwise mark as saved
-            chunksSaved[chunkIndex] = "1"  # currentCount
-            chunksSaved = "".join(chunksSaved)
-            self.__kV.setSession(key, "chunksSaved", chunksSaved)
 
         ret = None
-        if chunkMode == "sequential":
-            self.__kV.inc(key, val)
-            ret = self.sequentialChunk(
-                ifh,
-                outPath,
-                # chunkIndex,
-                chunkOffset,
-                expectedChunks,
-                uploadId,
-                key,
-                val,
-                # mode="ab",
-                copyMode=copyMode,
-                hashType=hashType,
-                hashDigest=hashDigest,
-                logKey=logKey,
-                allowOverwrite=allowOverwrite
-            )
-            ret["fileName"] = os.path.basename(outPath) if ret["success"] else None
-            ret["uploadId"] = uploadId  # except after last chunk uploadId gets deleted
-            return ret
-        elif chunkMode == "async":
-            self.asyncChunk(
-                ifh,
-                outPath,
-                chunkIndex,
-                chunkOffset,
-                # expectedChunks,
-                # chunkSize,
-                uploadId,
-                key,
-                val,
-                # "ab",
-                # copyMode,
-                # hashType,
-                # hashDigest,
-                # logKey,
-                # emailAddress,
-                # allowOverwrite
-            )
-            if chunkIndex + 1 == expectedChunks:
-                self.syncFiles(outPath, uploadId, key, copyMode, hashType, hashDigest, logKey, emailAddress, allowOverwrite)
-            ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
-            return ret
-        else:
-            raise HTTPException(status_code=400, detail="error - unknown chunk mode")
+        self.__kV.inc(key, val)
+        ret = self.sequentialChunk(
+            ifh,
+            outPath,
+            # chunkIndex,
+            chunkOffset,
+            expectedChunks,
+            uploadId,
+            key,
+            val,
+            # mode="ab",
+            copyMode=copyMode,
+            hashType=hashType,
+            hashDigest=hashDigest,
+            logKey=logKey,
+            allowOverwrite=allowOverwrite
+        )
+        ret["fileName"] = os.path.basename(outPath) if ret["success"] else None
+        ret["uploadId"] = uploadId  # except after last chunk uploadId gets deleted
+        return ret
 
     # in-place resumable sequential chunk
 
@@ -541,179 +492,6 @@ class IoUtils:
         finally:
             ifh.close()
         return ret
-
-    # resumable distributed chunk with joining
-    def asyncChunk(
-        self,
-        ifh: typing.IO,
-        outPath: str,
-        chunkIndex: int,
-        chunkOffset: int,
-        # expectedChunks: int,
-        # chunkSize: int,
-        uploadId: str,
-        key: str,
-        val: str,
-        # mode: typing.Optional[str] = "wb",
-        # copyMode: typing.Optional[str] = "native",
-        # hashType: typing.Optional[str] = None,
-        # hashDigest: typing.Optional[str] = None,
-        # logKey: str = None,
-        # emailAddress: str = None,
-        # allowOverwrite: bool = False
-    ) -> typing.Dict:
-        tempDir = None
-        tempPath = None
-        fn = None
-        ret = {"success": True, "statusCode": 200, "statusMessage": f"Store uploaded for {fn}"}
-        try:
-            dirPath, fn = os.path.split(outPath)
-            tempDir = self.getTempDirPath(uploadId, dirPath)
-            os.makedirs(dirPath, mode=0o755, exist_ok=True)
-            os.makedirs(tempDir, mode=0o755, exist_ok=True)
-            chunkPath = os.path.join(tempDir, str(chunkIndex))
-            with open(chunkPath, "wb") as ofh:
-                ofh.seek(chunkOffset)
-                ofh.write(ifh.read())
-                ofh.flush()
-                os.fsync(ofh.fileno())
-            self.__kV.inc(key, val)
-        except HTTPException as exc:
-            if tempPath and os.path.exists(tempPath):
-                os.unlink(tempPath)
-            logger.exception("Internal write error for path %r: %s", outPath, exc.detail)
-            ret = {"success": False, "statusCode": exc.status_code, "statusMessage": exc.detail}
-            raise HTTPException(status_code=exc.status_code, detail=f"Store fails with {exc.detail}")
-        except Exception as exc:
-            if tempPath and os.path.exists(tempPath):
-                os.unlink(tempPath)
-            logger.exception("Internal write error for path %r: %s", outPath, str(exc))
-            ret = {"success": False, "statusCode": 400, "statusMessage": str(exc)}
-            raise HTTPException(status_code=400, detail=f"Store fails with {str(exc)}")
-        finally:
-            ifh.close()
-        return ret
-
-    # invoke join chunks
-    def syncFiles(
-            self,
-            outPath: str,
-            # chunkIndex: int,
-            # chunkOffset: int,
-            # expectedChunks: int,
-            # chunkSize: int,
-            uploadId: str,
-            key: str,
-            # val: str,
-            # mode: typing.Optional[str] = "wb",
-            copyMode: typing.Optional[str] = "native",
-            hashType: typing.Optional[str] = None,
-            hashDigest: typing.Optional[str] = None,
-            logKey: str = None,
-            emailAddress: str = None,
-            allowOverwrite: bool = False
-    ) -> typing.Dict:
-        ok = False
-        tempDir = None
-        tempPath = None
-        fn = None
-        ret = {"success": True, "statusCode": 200, "statusMessage": f"Store uploaded for {fn}"}
-        try:
-            dirPath, fn = os.path.split(outPath)
-            tempDir = self.getTempDirPath(uploadId, dirPath)
-            os.makedirs(dirPath, mode=0o755, exist_ok=True)
-            os.makedirs(tempDir, mode=0o755, exist_ok=True)
-            # chunkPath = os.path.join(tempDir, str(chunkIndex))
-            ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
-            tempPath = self.joinChunks(uploadId, dirPath, tempDir)
-            if not tempPath:
-                raise HTTPException(status_code=400, detail=f"error saving {fn}")
-            else:
-                ok = True
-                if hashDigest and hashType:
-                    # hash
-                    ok = self.checkHash(tempPath, hashDigest, hashType)
-                    if not ok:
-                        raise HTTPException(status_code=400, detail=f"{hashType} hash check failed")
-                    else:
-                        # lock then save
-                        lockPath = os.path.join(os.path.dirname(outPath),
-                                                "." + os.path.basename(outPath) + ".lock")
-                        lock = FileLock(lockPath)
-                        try:
-                            with lock.acquire(timeout=60 * 60 * 4):
-                                # last minute race condition handling
-                                if os.path.exists(outPath) and not allowOverwrite:
-                                    raise HTTPException(status_code=400,
-                                                        detail='error - encountered existing file without overwrite')
-                                else:
-                                    # save final version
-                                    os.replace(tempPath, outPath)
-                        except Timeout:
-                            raise HTTPException(status_code=400, detail=f'error - lock timed out on {outPath}')
-                        finally:
-                            lock.release()
-                            if os.path.exists(lockPath):
-                                os.unlink(lockPath)
-                        msg = ret["statusMessage"]
-                        response = self.sendEmail(emailAddress, msg)
-                        if response:
-                            ret["statusMessage"] = response
-                    if os.path.exists(tempPath):
-                        os.unlink(tempPath)
-                    # decompress
-                    if copyMode == "gzip_decompress":
-                        # just deleted temp path but using again for a temp file
-                        with gzip.open(outPath, "rb") as r:
-                            with open(tempPath, "wb") as w:
-                                w.write(r.read())
-                        os.replace(tempPath, outPath)
-                else:
-                    logging.warning("hash error")
-                    raise HTTPException(status_code=400, detail="Error - missing hash")
-            self.clearSession(key, logKey)
-        except HTTPException as exc:
-            if tempPath and os.path.exists(tempPath):
-                os.unlink(tempPath)
-            logger.exception("Internal write error for path %r: %s", outPath, exc.detail)
-            ret = {"success": False, "statusCode": exc.status_code, "statusMessage": exc.detail}
-            raise HTTPException(status_code=exc.status_code, detail=f"Store fails with {exc.detail}")
-        except Exception as exc:
-            if tempPath and os.path.exists(tempPath):
-                os.unlink(tempPath)
-            logger.exception("Internal write error for path %r: %s", outPath, str(exc))
-            ret = {"success": False, "statusCode": 400, "statusMessage": str(exc)}
-            raise HTTPException(status_code=400, detail=f"Store fails with {str(exc)}")
-        return ret
-
-    # join chunks into one file
-
-    def joinChunks(self, uploadId, dirPath, tempDir):
-        tempPath = self.getTempFilePath(uploadId, dirPath)
-        try:
-            files = sorted([f for f in os.listdir(tempDir) if re.match(r"[0-9]+", f)], key=int)
-            previous = 0
-            with open(tempPath, "ab") as w:
-                for f in files:
-                    index = int(f)
-                    if index < previous:
-                        raise HTTPException(status_code=500, detail="error - indices not sorted")
-                    previous += 1
-                    chunkPath = os.path.join(tempDir, f)
-                    with open(chunkPath, "rb") as r:
-                        w.write(r.read())
-                    os.unlink(chunkPath)
-        except HTTPException:
-            tempPath = None
-        except Exception:
-            tempPath = None
-        finally:
-            try:
-                os.rmdir(tempDir)
-            except Exception:
-                logging.warning('error - could not delete %s', tempDir)
-                tempPath = None
-        return tempPath
 
     # utility functions
 

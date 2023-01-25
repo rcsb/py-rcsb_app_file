@@ -18,7 +18,6 @@ class KvSqlite:
         except Exception:
             # table already exists
             pass
-            # logging.warning(f'exception in KvSqlite: {type(exc)} {exc}')
         if self.kV is None:
             raise Exception("error in KvSqlite - no database")
 
