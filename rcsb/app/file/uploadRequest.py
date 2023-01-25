@@ -103,7 +103,7 @@ async def upload(
         uploadId = await getNewUploadId()
         uploadId = uploadId["id"]
         tempPath = os.path.join(dirPath, "." + uploadId)
-        os.makedirs(dirPath, mode=0o755, exist_ok=True)
+        os.makedirs(dirPath, mode=0o777, exist_ok=True)
         # save (all copy modes), then hash, then decompress
         with open(tempPath, "wb") as ofh:
             shutil.copyfileobj(ifh, ofh)
@@ -198,7 +198,7 @@ async def getSaveFilePath(repositoryType: str = Query(...),
     if os.path.exists(outPath) and not allowOverwrite:
         raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
     dirPath, _ = os.path.split(outPath)
-    os.makedirs(dirPath, mode=0o755, exist_ok=True)
+    os.makedirs(dirPath, mode=0o777, exist_ok=True)
     return {"path": outPath}
 
 

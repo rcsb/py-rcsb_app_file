@@ -142,7 +142,7 @@ class IoUtils:
             dirPath, _ = os.path.split(outPath)
             uploadId = self.getNewUploadId()
             tempPath = os.path.join(dirPath, "." + uploadId)
-            os.makedirs(dirPath, mode=0o755, exist_ok=True)
+            os.makedirs(dirPath, mode=0o777, exist_ok=True)
             # save (all copy modes), then hash, then decompress
             with open(tempPath, "wb") as ofh:
                 shutil.copyfileobj(uploadFile, ofh)
@@ -414,7 +414,7 @@ class IoUtils:
         try:
             dirPath, fn = os.path.split(outPath)
             tempPath = self.getTempFilePath(uploadId, dirPath)
-            os.makedirs(dirPath, mode=0o755, exist_ok=True)
+            os.makedirs(dirPath, mode=0o777, exist_ok=True)
             # save, then hash, then decompress
             # should lock, however client must wait for each response before sending next chunk, precluding race conditions (unless multifile upload problem)
             with open(tempPath, "ab") as ofh:
@@ -510,7 +510,7 @@ class IoUtils:
         if os.path.exists(outPath) and not allowOverwrite:
             raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
         dirPath, _ = os.path.split(outPath)
-        os.makedirs(dirPath, mode=0o755, exist_ok=True)
+        os.makedirs(dirPath, mode=0o777, exist_ok=True)
         return outPath
 
     # must be different from getTempDirPath
