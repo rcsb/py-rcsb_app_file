@@ -1066,7 +1066,6 @@ class Gui(tk.Frame):
         else:
             expectedChunks = 1
         chunkIndex = 0
-        chunkOffset = 0
         copyMode = "native"
         if DECOMPRESS:
             copyMode = "gzip_decompress"
@@ -1124,7 +1123,6 @@ class Gui(tk.Frame):
                 # chunk parameters
                 "chunkSize": chunkSize,
                 "chunkIndex": chunkIndex,
-                # "chunkOffset": chunkOffset,
                 "expectedChunks": expectedChunks,
                 # save file parameters
                 "filePath": filePath,
@@ -1214,7 +1212,6 @@ class Gui(tk.Frame):
                             break
                     responses.append(response)
                     mD["chunkIndex"] += 1
-                    chunkOffset = mD["chunkIndex"] * chunkSize
                     self.status = math.ceil((mD["chunkIndex"] / mD["expectedChunks"]) * 100)
                     self.upload_status.set(f'{self.status}%')
                     self.master.update()
@@ -1231,7 +1228,6 @@ class Gui(tk.Frame):
                 # chunk parameters
                 "chunkSize": chunkSize,
                 "chunkIndex": chunkIndex,
-                # "chunkOffset": chunkOffset,
                 "expectedChunks": expectedChunks,
                 # save file parameters
                 "repositoryType": repositoryType,
@@ -1278,7 +1274,6 @@ class Gui(tk.Frame):
             for index in range(uploadCount, expectedChunks):
                 offset = index * chunkSize
                 mD["chunkIndex"] = index
-                chunkOffset = offset
                 tmp = io.BytesIO()
                 with open(filePath, "rb") as to_upload:
                     to_upload.seek(offset)

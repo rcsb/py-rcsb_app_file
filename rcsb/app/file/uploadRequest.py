@@ -213,7 +213,6 @@ async def sequentialUpload(
     # chunk parameters
     chunkSize: int = Form(None),
     chunkIndex: int = Form(None),
-    # chunkOffset: int = Form(None),
     expectedChunks: int = Form(None),
     # save file parameters
     filePath: str = Form(...),
@@ -392,7 +391,6 @@ async def resumableUpload(
     # chunk parameters
     chunkSize: int = Form(None),
     chunkIndex: int = Form(0),
-    # chunkOffset: int = Form(0),
     expectedChunks: int = Form(1),
     # save file parameters
     depId: str = Form(...),
@@ -405,7 +403,6 @@ async def resumableUpload(
     copyMode: str = Form("native"),
     allowOverwrite: bool = Form(None),
 ):
-    chunkOffset = chunkIndex * chunkSize
     fn = None
     ct = None
     try:
@@ -427,7 +424,6 @@ async def resumableUpload(
             # chunk parameters
             chunkSize=chunkSize,
             chunkIndex=chunkIndex,
-            # chunkOffset=chunkOffset,
             expectedChunks=expectedChunks,
             # save file parameters
             depId=depId,

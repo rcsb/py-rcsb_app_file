@@ -151,7 +151,6 @@ def upload(mD):
                     break
                 responses.append(response)
                 mD["chunkIndex"] += 1
-                # mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
         return responses
     elif RESUMABLE:
         # resumable sequential chunk upload
@@ -186,7 +185,6 @@ def upload(mD):
                 )
                 offset = uploadCount * packet_size
                 mD["chunkIndex"] = uploadCount
-                # mD["chunkOffset"] = offset
         # chunk file and upload
         tmp = io.BytesIO()
         with open(mD["filePath"], "rb") as to_upload:
@@ -216,7 +214,6 @@ def upload(mD):
                     break
                 responses.append(response)
                 mD["chunkIndex"] += 1
-                # mD["chunkOffset"] = mD["chunkIndex"] * mD["chunkSize"]
         return responses
 
 def download(downloadFilePath, downloadDict):
@@ -337,7 +334,6 @@ if __name__ == "__main__":
             else:
                 expectedChunks = 1
             chunkIndex = 0
-            chunkOffset = 0
             copyMode = "native"
             if DECOMPRESS:
                 copyMode = "gzip_decompress"
@@ -374,7 +370,6 @@ if __name__ == "__main__":
                         # chunk parameters
                         "chunkSize": chunkSize,
                         "chunkIndex": chunkIndex,
-                        # "chunkOffset": chunkOffset,
                         "expectedChunks": expectedChunks,
                         # save file parameters
                         "repositoryType": repositoryType,

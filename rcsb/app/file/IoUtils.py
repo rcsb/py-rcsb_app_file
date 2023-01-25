@@ -25,7 +25,6 @@ import typing
 import uuid
 import aiofiles
 import re
-import requests
 from filelock import Timeout, FileLock
 from fastapi import HTTPException
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -216,7 +215,6 @@ class IoUtils:
             # chunk parameters
             chunkSize: int,
             chunkIndex: int,
-            # chunkOffset: int,
             expectedChunks: int,
             # save file parameters
             filePath: str,
@@ -304,13 +302,9 @@ class IoUtils:
         uploadId: str = None,
         hashType: str = "MD5",
         hashDigest: typing.Optional[str] = None,
-        # optional upload file parameters
-        # fileName: str = None,
-        # mimeType: str = None,
         # chunk parameters
         chunkSize: int = 0,
         chunkIndex: int = 0,
-        # chunkOffset: int = 0,
         expectedChunks: int = 1,
         # save file parameters
         depId: str = None,
@@ -381,13 +375,11 @@ class IoUtils:
         ret = self.sequentialChunk(
             ifh,
             outPath,
-            # chunkIndex,
             chunkOffset,
             expectedChunks,
             uploadId,
             key,
             val,
-            # mode="ab",
             copyMode=copyMode,
             hashType=hashType,
             hashDigest=hashDigest,
@@ -404,13 +396,11 @@ class IoUtils:
         self,
         ifh: typing.IO,
         outPath: str,
-        # chunkIndex: int,
         chunkOffset: int,
         expectedChunks: int,
         uploadId: str,
         key: str,
         val: str,
-        # mode: typing.Optional[str] = "ab",
         copyMode: typing.Optional[str] = "native",
         hashType: typing.Optional[str] = None,
         hashDigest: typing.Optional[str] = None,
