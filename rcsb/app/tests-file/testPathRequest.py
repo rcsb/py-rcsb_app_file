@@ -49,7 +49,23 @@ class PathRequestTests(unittest.TestCase):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__dataPath = os.path.join(HERE, "data")
         self.__repoTestPath = os.path.join(self.__dataPath, "repository", "archive")
-        # Note - testConfigProvider() must (maybe?) precede this test to install a bootstrap configuration file
+        self.__repoTestFile1 = os.path.join(self.__repoTestPath, "D_1000000001", "D_1000000001_model_P1.cif.V1")
+        if not os.path.exists(self.__repoTestFile1):
+            os.makedirs(os.path.dirname(self.__repoTestFile1), mode=0o757, exist_ok=True)
+            nB = 1024 * 1024 * 8
+            with open(self.__repoTestFile1, "wb") as out:
+                out.write(os.urandom(nB))
+        self.__repoTestFile2 = os.path.join(self.__repoTestPath, "D_2000000001", "D_2000000001_model_P1.cif.V1")
+        if not os.path.exists(self.__repoTestFile2):
+            os.makedirs(os.path.dirname(self.__repoTestFile2), mode=0o757, exist_ok=True)
+            nB = 1024 * 1024 * 8
+            with open(self.__repoTestFile2, "wb") as out:
+                out.write(os.urandom(nB))
+        self.__repoTestPath2 = os.path.join(self.__dataPath, "repository", "deposit")
+        self.__repoTestFile3 = os.path.join(self.__repoTestPath2, "D_1000000001", "D_1000000001_model_P1.cif.V1")
+        self.__repoTestFile4 = os.path.join(self.__repoTestPath2, "D_2000000001", "D_2000000001_model_P1.cif.V1")
+        self.__repoTestFile5 = os.path.join(self.__repoTestPath, "D_1000000002.tar.gz")
+
         cP = ConfigProvider(self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
@@ -60,6 +76,16 @@ class PathRequestTests(unittest.TestCase):
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
 
     def tearDown(self):
+        if os.path.exists(self.__repoTestFile1):
+            os.unlink(self.__repoTestFile1)
+        if os.path.exists(self.__repoTestFile2):
+            os.unlink(self.__repoTestFile2)
+        if os.path.exists(self.__repoTestFile3):
+            os.unlink(self.__repoTestFile3)
+        if os.path.exists(self.__repoTestFile4):
+            os.unlink(self.__repoTestFile4)
+        if os.path.exists(self.__repoTestFile5):
+            os.unlink(self.__repoTestFile5)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
@@ -77,7 +103,7 @@ class PathRequestTests(unittest.TestCase):
                 "contentType": "model",
                 "contentFormat": "pdbx",
                 "partNumber": 1,
-                "version": 2,
+                "version": 1,
             }
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
@@ -138,7 +164,7 @@ class PathRequestTests(unittest.TestCase):
         """Test - dir exists"""
         startTime = time.time()
         try:
-            # First test for dir that actually exists using explicit dirPath (created in fixture above)
+            # First test for dir that actually exists using explicit dirPath
             endPoint = "path-exists"
             path = os.path.join(self.__repoTestPath, "D_2000000001")
             with TestClient(app) as client:
@@ -286,7 +312,7 @@ class PathRequestTests(unittest.TestCase):
                 "contentTypeTarget": "model",
                 "contentFormatTarget": "pdbx",
                 "partNumberTarget": 1,
-                "versionTarget": 2,
+                "versionTarget": 1,
                 "milestoneTarget": ""
             }
             with TestClient(app) as client:
@@ -353,8 +379,8 @@ def pathRequestTestSuite():
     suiteSelect.addTest(PathRequestTests("testListDir"))
     suiteSelect.addTest(PathRequestTests("testLatestFileVersion"))
     suiteSelect.addTest(PathRequestTests("testCopyFile"))
-    # suiteSelect.addTest(PathRequestTests("testMoveFile"))  # deletes a file and breaks other tests that rely on that file
     suiteSelect.addTest(PathRequestTests("testCompressDir"))
+    suiteSelect.addTest(PathRequestTests("testMoveFile"))  # deletes a file that other tests may rely on so must go last
     return suiteSelect
 
 

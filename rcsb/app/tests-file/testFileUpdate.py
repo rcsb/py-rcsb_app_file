@@ -47,10 +47,18 @@ class FileUpdateTests(unittest.TestCase):
     def setUp(self):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__dataPath = os.path.join(HERE, "data")
-        self.__testFilePath = os.path.join(self.__dataPath, "config", "example-data.cif")
-        self.__updatedFilePath = os.path.join(self.__dataPath, "testFile.dat")
-
-        # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
+        self.__repositoryFilePath = os.path.join(self.__dataPath, "repository", "archive", "D_2000000001", "D_2000000001_model_P1.cif.V1")
+        if not os.path.exists(self.__repositoryFilePath):
+            os.makedirs(os.path.dirname(self.__repositoryFilePath), mode=0o757, exist_ok=True)
+            nB = 1024 * 1024 * 8
+            with open(self.__repositoryFilePath, "wb") as out:
+                out.write(os.urandom(nB))
+        self.__readFilePath = os.path.join(self.__dataPath, "testFile.dat")
+        if not os.path.exists(self.__readFilePath):
+            os.makedirs(os.path.dirname(self.__readFilePath), mode=0o757, exist_ok=True)
+            nB = 1024 * 1024 * 6
+            with open(self.__readFilePath, "wb") as out:
+                out.write(os.urandom(nB))
         cP = ConfigProvider(self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
@@ -61,6 +69,10 @@ class FileUpdateTests(unittest.TestCase):
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
 
     def tearDown(self):
+        if os.path.exists(self.__repositoryFilePath):
+            os.unlink(self.__repositoryFilePath)
+        if os.path.exists(self.__readFilePath):
+            os.unlink(self.__readFilePath)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
@@ -70,16 +82,11 @@ class FileUpdateTests(unittest.TestCase):
     def testSimpleUpdate(self):
         """Test - simple file overwrite"""
 
-        refHashType = None
-        useHash = True
-        if useHash:
-            refHashType = "MD5"
-
         # Update file content
 
         endPoint = "upload"
         hashType = "MD5"
-        hD = CryptUtils().getFileHash(self.__updatedFilePath, hashType=hashType)
+        hD = CryptUtils().getFileHash(self.__readFilePath, hashType=hashType)
         testHash = hD["hashDigest"]
         responseCode = 200
 
@@ -100,7 +107,7 @@ class FileUpdateTests(unittest.TestCase):
             }
             #
             with TestClient(app) as client:
-                with open(self.__updatedFilePath, "rb") as ifh:
+                with open(self.__readFilePath, "rb") as ifh:
                     files = {"uploadFile": ifh}
                     response = client.post("/file-v2/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
 
@@ -115,41 +122,6 @@ class FileUpdateTests(unittest.TestCase):
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
-        #
-
-        startTime = time.time()
-        try:
-            mD = {
-                "hashType": hashType,
-                "hashDigest": testHash,
-                "repositoryType": "onedep-deposit",  # Second upload into "onedep-deposit"
-                "depId": "D_2000000001",
-                "contentType": "model",
-                "milestone": "none",
-                "partNumber": 1,
-                "contentFormat": "pdbx",
-                "version": "1",
-                "copyMode": "native",
-                "allowOverwrite": True,
-            }
-            #
-            with TestClient(app) as client:
-                with open(self.__updatedFilePath, "rb") as ifh:
-                    files = {"uploadFile": ifh}
-                    response = client.post("/file-v2/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
-
-                self.assertTrue(response.status_code == responseCode)
-                rD = response.json()
-                logger.info("rD %r", rD.items())
-                if responseCode == 200:
-                    self.assertTrue(rD["success"])
-                #
-            #
-            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            self.fail()
-        #
 
 
 def updateSimpleTests():

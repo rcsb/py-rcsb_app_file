@@ -20,6 +20,7 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
+import sys
 import platform
 import random
 import resource
@@ -51,9 +52,23 @@ class FileDownloadTests(unittest.TestCase):
     def setUp(self):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__dataPath = os.path.join(HERE, "data")
+        self.__repositoryFilePath = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P1.cif.V1")
+        if not os.path.exists(self.__repositoryFilePath):
+            os.makedirs(os.path.dirname(self.__repositoryFilePath), mode=0o757, exist_ok=True)
+            nB = 1024 * 1024 * 8
+            with open(self.__repositoryFilePath, "wb") as out:
+                out.write(os.urandom(nB))
         self.__testFilePath = os.path.join(self.__dataPath, "example-data.cif")
+        if not os.path.exists(self.__testFilePath):
+            os.makedirs(os.path.dirname(self.__testFilePath), mode=0o757, exist_ok=True)
+            nB = 1024 * 1024 * 8
+            with open(self.__testFilePath, "wb") as out:
+                out.write(os.urandom(nB))
         self.__downloadFilePath = os.path.join(self.__dataPath, "downloadFile.dat")
-        # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
+        if not os.path.exists(self.__downloadFilePath):
+            os.makedirs(os.path.dirname(self.__downloadFilePath), mode=0o757, exist_ok=True)
+        if os.path.exists(self.__downloadFilePath):
+            os.unlink(self.__downloadFilePath)
         cP = ConfigProvider(self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
@@ -64,6 +79,12 @@ class FileDownloadTests(unittest.TestCase):
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
 
     def tearDown(self):
+        if os.path.exists(self.__repositoryFilePath):
+            os.unlink(self.__repositoryFilePath)
+        if os.path.exists(self.__testFilePath):
+            os.unlink(self.__testFilePath)
+        if os.path.exists(self.__downloadFilePath):
+            os.unlink(self.__downloadFilePath)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)

@@ -23,6 +23,7 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
+import sys
 import platform
 import resource
 import time
@@ -63,15 +64,28 @@ class FileUploadTests(unittest.TestCase):
         logger.info("self.__configFilePath %s", self.__configFilePath)
         self.__fU = FileUtil()
 
-        # Generate testFile.dat and gzipped version of file for testing gzip upload (must retain unzipped file for hash-comparison purposes)
-        nB = 2500000
+        self.__repositoryFile1 = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P1.cif.V1")
+        self.__repositoryFile2 = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P2.cif.V1")
+        self.__repositoryFile3 = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P3.cif.V1")
+        if os.path.exists(self.__repositoryFile1):
+            os.path.unlink(self.__repositoryFile1)
+        if os.path.exists(self.__repositoryFile2):
+            os.path.unlink(self.__repositoryFile2)
+        if os.path.exists(self.__repositoryFile3):
+            os.path.unlink(self.__repositoryFile3)
+        os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
+
         self.__testFileDatPath = os.path.join(self.__dataPath, "testFile.dat")
+        if not os.path.exists(self.__testFileDatPath):
+            os.makedirs(os.path.dirname(self.__testFileDatPath), mode=0o757, exist_ok=True)
+            nB = 1024 * 1024 * 8
+            with open(self.__testFileDatPath, "wb") as out:
+                out.write(os.urandom(nB))
         self.__testFileGzipPath = os.path.join(self.__dataPath, "testFile.dat.gz")
+        if os.path.exists(self.__testFileGzipPath):
+            os.unlink(self.__testFileGzipPath)
         self.__fU.compress(self.__testFileDatPath, self.__testFileGzipPath)
-        #
-        self.__testFilePath = os.path.join(self.__dataPath, "example-data.cif")  # This is needed to prepare input for testFileDownlaod to work
-        #
-        # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
+
         cP = ConfigProvider(self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
@@ -83,6 +97,16 @@ class FileUploadTests(unittest.TestCase):
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
 
     def tearDown(self):
+        if os.path.exists(self.__repositoryFile1):
+            os.unlink(self.__repositoryFile1)
+        if os.path.exists(self.__repositoryFile2):
+            os.unlink(self.__repositoryFile2)
+        if os.path.exists(self.__repositoryFile3):
+            os.unlink(self.__repositoryFile3)
+        if os.path.exists(self.__testFileDatPath):
+            os.unlink(self.__testFileDatPath)
+        if os.path.exists(self.__testFileGzipPath):
+            os.unlink(self.__testFileGzipPath)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
@@ -96,9 +120,9 @@ class FileUploadTests(unittest.TestCase):
         hashType = "MD5"
         #
         for testFilePath, copyMode, partNumber, allowOverwrite, responseCode in [
-            (self.__testFilePath, "native", 1, True, 200),
-            (self.__testFilePath, "shell", 2, True, 200),
-            (self.__testFilePath, "native", 1, False, 405),
+            (self.__testFileDatPath, "native", 1, True, 200),
+            (self.__testFileDatPath, "shell", 2, True, 200),
+            (self.__testFileDatPath, "native", 1, False, 405),
             (self.__testFileGzipPath, "decompress_gzip", 3, True, 200),
         ]:
             print(f'{copyMode} {partNumber} {allowOverwrite} {responseCode}')
@@ -128,7 +152,7 @@ class FileUploadTests(unittest.TestCase):
                             logging.warning(f'UPLOADING {version}')
                             response = client.post("/file-v2/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
                         print(f'STATUS CODE {response.status_code}')
-                        self.assertTrue(response.status_code == responseCode or (response.status_code != 200 and responseCode != 200))
+                        self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     #
                     logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
                 except Exception as e:
