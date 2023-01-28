@@ -118,7 +118,7 @@ class FileUploadTests(unittest.TestCase):
         logger.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
 
     def testSimpleUpload(self):
-        """Test - basic file upload operations"""
+        """Test - basic file upload """
         hashType = testHash = None
         endPoint = "upload"
         hashType = "MD5"
@@ -164,6 +164,9 @@ class FileUploadTests(unittest.TestCase):
                     self.fail()
 
     def testSequentialUpload(self):
+        """ chunked file upload """
+
+        # get target path
         filePath = None
         parameters = {"repositoryType": "archive",
                       "depId": "D_1000000001",
@@ -187,6 +190,7 @@ class FileUploadTests(unittest.TestCase):
                 filePath = result["path"]
         self.assertTrue(filePath is not None)
 
+        # get upload id
         uploadId = None
         with TestClient(app) as client:
             response = client.get(
@@ -200,6 +204,7 @@ class FileUploadTests(unittest.TestCase):
                 uploadId = result["id"]
         self.assertTrue(uploadId is not None)
 
+        # upload file
         hashType = "MD5"
         hD = CryptUtils().getFileHash(self.__testFileDatPath, hashType=hashType)
         testHash = hD['hashDigest']
@@ -232,11 +237,14 @@ class FileUploadTests(unittest.TestCase):
         print(f'posted {expectedChunks} chunks')
 
     def testResumableUpload(self):
+        """ resumable chunked upload """
 
+        # hash for resumed upload check to avoid sending new file with repeated parameters (user sent wrong file and re-uploaded - api deletes first file)
         hashType = "MD5"
         hD = CryptUtils().getFileHash(self.__testFileDatPath, hashType=hashType)
         testHash = hD['hashDigest']
 
+        # null-check for resumed upload (should find nothing)
         uploadCount = 0
         offset = 0
         parameters = {"repositoryType": "archive",
@@ -268,7 +276,9 @@ class FileUploadTests(unittest.TestCase):
                 )
                 offset = uploadCount * packet_size
                 print(f'offset {offset}')
+        self.assertTrue(uploadCount == 0 and offset == 0)
 
+        # upload half of file
         chunkIndex = uploadCount
         fileSize = os.path.getsize(self.__testFileDatPath)
         chunkSize = 1024 * 1024 * 1
@@ -297,8 +307,8 @@ class FileUploadTests(unittest.TestCase):
         buffer = io.BytesIO()
         with TestClient(app) as client:
             with open(self.__testFileDatPath, "rb") as infile:
-                buffer.seek(offset)
-                for x in range(expectedChunks):
+                infile.seek(offset)
+                for x in range(chunkIndex, expectedChunks // 2):
                     packet_size = min(
                         fileSize - (chunkIndex * chunkSize),
                         chunkSize,
@@ -312,63 +322,67 @@ class FileUploadTests(unittest.TestCase):
                                            headers=self.__headerD)
                     mD["chunkIndex"] += 1
                     self.assertTrue(response and response.status_code and response.status_code == 200)
-        print(f'posted {expectedChunks} chunks of {expectedChunks}')
+        print(f'posted {expectedChunks // 2} chunks of {expectedChunks}')
 
-        # uploadCount = 0
-        # offset = 0
-        # parameters = {"repositoryType": "archive",
-        #               "depId": "D_1000000001",
-        #               "contentType": "model",
-        #               "milestone": None,
-        #               "partNumber": 1,
-        #               "contentFormat": "pdbx",
-        #               "hashDigest": testHash
-        #               }
-        # with TestClient(app) as client:
-        #     response = client.get(
-        #         "/file-v2/uploadStatus",
-        #         params=parameters,
-        #         headers=self.__headerD,
-        #         timeout=None
-        #     )
-        # if response.status_code == 200:
-        #     result = json.loads(response.text)
-        #     if result:
-        #         if not isinstance(result, dict):
-        #             result = eval(result)
-        #         uploadCount = int(result["uploadCount"])
-        #         chunkIndex = uploadCount
-        #         print(f'upload count {uploadCount}')
-        #         packet_size = min(
-        #             fileSize - (chunkIndex * chunkSize),
-        #             chunkSize
-        #         )
-        #         offset = uploadCount * packet_size
-        #         print(f'offset {offset}')
-        #
-        # chunkIndex = uploadCount
-        # mD["chunkIndex"] = chunkIndex
-        #
-        # buffer = io.BytesIO()
-        # with TestClient(app) as client:
-        #     with open(self.__testFileDatPath, "rb") as infile:
-        #         buffer.seek(offset)
-        #         for x in range(expectedChunks):
-        #             packet_size = min(
-        #                 fileSize - (chunkIndex * chunkSize),
-        #                 chunkSize,
-        #             )
-        #             buffer.truncate(packet_size)
-        #             buffer.seek(0)
-        #             buffer.write(infile.read(packet_size))
-        #             buffer.seek(0)
-        #             files = {"uploadFile": buffer}
-        #             response = client.post("/file-v2/resumableUpload", files=files, data=copy.deepcopy(mD),
-        #                                    headers=self.__headerD)
-        #             mD["chunkIndex"] += 1
-        #             self.assertTrue(response and response.status_code and response.status_code == 200)
-        # print(f'posted {expectedChunks} chunks starting from {uploadCount}')
-        #
+        # check for resumed upload...should find 4 chunks
+        uploadCount = 0
+        offset = 0
+        parameters = {"repositoryType": "archive",
+                      "depId": "D_1000000001",
+                      "contentType": "model",
+                      "milestone": None,
+                      "partNumber": 1,
+                      "contentFormat": "pdbx",
+                      "hashDigest": testHash
+                      }
+        with TestClient(app) as client:
+            response = client.get(
+                "/file-v2/uploadStatus",
+                params=parameters,
+                headers=self.__headerD,
+                timeout=None
+            )
+        if response.status_code == 200:
+            result = json.loads(response.text)
+            if result:
+                if not isinstance(result, dict):
+                    result = eval(result)
+                uploadCount = int(result["uploadCount"])
+                chunkIndex = uploadCount
+                print(f'upload count {uploadCount}')
+                packet_size = min(
+                    fileSize - (chunkIndex * chunkSize),
+                    chunkSize
+                )
+                offset = uploadCount * packet_size
+                print(f'offset {offset}')
+        self.assertTrue(uploadCount > 0 and offset > 0)
+
+        # set new idex
+        chunkIndex = uploadCount
+        mD["chunkIndex"] = chunkIndex
+
+        # resume upload from previous stopping point
+        buffer = io.BytesIO()
+        with TestClient(app) as client:
+            with open(self.__testFileDatPath, "rb") as infile:
+                infile.seek(offset)
+                for x in range(chunkIndex, expectedChunks):
+                    packet_size = min(
+                        fileSize - (chunkIndex * chunkSize),
+                        chunkSize
+                    )
+                    buffer.truncate(packet_size)
+                    buffer.seek(0)
+                    buffer.write(infile.read(packet_size))
+                    buffer.seek(0)
+                    files = {"uploadFile": buffer}
+                    response = client.post("/file-v2/resumableUpload", files=files, data=copy.deepcopy(mD),
+                                           headers=self.__headerD)
+                    mD["chunkIndex"] += 1
+                    self.assertTrue(response and response.status_code and response.status_code == 200)
+        print(f'posted {expectedChunks} chunks starting from {uploadCount}')
+
 
 
 def uploadSimpleTests():
