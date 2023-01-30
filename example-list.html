@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <meta charset="UTF-8">
+        <title>HTML DOWNLOAD EXAMPLE</title>
+        <!-- author James Smith -->
+		<style>
+			div {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+			}
+			form {
+				display: flex;
+				flex-direction: column;
+				align-items: flex-start;
+				row-gap: 10px;
+				border: 1px solid black;
+				padding: 20px;
+			}
+			section {
+				margin:20px;
+				width:300px;
+				height:200px;
+				background-color:white;
+				border:1px solid gray;
+				overflow:scroll;
+			}
+			section ul {
+				list-style-type: none;
+			}
+		</style>
+        <script type="text/javascript">
+          handleform = () => {
+            window.event.preventDefault();
+            let repositoryType = document.getElementsByName('repositoryType')[0].value;
+            let depId = document.getElementsByName('depId')[0].value;
+            if(!repositoryType || ! depId){
+              return;
+            }
+            let url = `http://0.0.0.0:8000/file-v1/list-dir?repositoryType=${repositoryType}&depId=${depId}`
+            fetch(url, {
+              method: 'GET',
+				headers: {
+				  'Authorization': 'Bearer jwtDisable'
+				}
+            }).then(response => response.json()).then(json => populate(json.dirList)).catch(err => console.log(err));
+          }
+          populate = (dirlist) => {
+            if(document.getElementById('dirlist')) {
+				document.getElementById('dirlist').innerHTML = '';
+            }
+            if(! dirlist){
+              return;
+            }
+            div = document.createElement('div');
+            div.setAttribute('align', 'center');
+            div.setAttribute('id', 'dirlist');
+            ul = document.createElement('ul');
+            for(index in dirlist.sort()){
+              li = document.createElement('li');
+              txt = document.createTextNode(dirlist[index]);
+              li.append(txt);
+              ul.append(li);
+            }
+            div.append(ul);
+			document.getElementById('dirlist').innerHTML = ul.innerHTML;
+          }
+        </script>
+	</head>
+	<body>
+		<div>
+			<form action="http://0.0.0.0:8000/file-v1/list-dir" method="GET" onsubmit="return handleform();">
+				<label>Repository type</label>
+				<input type="text" name="repositoryType">
+				<label>Deposit id</label>
+				<input type="text" name="depId">
+				<input type="submit" value="submit">
+			</form>
+			<section>
+				<ul id="dirlist"></ul>
+			</section>
+		</div>
+	</body>
+</html>

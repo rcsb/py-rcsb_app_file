@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+        <meta charset="UTF-8">
+        <title>HTML UPLOAD EXAMPLE</title>
+        <!-- author James Smith -->
+        <script src = "http://www.myersdaily.org/joseph/javascript/md5.js"></script>
+		<script type="text/javascript">
+			handleform = async () => {
+              window.event.preventDefault();
+              let base_url = "http://0.0.0.0:8000";
+              let upload_id_url = `${base_url}/file-v2/getNewUploadId/`;
+              let save_path_url = `${base_url}/file-v2/getSaveFilePath/`;
+              let upload_status_url = `${base_url}/file-v2/uploadStatus`
+              let stream_file_url = `${base_url}/file-v2/upload/`;
+              let sequential_chunk_url = `${base_url}/file-v2/sequentialUpload/`;
+              let resumable_chunk_url = `${base_url}/file-v2/resumableUpload/`;
+              let file = document.getElementsByName('uploadFile')[0].files[0];
+              let fileName = file.name;
+              let uploadCount = 0;
+              console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
+              let upload_radio = 0;
+              for(let index = 1; index <= document.getElementsByName('upload_radio').length; ++index){
+                  if(document.getElementsByName('upload_radio')[index - 1].checked){
+                      upload_radio = index;
+                      break;
+                  }
+              }
+              let uploadId = null;
+              await getUploadId();
+              console.log('uploadId = ' + uploadId);
+              if(! uploadId){
+                  return;
+              }
+              let filePath = null;
+              await getFilePath();
+              console.log('saveFilePath = ' + filePath);
+              if(! filePath){
+                  return;
+              }
+              // if file is a zip file, file has been compressed before hashing/upload
+              let hashDigest = null;
+              await getHashDigest(file);
+              console.log('upload complete')
+
+              async function getUploadId() {
+                await fetch(upload_id_url, {
+                  method: "GET",
+                    headers: {"Authorization": "Bearer jwtDisable"},
+                }).then(response => response.json()).then(json => uploadId = json.id).catch(err => console.log(err))
+              }
+
+              async function getFilePath() {
+                let repositoryType = document.getElementsByName('repositoryType')[0].value;
+                let depId = document.getElementsByName('depId')[0].value;
+                let contentType = document.getElementsByName('contentType')[0].value;
+                let milestone = document.getElementsByName('milestone')[0].value;
+                let partNumber = document.getElementsByName('partNumber')[0].value;
+                let contentFormat = document.getElementsByName('contentFormat')[0].value;
+                let version = document.getElementsByName('version')[0].value;
+                let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
+                let query = `?repositoryType=${repositoryType}&depId=${depId}&contentType=${contentType}&milestone=${milestone}&partNumber=${partNumber}&contentFormat=${contentFormat}&version=${version}&allowOverwrite=${allowOverwrite}`
+                let url = save_path_url + query
+                await fetch(url, {
+                  method: "GET",
+                    headers: {"Authorization": "Bearer jwtDisable"},
+                }).then(data => data.json()).then(json => filePath = json.path).catch(err => console.log(err));
+              }
+
+              async function getUploadStatus() {
+                let repositoryType = document.getElementsByName('repositoryType')[0].value;
+                let depId = document.getElementsByName('depId')[0].value;
+                let contentType = document.getElementsByName('contentType')[0].value;
+                let milestone = document.getElementsByName('milestone')[0].value;
+                let partNumber = document.getElementsByName('partNumber')[0].value;
+                let contentFormat = document.getElementsByName('contentFormat')[0].value;
+                let version = document.getElementsByName('version')[0].value;
+                let query = `?repositoryType=${repositoryType}&depId=${depId}&contentType=${contentType}&milestone=${milestone}&partNumber=${partNumber}&contentFormat=${contentFormat}&version=${version}&hashDigest=${hashDigest}`
+                let url = upload_status_url + query
+                await fetch(url, {
+                  method: "GET",
+                    headers: {"Authorization": "Bearer jwtDisable"},
+                }).then(data => data.json()).then(json => {if(json){uploadCount = json.uploadCount;}}).catch(err => console.log(err));
+              }
+
+              async function getHashDigest(file){
+                var reader = new FileReader();
+                reader.readAsBinaryString(file);
+                reader.onloadend = await function () {
+                    hashDigest = md5(reader.result);
+                    console.log('md5 hash = ' + hashDigest);
+                    if(upload_radio == 1) {
+                      streamFile(file);
+                    } else if(upload_radio == 2) {
+                      sequentialChunks(file);
+                    } else if(upload_radio == 3) {
+                      resumableChunks(file);
+                    }
+                }
+              }
+
+              async function streamFile(file){
+                var fileSize = file.size;
+                var hashType = "MD5";
+                var copyMode = "native";
+                if(document.getElementsByName('decompress')[0].checked){
+                    copyMode = "gzip_decompress";
+                }
+                console.log(`${fileName} ${uploadId} ${filePath}`);
+                var uploadFile = file;
+                console.log(`size of upload file = ${uploadFile.size}`);
+                if (uploadFile.size <= 0) {
+                    return;
+                }
+                let repositoryType = document.getElementsByName('repositoryType')[0].value;
+                let depId = document.getElementsByName('depId')[0].value;
+                let contentType = document.getElementsByName('contentType')[0].value;
+                let milestone = document.getElementsByName('milestone')[0].value;
+                let partNumber = document.getElementsByName('partNumber')[0].value;
+                let contentFormat = document.getElementsByName('contentFormat')[0].value;
+                let version = document.getElementsByName('version')[0].value;
+                let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
+                formdata = new FormData();
+                // upload file parameters
+                formdata.append("uploadFile", uploadFile, fileName);
+                formdata.append("uploadId", uploadId);
+                formdata.append("hashType", hashType);
+                formdata.append("hashDigest", hashDigest);
+                // save file parameters
+                formdata.append("repositoryType", repositoryType);
+                formdata.append("depId", depId);
+                formdata.append("contentType", contentType);
+                formdata.append("milestone", milestone);
+                formdata.append("partNumber", partNumber);
+                formdata.append("contentFormat", contentFormat);
+                formdata.append("version", version);
+                formdata.append("copyMode", copyMode);
+                formdata.append("allowOverwrite", allowOverwrite);
+                fetch(stream_file_url, {
+                    method: "POST",
+                    headers: {"Authorization": "Bearer jwtDisable"},
+                    body: formdata
+                }).then(response => response.json()).then(json => console.log(`response ${JSON.stringify(json)}`)).catch(err => console.log(err));
+              }
+
+              async function sequentialChunks(file){
+                var fileSize = file.size;
+                var chunkSize = 1024 * 1024 * 8; // bytes
+                var expectedChunks = Math.ceil((fileSize) / chunkSize);
+                var chunkIndex = 0;
+                var chunkOffset = 0;
+                var hashType = "MD5";
+                var copyMode = "native";
+                let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
+                if(document.getElementsByName('decompress')[0].checked){
+                    copyMode = "gzip_decompress";
+                }
+                console.log(`${fileName} ${uploadId} ${filePath}`)
+                readChunks(chunkIndex, chunkOffset);
+
+                function readChunks(chunkIndex, chunkOffset) {
+                  if (chunkIndex >= expectedChunks) {
+                    return;
+                  }
+                  var blob = file.slice(chunkOffset, chunkOffset + chunkSize);
+                  postChunk(blob);
+                }
+
+                async function postChunk(blob) {
+                  var uploadFile = blob;
+                  console.log(`size of upload file = ${blob.size}`)
+                  if (blob.size <= 0) {
+                    return;
+                  }
+                  formdata = new FormData();
+                  // upload file parameters
+                  formdata.append("uploadFile", uploadFile, fileName);
+                  formdata.append("uploadId", uploadId);
+                  formdata.append("hashType", hashType);
+                  formdata.append("hashDigest", hashDigest);
+                  // chunk parameters
+                  formdata.append("chunkIndex", chunkIndex);
+                  formdata.append("expectedChunks", expectedChunks);
+                  formdata.append("chunkSize", chunkSize);
+                  // save file parameters
+                  formdata.append("filePath", filePath);
+                  formdata.append("copyMode", copyMode);
+                  formdata.append("allowOverwrite", allowOverwrite);
+                  fetch(sequential_chunk_url, {
+                    method: "POST",
+                      headers: {"Authorization": "Bearer jwtDisable"},
+                    body: formdata
+                  }).then(() => {
+                    chunkOffset += chunkSize;
+                    chunkIndex = chunkIndex + 1;
+                    readChunks(chunkIndex, chunkOffset)
+                  })
+                }
+              }
+
+              async function resumableChunks(file){
+                var fileSize = file.size;
+                var chunkSize = 1024 * 1024 * 8; // bytes
+                var expectedChunks = Math.ceil((fileSize) / chunkSize);
+                var chunkIndex = 0;
+                var chunkOffset = 0;
+                await getUploadStatus();
+                console.log('upload count = ' + uploadCount);
+                if(uploadCount && uploadCount > 0){
+                    chunkIndex = uploadCount;
+                    chunkOffset = chunkSize * chunkIndex;
+                }
+                console.log('chunk index = ' + chunkIndex);
+                var hashType = "MD5";
+                var copyMode = "native";
+                if(document.getElementsByName('decompress')[0].checked){
+                    copyMode = "gzip_decompress";
+                }
+                console.log(`${fileName} ${uploadId} ${filePath}`);
+                let repositoryType = document.getElementsByName('repositoryType')[0].value;
+                let depId = document.getElementsByName('depId')[0].value;
+                let contentType = document.getElementsByName('contentType')[0].value;
+                let milestone = document.getElementsByName('milestone')[0].value;
+                let partNumber = document.getElementsByName('partNumber')[0].value;
+                let contentFormat = document.getElementsByName('contentFormat')[0].value;
+                let version = document.getElementsByName('version')[0].value;
+                let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
+                readChunks(chunkIndex, chunkOffset);
+
+                function readChunks(x, offset) {
+                  chunkIndex = x;
+                  chunkOffset = offset;
+                  if (chunkIndex >= expectedChunks) {
+                    return;
+                  }
+                  var blob = file.slice(chunkOffset, chunkOffset + chunkSize);
+                  postChunk(blob);
+                }
+
+                async function postChunk(blob) {
+                  var uploadFile = blob;
+                  console.log(`size of upload file = ${blob.size}`)
+                  if (blob.size <= 0) {
+                    return;
+                  }
+                  formdata = new FormData();
+                  // upload file parameters;
+                  formdata.append("uploadFile", uploadFile, fileName);
+                  // formdata.append("uploadId", null);
+                  formdata.append("hashType", hashType);
+                  formdata.append("hashDigest", hashDigest);
+                  // chunk parameters
+                  formdata.append("chunkIndex", chunkIndex);
+                  formdata.append("expectedChunks", expectedChunks);
+                  formdata.append("chunkSize", chunkSize);
+                  // save file parameters
+                  formdata.append("filePath", filePath);
+                  formdata.append("repositoryType", repositoryType);
+                  formdata.append("depId", depId);
+                  formdata.append("contentType", contentType);
+                  formdata.append("milestone", milestone);
+                  formdata.append("partNumber", partNumber);
+                  formdata.append("contentFormat", contentFormat);
+                  formdata.append("version", version);
+                  formdata.append("copyMode", copyMode);
+                  formdata.append("allowOverwrite", allowOverwrite);
+
+                  fetch(resumable_chunk_url, {
+                    method: "POST",
+                      headers: {"Authorization": "Bearer jwtDisable"},
+                    body: formdata
+                  }).then(() => {
+                    chunkOffset += chunkSize;
+                    chunkIndex = chunkIndex + 1;
+                    readChunks(chunkIndex, chunkOffset)
+                  })
+                }
+              }
+
+            }
+        </script>
+		<style>
+			div {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+			}
+			form {
+				display: flex;
+				flex-direction: column;
+				align-items: flex-start;
+				row-gap: 5px;
+				border: 1px solid black;
+				padding: 20px;
+			}
+		</style>
+	</head>
+	<body>
+		<div>
+		<form action="http://0.0.0.0:8000/file-v2/expediteChunk" method="POST" enctype="multipart/form-data" onsubmit="return handleform();">
+			<label>Upload file</label>
+			<input type="file" name="uploadFile">
+            <label>Repository type</label>
+            <input type="text" name="repositoryType">
+            <label>Deposit id</label>
+            <input type="text" name="depId">
+            <label>Content type</label>
+            <input type="text" name="contentType">
+            <label>Milestone</label>
+            <input type="text" name="milestone">
+            <label>Part number</label>
+            <input type="text" name="partNumber">
+            <label>Content format</label>
+            <input type="text" name="contentFormat">
+            <label>Version</label>
+            <input type="text" name="version">
+
+            <table>
+                <tr>
+                    <td>
+                        <input type="radio" name="upload_radio" value="1" checked>
+                    </td>
+                    <td>
+                        <label>Stream file</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <input type="radio" name="upload_radio" value="2">
+                    </td>
+                    <td>
+                        <label>Sequential chunks</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <input type="radio" name="upload_radio" value="3">
+                    </td>
+                    <td>
+                        <label>Resumable chunks</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <input type="checkbox" name="allowOverwrite">
+                    </td>
+                    <td>
+                         <label>Overwrite</label>
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                         <input type="checkbox" name="decompress">
+                    </td>
+                    <td>
+                         <label>Decompress zip file after upload</label>
+                    </td>
+                </tr>
+            </table>
+
+            <input type="submit" value="submit">
+            <input type="reset" value="reset">
+		</form>
+		</div>
+	</body>
+</html>

@@ -12,14 +12,13 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
-from fastapi import FastAPI, Request, Response
-from fastapi.security.utils import get_authorization_scheme_param
+from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 
 # pylint: disable=wrong-import-position
 # This environment must be set before JWTAuthBearer is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join("rcsb", "app", "data"))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
 
 from . import ConfigProvider
@@ -28,8 +27,6 @@ from . import downloadRequest  # This triggers JWTAuthBearer
 from . import serverStatus
 from . import uploadRequest
 from . import pathRequest
-from . import mergeRequest
-from .JWTAuthBearer import JWTAuthBearer
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -49,23 +46,24 @@ lu.addFilters()
 # ---
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
 async def startupEvent():
     # Note that this will run every time a test is performed via, "with TestClient(app) as...",
     # but in production will only run once at startup
-    #
-    cachePath = os.environ.get("CACHE_PATH")
     configFilePath = os.environ.get("CONFIG_FILE")
-    #
     logger.debug("Startup - running application startup placeholder method")
-    logger.debug("Using cachePath %r", cachePath)
     logger.debug("Using configFilePath %r", configFilePath)
-    cp = ConfigProvider.ConfigProvider(cachePath, configFilePath)
+    cp = ConfigProvider.ConfigProvider(configFilePath)
     _ = cp.getConfig()
-    _ = cp.getData()
-    #
 
 
 @app.on_event("shutdown")
@@ -74,17 +72,7 @@ def shutdownEvent():
 
 
 app.include_router(
-    uploadRequest.router,
-    prefix="/file-v1",
-)
-
-app.include_router(
     downloadRequest.router,
-    prefix="/file-v1",
-)
-
-app.include_router(
-    mergeRequest.router,
     prefix="/file-v1",
 )
 
@@ -93,22 +81,9 @@ app.include_router(
     prefix="/file-v1",
 )
 
+app.include_router(
+    uploadRequest.router,
+    prefix="/file-v2",
+)
+
 app.include_router(serverStatus.router)
-
-
-@app.middleware("http")
-async def checkToken(request: Request, callNext):
-    authorization: str = request.headers.get("Authorization", None)
-    if not authorization:
-        return Response(status_code=403, content=b'{"detail":"Not authenticated"}', headers={"content-type": "application/json"})
-    scheme, credentials = get_authorization_scheme_param(authorization)
-    if scheme != "Bearer":
-        return Response(status_code=403, content=b'{"detail":"Missing Bearer details"}', headers={"content-type": "application/json"})
-    valid = JWTAuthBearer().validateToken(credentials)
-    if not valid:
-        return Response(status_code=403, content=b'{"detail":"Invalid or expired token"}', headers={"content-type": "application/json"})
-        # logger.info("HTTPException %r ",  HTTPException(status_code=403, detail="Invalid or expired token"))  # How to get this to log in the main app output?
-        # return HTTPException(status_code=403, detail="Invalid or expired token")
-    else:
-        response = await callNext(request)
-        return response

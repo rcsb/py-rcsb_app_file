@@ -4,7 +4,7 @@
 # Date:    24-Aug-2020
 # Version: 0.001
 #
-# Update:
+# Update: James Smith 2023
 #
 #
 ##
@@ -31,7 +31,6 @@ from rcsb.app.file import __version__
 
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
@@ -42,7 +41,6 @@ logger.setLevel(logging.INFO)
 class JTWAuthTokenTests(unittest.TestCase):
     def setUp(self):
         self.__startTime = time.time()
-        self.__cachePath = os.environ.get("CACHE_PATH")
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__subject = "aTestSubject"
         logger.debug("Running tests on version %s", __version__)
@@ -60,7 +58,7 @@ class JTWAuthTokenTests(unittest.TestCase):
         extraD = {"one": "onevalue", "two": 3, "four": 4.0}
         deltaSeconds = 3600
 
-        au = JWTAuthToken(self.__cachePath, self.__configFilePath)
+        au = JWTAuthToken(self.__configFilePath)
         delta = datetime.timedelta(seconds=deltaSeconds)
         token = au.createToken(extraD, self.__subject, expiresDelta=delta)
         logger.info("Token %r", token)

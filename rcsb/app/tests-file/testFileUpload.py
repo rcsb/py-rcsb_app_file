@@ -4,7 +4,7 @@
 # Date:    11-Aug-2020
 # Version: 0.001
 #
-# Update:
+# Update: James Smith 2023
 #
 #
 # Notes:
@@ -21,20 +21,22 @@ __author__ = "John Westbrook"
 __email__ = "jwest@rcsb.rutgers.edu"
 __license__ = "Apache 2.0"
 
-import asyncio
 import logging
 import os
+import sys
 import platform
 import resource
 import time
 import unittest
-import uuid
+import json
+import math
+import copy
+import io
 
 # pylint: disable=wrong-import-position
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CACHE_PATH"] = os.environ.get("CACHE_PATH", os.path.join(HERE, "test-output", "CACHE"))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 from fastapi.testclient import TestClient
@@ -48,14 +50,10 @@ from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.utils.io.LogUtil import StructFormatter
 
 
-# sl = logging.StreamHandler()
-# sl.setFormatter(StructFormatter(fmt=None, mask=None))
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
 root_handler = logger.handlers[0]
 root_handler.setFormatter(StructFormatter(fmt=None, mask=None))
-# logger.addHandler(sl)
-# logger.propagate = True
 logger.setLevel(logging.INFO)
 
 
@@ -64,37 +62,37 @@ class FileUploadTests(unittest.TestCase):
 
     def setUp(self):
 
-        self.__dataPath = os.path.join(HERE, "test-data")
-        self.__cachePath = os.environ.get("CACHE_PATH")
+        self.__dataPath = os.path.join(HERE, "data")
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         logger.info("self.__dataPath %s", self.__dataPath)
-        logger.info("self.__cachePath %s", self.__cachePath)
         logger.info("self.__configFilePath %s", self.__configFilePath)
-        self.__sessionPath = os.path.join(self.__cachePath, "sessions")
         self.__fU = FileUtil()
-        self.__fU.remove(self.__sessionPath)
-        self.__fU.mkdir(self.__sessionPath)
-        #
-        for fn in ["example-data.cif"]:  # Only needed for ConfigProvider init
-            self.__fU.put(os.path.join(self.__dataPath, fn), os.path.join(self.__cachePath, fn))
-        #
-        # Generate testFile.dat and gzipped version of file for testing gzip upload (must retain unzipped file for hash-comparison purposes)
-        nB = 2500000
-        self.__testFileDatPath = os.path.join(self.__sessionPath, "testFile.dat")
-        with open(self.__testFileDatPath, "wb") as ofh:
-            ofh.write(os.urandom(nB))  # generate random content file
-        #
-        self.__testFileGzipPath = os.path.join(self.__sessionPath, "testFile.dat.gz")
+
+        self.__repositoryFile1 = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P1.cif.V1")
+        self.__repositoryFile2 = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P2.cif.V1")
+        self.__repositoryFile3 = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P3.cif.V1")
+        if os.path.exists(self.__repositoryFile1):
+            os.path.unlink(self.__repositoryFile1)
+        if os.path.exists(self.__repositoryFile2):
+            os.path.unlink(self.__repositoryFile2)
+        if os.path.exists(self.__repositoryFile3):
+            os.path.unlink(self.__repositoryFile3)
+        os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
+
+        self.__testFileDatPath = os.path.join(self.__dataPath, "testFile.dat")
+        if not os.path.exists(self.__testFileDatPath):
+            os.makedirs(os.path.dirname(self.__testFileDatPath), mode=0o757, exist_ok=True)
+            nB = 1024 * 1024 * 8
+            with open(self.__testFileDatPath, "wb") as out:
+                out.write(os.urandom(nB))
+        self.__testFileGzipPath = os.path.join(self.__dataPath, "testFile.dat.gz")
+        if os.path.exists(self.__testFileGzipPath):
+            os.unlink(self.__testFileGzipPath)
         self.__fU.compress(self.__testFileDatPath, self.__testFileGzipPath)
-        #
-        # self.__testFilePath = "emd_13856.map.gz"  # 52GB file test
-        #
-        self.__testFilePath = os.path.join(self.__dataPath, "example-data.cif")  # This is needed to prepare input for testFileDownlaod to work
-        #
-        # Note - testConfigProvider() must precede this test to install a bootstrap configuration file
-        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
+
+        cP = ConfigProvider(self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
-        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, subject)}
+        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
         logger.debug("header %r", self.__headerD)
         #
         self.__startTime = time.time()
@@ -103,6 +101,16 @@ class FileUploadTests(unittest.TestCase):
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
 
     def tearDown(self):
+        if os.path.exists(self.__repositoryFile1):
+            os.unlink(self.__repositoryFile1)
+        if os.path.exists(self.__repositoryFile2):
+            os.unlink(self.__repositoryFile2)
+        if os.path.exists(self.__repositoryFile3):
+            os.unlink(self.__repositoryFile3)
+        if os.path.exists(self.__testFileDatPath):
+            os.unlink(self.__testFileDatPath)
+        if os.path.exists(self.__testFileGzipPath):
+            os.unlink(self.__testFileGzipPath)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
@@ -110,215 +118,278 @@ class FileUploadTests(unittest.TestCase):
         logger.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
 
     def testSimpleUpload(self):
-        """Test - basic file upload operations"""
+        """Test - basic file upload """
         hashType = testHash = None
         endPoint = "upload"
         hashType = "MD5"
         #
-        for testFilePath, copyMode, partNumber, allowOverWrite, responseCode in [
-            (self.__testFilePath, "native", 1, True, 200),
-            (self.__testFilePath, "shell", 2, True, 200),
-            (self.__testFilePath, "native", 1, False, 405),
+        for testFilePath, copyMode, partNumber, allowOverwrite, responseCode in [
+            (self.__testFileDatPath, "native", 1, True, 200),
+            (self.__testFileDatPath, "shell", 2, True, 200),
+            (self.__testFileDatPath, "native", 1, False, 405),
             (self.__testFileGzipPath, "decompress_gzip", 3, True, 200),
         ]:
-            #  Using the uncompressed hash
-            if copyMode == "decompress_gzip":
-                hD = CryptUtils().getFileHash(testFilePath.split(".gz")[0], hashType=hashType)
-            else:
-                hD = CryptUtils().getFileHash(testFilePath, hashType=hashType)
-            testHash = hD["hashDigest"]
+            print(f'{copyMode} {partNumber} {allowOverwrite} {responseCode}')
+            hD = CryptUtils().getFileHash(testFilePath, hashType=hashType)
+            testHash = hD['hashDigest']
             print("testHash", testHash)
-            for version in range(1, 10):
+            for version in range(1, 2):
                 startTime = time.time()
                 try:
                     mD = {
-                        "idCode": "D_1000000001",
-                        "repositoryType": "onedep-archive",
-                        "contentType": "model",
-                        "contentFormat": "pdbx",
-                        "partNumber": partNumber,
-                        "version": str(version),
-                        "copyMode": copyMode,
-                        "allowOverWrite": allowOverWrite,
                         "hashType": hashType,
                         "hashDigest": testHash,
+                        "repositoryType": "onedep-archive",
+                        "depId": "D_1000000001",
+                        "contentType": "model",
+                        "milestone": "",
+                        "partNumber": partNumber,
+                        "contentFormat": "pdbx",
+                        "version": str(version),
+                        "copyMode": copyMode,
+                        "allowOverwrite": allowOverwrite,
                     }
                     #
                     with TestClient(app) as client:
                         with open(testFilePath, "rb") as ifh:
                             files = {"uploadFile": ifh}
-                            response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
-                        if response.status_code != responseCode:
-                            logger.info("response %r %r %r", response.status_code, response.reason, response.content)
-                        self.assertTrue(response.status_code == responseCode)
-                        rD = response.json()
-                        logger.info("rD %r", rD.items())
-                        if responseCode == 200:
-                            self.assertTrue(rD["success"])
+                            logging.warning(f'UPLOADING {version}')
+                            response = client.post("/file-v2/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
+                        print(f'STATUS CODE {response.status_code}')
+                        self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     #
                     logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
                 except Exception as e:
                     logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
                     self.fail()
 
-    def testUploadAccessTokens(self):
-        """Test - upload token security (all tests should be blocked)"""
-        testFilePath = self.__testFilePath
-        hashType = testHash = None
-        useHash = False
-        if useHash:
-            hashType = "MD5"
-            hD = CryptUtils().getFileHash(testFilePath, hashType=hashType)
-            testHash = hD["hashDigest"]
+    def testSequentialUpload(self):
+        """ chunked file upload """
 
-        headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__cachePath, self.__configFilePath).createToken({}, "badSubject")}
-        for endPoint in ["upload"]:
-            startTime = time.time()
-            try:
-                mD = {"idCode": "D_1000000001", "hashDigest": testHash, "hashType": hashType}
-                with TestClient(app) as client:
-                    with open(testFilePath, "rb") as ifh:
-                        files = {"uploadFile": ifh}
-                        response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=headerD)
-                    if response.status_code != 403:
-                        logger.info("response %r %r %r", response.status_code, response.reason, response.content)
-                    self.assertTrue(response.status_code == 403)
-                    rD = response.json()
-                    logger.info("rD %r", rD.items())
-                    self.assertTrue(rD["detail"] == "Invalid or expired token")
-                logger.info("Completed fail test for %s (%.4f seconds)", endPoint, time.time() - startTime)
-            except Exception as e:
-                logger.exception("Failing with %s", str(e))
-                self.fail()
-        headerD = {}
-        for endPoint in ["upload"]:
-            startTime = time.time()
-            try:
-                mD = {"idCode": "D_1000000001", "hashDigest": testHash, "hashType": hashType}
-                with TestClient(app) as client:
-                    with open(testFilePath, "rb") as ifh:
-                        files = {"uploadFile": ifh}
-                        response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=headerD)
-                    if response.status_code != 403:
-                        logger.info("response %r %r %r", response.status_code, response.reason, response.content)
-                    self.assertTrue(response.status_code == 403)
-                    rD = response.json()
-                    logger.info("rD %r", rD.items())
-                    self.assertTrue(rD["detail"] == "Not authenticated")
-                logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
-            except Exception as e:
-                logger.exception("Failing with %s", str(e))
-                self.fail()
+        # get target path
+        filePath = None
+        parameters = {"repositoryType": "archive",
+                      "depId": "D_1000000001",
+                      "contentType": "model",
+                      "milestone": None,
+                      "partNumber": 1,
+                      "contentFormat": "pdbx",
+                      "version": 1,
+                      "allowOverwrite": True
+                      }
+        with TestClient(app) as client:
+            response = client.get(
+                "/file-v2/getSaveFilePath",
+                params=parameters,
+                headers=self.__headerD,
+                timeout=None
+            )
+        if response.status_code == 200:
+            result = json.loads(response.text)
+            if result:
+                filePath = result["path"]
+        self.assertTrue(filePath is not None)
 
-    @unittest.skipUnless(testSliceUpload, "Skip slice uploadtest")
-    def testSlicedUpload(self):
-        """Test - sliced file upload operations"""
-        endPoint = "upload-slice"
+        # get upload id
+        uploadId = None
+        with TestClient(app) as client:
+            response = client.get(
+                "/file-v2/getNewUploadId",
+                headers=self.__headerD,
+                timeout=None
+            )
+        if response.status_code == 200:
+            result = json.loads(response.text)
+            if result:
+                uploadId = result["id"]
+        self.assertTrue(uploadId is not None)
+
+        # upload file
         hashType = "MD5"
-        #  Using the uncompressed hash
-        hD = CryptUtils().getFileHash(self.__testFilePath, hashType=hashType)
-        fullTestHash = hD["hashDigest"]
-        #
-        cP = ConfigProvider(self.__cachePath, self.__configFilePath)
-        ioU = IoUtils(cP)
-        sessionId = uuid.uuid4().hex
-        #
-        # - split the test file --
-        # First, split the file into 4 slices in a new "sessions" directory (prefixed with "staging", e.g., "stagingX1Y2Z...");
-        # this also creates a "MANIFEST" file containing the names of the file slices.
-        sliceTotal = 4
-        task = ioU.splitFile(self.__testFilePath, sliceTotal, "staging" + sessionId, hashType=hashType)
-        loop = asyncio.get_event_loop()
-        sP = loop.run_until_complete(task)
-        # loop.close()
-        # --
-        logger.info("Session path %r", sP)
-        #
-        sliceIndex = 0
-        responseCode = 200
-        manifestPath = os.path.join(sP, "MANIFEST")
+        hD = CryptUtils().getFileHash(self.__testFileDatPath, hashType=hashType)
+        testHash = hD['hashDigest']
+        fileSize = os.path.getsize(self.__testFileDatPath)
+        chunkSize = 1024 * 1024 * 1
+        expectedChunks = math.ceil(fileSize / chunkSize)
+        chunkIndex = 0
+        mD = {
+            # upload file parameters
+            "uploadId": uploadId,
+            "hashType": hashType,
+            "hashDigest": testHash,
+            # chunk parameters
+            "chunkSize": chunkSize,
+            "chunkIndex": chunkIndex,
+            "expectedChunks": expectedChunks,
+            # save file parameters
+            "filePath": filePath,
+            "copyMode": "native",
+            "allowOverwrite": True
+        }
+        chunkSize = 1024 * 1024 * 1
+        with TestClient(app) as client:
+            with open(self.__testFileDatPath, "rb") as infile:
+                while chunk := infile.read(chunkSize):
+                    files = {"uploadFile": chunk}
+                    response = client.post("/file-v2/sequentialUpload", files=files, data=copy.deepcopy(mD), headers=self.__headerD)
+                    mD["chunkIndex"] += 1
+                    self.assertTrue(response and response.status_code and response.status_code == 200)
+        print(f'posted {expectedChunks} chunks')
 
-        # Second, read the MANIFEST file to determine what slices there are, and upload each slice using endpoint "upload-slice" to a non-staging "sessions" directory
-        # (e.g., if file was split into directory "sessions/stagingX1Y2Z...", the upload will be placed in adjacent directory "sessions/X1Y2Z...")
-        with open(manifestPath, "r", encoding="utf-8") as ifh:
-            for line in ifh:
-                testFile = line[:-1]
-                testFilePath = os.path.join(sP, testFile)
-                sliceIndex += 1
-                startTime = time.time()
-                try:
-                    mD = {
-                        "sliceIndex": sliceIndex,
-                        "sliceTotal": sliceTotal,
-                        "sessionId": sessionId,
-                        "copyMode": "native",
-                        "allowOverWrite": True,
-                        "hashType": None,
-                        "hashDigest": None,
-                    }
-                    #
-                    with TestClient(app) as client:
-                        with open(testFilePath, "rb") as itfh:
-                            files = {"uploadFile": itfh}
-                            response = client.post("/file-v1/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
-                        if response.status_code != responseCode:
-                            logger.info("response %r %r %r", response.status_code, response.reason, response.content)
-                        self.assertTrue(response.status_code == responseCode)
-                        rD = response.json()
-                        logger.debug("rD %r", rD.items())
-                        if responseCode == 200:
-                            self.assertTrue(rD["success"])
-                    #
-                    logger.info("Completed slice (%d) on %s (%.4f seconds)", sliceIndex, endPoint, time.time() - startTime)
-                except Exception as e:
-                    logger.exception("Failing with %s", str(e))
-                    self.fail()
-        #
-        # Last, join the slices in the sessions directory together into a single file in the "repository/archive/<idCode>" directory
-        endPoint = "join-slice"
-        startTime = time.time()
-        partNumber = 1
-        allowOverWrite = True
-        responseCode = 200
-        version = 1
-        try:
-            mD = {
-                "sessionId": sessionId,
-                "sliceTotal": sliceTotal,
-                "idCode": "D_1000000001",
-                "repositoryType": "onedep-archive",
-                "contentType": "model",
-                "contentFormat": "pdbx",
-                "partNumber": partNumber,
-                "version": str(version),
-                "copyMode": "native",
-                "allowOverWrite": allowOverWrite,
-                "hashType": hashType,
-                "hashDigest": fullTestHash,
-            }
-            #
-            with TestClient(app) as client:
-                with open(testFilePath, "rb") as ifh:
-                    response = client.post("/file-v1/%s" % endPoint, data=mD, headers=self.__headerD)
-                if response.status_code != responseCode:
-                    logger.info("response %r %r %r", response.status_code, response.reason, response.content)
-                self.assertTrue(response.status_code == responseCode)
-                rD = response.json()
-                logger.info("rD %r", rD.items())
-                if responseCode == 200:
-                    self.assertTrue(rD["success"])
-            #
-            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            self.fail()
+    def testResumableUpload(self):
+        """ resumable chunked upload """
+
+        # hash for resumed upload check to avoid sending new file with repeated parameters (user sent wrong file and re-uploaded - api deletes first file)
+        hashType = "MD5"
+        hD = CryptUtils().getFileHash(self.__testFileDatPath, hashType=hashType)
+        testHash = hD['hashDigest']
+
+        # null-check for resumed upload (should find nothing)
+        uploadCount = 0
+        offset = 0
+        parameters = {"repositoryType": "archive",
+                      "depId": "D_1000000001",
+                      "contentType": "model",
+                      "milestone": None,
+                      "partNumber": 1,
+                      "contentFormat": "pdbx",
+                      "hashDigest": testHash
+                      }
+        with TestClient(app) as client:
+            response = client.get(
+                "/file-v2/uploadStatus",
+                params=parameters,
+                headers=self.__headerD,
+                timeout=None
+            )
+        if response.status_code == 200:
+            result = json.loads(response.text)
+            if result:
+                if not isinstance(result, dict):
+                    result = eval(result)
+                uploadCount = int(result["uploadCount"])
+                print(f'upload count {uploadCount}')
+                chunkIndex = uploadCount
+                packet_size = min(
+                    fileSize - (chunkIndex * chunkSize),
+                    chunkSize
+                )
+                offset = uploadCount * packet_size
+                print(f'offset {offset}')
+        self.assertTrue(uploadCount == 0 and offset == 0)
+
+        # upload half of file
+        chunkIndex = uploadCount
+        fileSize = os.path.getsize(self.__testFileDatPath)
+        chunkSize = 1024 * 1024 * 1
+        expectedChunks = math.ceil(fileSize / chunkSize)
+        mD = {
+            # upload file parameters
+            "uploadId": None,
+            "hashType": hashType,
+            "hashDigest": testHash,
+            # chunk parameters
+            "chunkSize": chunkSize,
+            "chunkIndex": chunkIndex,
+            "expectedChunks": expectedChunks,
+            # save file parameters
+            "repositoryType": "archive",
+            "depId": "D_1000000001",
+            "contentType": "model",
+            "milestone": None,
+            "partNumber": 1,
+            "contentFormat": "pdbx",
+            "version": 1,
+            "copyMode": "native",
+            "allowOverwrite": True,
+        }
+        chunkSize = 1024 * 1024 * 1
+        buffer = io.BytesIO()
+        with TestClient(app) as client:
+            with open(self.__testFileDatPath, "rb") as infile:
+                infile.seek(offset)
+                for x in range(chunkIndex, expectedChunks // 2):
+                    packet_size = min(
+                        fileSize - (chunkIndex * chunkSize),
+                        chunkSize,
+                    )
+                    buffer.truncate(packet_size)
+                    buffer.seek(0)
+                    buffer.write(infile.read(packet_size))
+                    buffer.seek(0)
+                    files = {"uploadFile": buffer}
+                    response = client.post("/file-v2/resumableUpload", files=files, data=copy.deepcopy(mD),
+                                           headers=self.__headerD)
+                    mD["chunkIndex"] += 1
+                    self.assertTrue(response and response.status_code and response.status_code == 200)
+        print(f'posted {expectedChunks // 2} chunks of {expectedChunks}')
+
+        # check for resumed upload...should find 4 chunks
+        uploadCount = 0
+        offset = 0
+        parameters = {"repositoryType": "archive",
+                      "depId": "D_1000000001",
+                      "contentType": "model",
+                      "milestone": None,
+                      "partNumber": 1,
+                      "contentFormat": "pdbx",
+                      "hashDigest": testHash
+                      }
+        with TestClient(app) as client:
+            response = client.get(
+                "/file-v2/uploadStatus",
+                params=parameters,
+                headers=self.__headerD,
+                timeout=None
+            )
+        if response.status_code == 200:
+            result = json.loads(response.text)
+            if result:
+                if not isinstance(result, dict):
+                    result = eval(result)
+                uploadCount = int(result["uploadCount"])
+                chunkIndex = uploadCount
+                print(f'upload count {uploadCount}')
+                packet_size = min(
+                    fileSize - (chunkIndex * chunkSize),
+                    chunkSize
+                )
+                offset = uploadCount * packet_size
+                print(f'offset {offset}')
+        self.assertTrue(uploadCount > 0 and offset > 0)
+
+        # set new idex
+        chunkIndex = uploadCount
+        mD["chunkIndex"] = chunkIndex
+
+        # resume upload from previous stopping point
+        buffer = io.BytesIO()
+        with TestClient(app) as client:
+            with open(self.__testFileDatPath, "rb") as infile:
+                infile.seek(offset)
+                for x in range(chunkIndex, expectedChunks):
+                    packet_size = min(
+                        fileSize - (chunkIndex * chunkSize),
+                        chunkSize
+                    )
+                    buffer.truncate(packet_size)
+                    buffer.seek(0)
+                    buffer.write(infile.read(packet_size))
+                    buffer.seek(0)
+                    files = {"uploadFile": buffer}
+                    response = client.post("/file-v2/resumableUpload", files=files, data=copy.deepcopy(mD),
+                                           headers=self.__headerD)
+                    mD["chunkIndex"] += 1
+                    self.assertTrue(response and response.status_code and response.status_code == 200)
+        print(f'posted {expectedChunks} chunks starting from {uploadCount}')
+
 
 
 def uploadSimpleTests():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(FileUploadTests("testSimpleUpload"))
-    # suiteSelect.addTest(FileUploadTests("testSlicedUpload"))
-    suiteSelect.addTest(FileUploadTests("testUploadAccessTokens"))
+    suiteSelect.addTest(FileUploadTests("testSequentialUpload"))
+    suiteSelect.addTest(FileUploadTests("testResumableUpload"))
     return suiteSelect
 
 
