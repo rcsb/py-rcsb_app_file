@@ -1032,11 +1032,6 @@ class Gui(tk.Frame):
         depId = self.dep_id.get()
         contentType = self.content_type.get()
         milestone = self.mile_stone.get()
-        convertedMilestone = None
-        if milestone and milestone.lower() != "none":
-            convertedMilestone = f'-{milestone}'
-        else:
-            convertedMilestone = ""
         partNumber = self.part_number.get()
         contentFormat = self.file_format.get()
         version = self.version_number.get()

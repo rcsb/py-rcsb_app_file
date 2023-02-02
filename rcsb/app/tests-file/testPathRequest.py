@@ -24,6 +24,7 @@ import platform
 import resource
 import time
 import unittest
+import shutil
 
 # pylint: disable=wrong-import-position
 # This environment must be set before main.app is imported
@@ -86,6 +87,8 @@ class PathRequestTests(unittest.TestCase):
             os.unlink(self.__repoTestFile4)
         if os.path.exists(self.__repoTestFile5):
             os.unlink(self.__repoTestFile5)
+        if os.path.exists(self.__dataPath):
+            shutil.rmtree(self.__dataPath)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
@@ -108,7 +111,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
                 #
@@ -125,7 +128,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 404)
                 #
             logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
@@ -143,7 +146,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"path": path}, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
@@ -152,7 +155,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"path": path}, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 404)
             #
             logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
@@ -170,7 +173,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"path": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
@@ -179,7 +182,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"depId": "D_2000000001", "repositoryType": "archive"}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
@@ -188,7 +191,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params={"depId": "D_1234567890", "repositoryType": "archive"}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 404)
             #
             logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
@@ -206,7 +209,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.get("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
@@ -219,7 +222,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
@@ -229,7 +232,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.get("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 404)
             #
             logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
@@ -253,7 +256,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
                 #
@@ -284,7 +287,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
                 #
@@ -318,7 +321,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, data=mD, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
                 #
@@ -349,7 +352,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % "copy-file", params=mD, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
             #
@@ -361,7 +364,7 @@ class PathRequestTests(unittest.TestCase):
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
-                logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
                 logger.info("Content length (%d)", len(response.content))
                 #

@@ -27,6 +27,7 @@ import resource
 import string
 import time
 import unittest
+import shutil
 
 # pylint: disable=wrong-import-position
 # This environment must be set before main.app is imported
@@ -85,6 +86,8 @@ class FileDownloadTests(unittest.TestCase):
             os.unlink(self.__testFilePath)
         if os.path.exists(self.__downloadFilePath):
             os.unlink(self.__downloadFilePath)
+        if os.path.exists(self.__dataPath):
+            shutil.rmtree(self.__dataPath)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)

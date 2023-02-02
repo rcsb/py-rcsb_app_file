@@ -4,8 +4,8 @@
 #
 ##
 __docformat__ = "google en"
-__author__ = "James Smith"
-__email__ = "james.smith@rcsb.org"
+__author__ = "James Smith, Ahsan Tanweer"
+__email__ = "james.smith@rcsb.org, ahsan@ebi.ac.uk"
 __license__ = "Apache 2.0"
 
 import gzip
@@ -102,7 +102,7 @@ async def upload(
         dirPath, _ = os.path.split(outPath)
         uploadId = await getNewUploadId()
         uploadId = uploadId["id"]
-        tempPath = os.path.join(dirPath, "." + uploadId)
+        tempPath = getTempFilePath(uploadId, dirPath)
         os.makedirs(dirPath, mode=0o777, exist_ok=True)
         # save (all copy modes), then hash, then decompress
         with open(tempPath, "wb") as ofh:
@@ -217,12 +217,12 @@ async def sequentialUpload(
     # save file parameters
     filePath: str = Form(...),
     copyMode: str = Form("native"),
-    allowOverwrite: bool = Query(default=False)
+    allowOverwrite: bool = Form(...)
 ):
     chunkOffset = chunkIndex * chunkSize
     ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
     dirPath, _ = os.path.split(filePath)
-    tempPath = os.path.join(dirPath, "." + uploadId)
+    tempPath = getTempFilePath(uploadId, dirPath)
     contents = await uploadFile.read()
     # empty chunk beyond loop index from client side, don't erase tempPath so keep out of try block
     if contents and len(contents) <= 0:
@@ -296,7 +296,7 @@ async def sequentialUpload(
 
 
 # return kv entry from file parameters, if have resumed upload, or None if don't
-# if have resumed upload, kv response has chunk indices and count
+# if have resumed upload, kv response has chunk count
 @router.get("/uploadStatus")
 async def getUploadStatus(repositoryType: str = Query(...),
                           depId: str = Query(...),
@@ -408,11 +408,8 @@ async def resumableUpload(
     try:
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
-        logger.debug("depId %r hash %r hashType %r", depId, hashDigest, hashType)
         fn = uploadFile.filename
         ct = uploadFile.content_type
-        logger.debug("uploadFile %s (%r)", fn, ct)
-        logger.debug("hashType.name %r hashDigest %r", hashType, hashDigest)
         ioU = IoUtils(cP)
         ret = await ioU.resumableUpload(
             # upload file parameters
@@ -445,3 +442,6 @@ async def resumableUpload(
     if not ret["success"]:
         raise HTTPException(status_code=405, detail=ret["statusMessage"])
     return ret
+
+def getTempFilePath(uploadId, dirPath):
+    return os.path.join(dirPath, "._" + uploadId)

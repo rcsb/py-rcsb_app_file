@@ -32,6 +32,7 @@ import json
 import math
 import copy
 import io
+import shutil
 
 # pylint: disable=wrong-import-position
 # This environment must be set before main.app is imported
@@ -58,7 +59,6 @@ logger.setLevel(logging.INFO)
 
 
 class FileUploadTests(unittest.TestCase):
-    testSliceUpload = False
 
     def setUp(self):
 
@@ -72,11 +72,11 @@ class FileUploadTests(unittest.TestCase):
         self.__repositoryFile2 = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P2.cif.V1")
         self.__repositoryFile3 = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P3.cif.V1")
         if os.path.exists(self.__repositoryFile1):
-            os.path.unlink(self.__repositoryFile1)
+            os.unlink(self.__repositoryFile1)
         if os.path.exists(self.__repositoryFile2):
-            os.path.unlink(self.__repositoryFile2)
+            os.unlink(self.__repositoryFile2)
         if os.path.exists(self.__repositoryFile3):
-            os.path.unlink(self.__repositoryFile3)
+            os.unlink(self.__repositoryFile3)
         os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
 
         self.__testFileDatPath = os.path.join(self.__dataPath, "testFile.dat")
@@ -111,6 +111,8 @@ class FileUploadTests(unittest.TestCase):
             os.unlink(self.__testFileDatPath)
         if os.path.exists(self.__testFileGzipPath):
             os.unlink(self.__testFileGzipPath)
+        if os.path.exists(self.__dataPath):
+            shutil.rmtree(self.__dataPath)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)

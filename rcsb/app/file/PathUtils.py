@@ -60,15 +60,6 @@ class PathUtils:
         fnBase = self.__getBaseFileName(depId, contentType, milestone, partNumber, contentFormat)
         return os.path.join(lockPath, fnBase + ".lock")
 
-    def getSliceFilePath(self, sessionId: str, sliceIndex: int, sliceTotal: int) -> str:
-        sessionPath = self.getSessionDirPath()
-        fnBase = f"{sessionId}_{sliceIndex}.{sliceTotal}"
-        return os.path.join(sessionPath, sessionId, fnBase)
-
-    def getSliceLockPath(self, sessionId: str, sliceIndex: int, sliceTotal: int) -> str:
-        lockPath = self.getSharedLockDirPath()
-        fnBase = f"{sessionId}_{sliceIndex}.{sliceTotal}"
-        return os.path.join(lockPath, fnBase + ".lock")
 
     def getVersionedPath(self,
                          repositoryType: str = "archive",
@@ -197,9 +188,8 @@ class PathUtils:
             "-" + str, or blank string
 
         """
-        if milestone and milestone.lstrip().rstrip() != "" and milestone.lower().lstrip().rstrip() != "none" and milestone.lower().lstrip().rstrip() != "null":
-            if milestone in self.__milestoneList:
-                return '-' + milestone
+        if milestone and milestone in self.__milestoneList:
+            return '-' + milestone
         return ""
 
     def getBaseFileName(self,

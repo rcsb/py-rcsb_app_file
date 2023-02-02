@@ -4,7 +4,7 @@
 # Date:    30-Aug-2021
 # Version: 0.001
 #
-# Updates: James Smith 2023
+# Updates: James Smith, Ahsan Tanweer 2023
 #
 """
 Collected I/O utilities.
@@ -141,7 +141,7 @@ class IoUtils:
                 raise HTTPException(status_code=405, detail="Encountered existing file - overwrite prohibited")
             dirPath, _ = os.path.split(outPath)
             uploadId = self.getNewUploadId()
-            tempPath = os.path.join(dirPath, "." + uploadId)
+            tempPath = self.getTempFilePath(uploadId, dirPath)
             os.makedirs(dirPath, mode=0o777, exist_ok=True)
             # save (all copy modes), then hash, then decompress
             with open(tempPath, "wb") as ofh:
@@ -224,7 +224,7 @@ class IoUtils:
         chunkOffset = chunkIndex * chunkSize
         ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
         dirPath, _ = os.path.split(filePath)
-        tempPath = os.path.join(dirPath, "." + uploadId)
+        tempPath = self.getTempFilePath(uploadId, dirPath)
         try:
             # save, then hash, then decompress
             # should lock, however client must wait for each response before sending next chunk, precluding race conditions (unless multifile upload problem)
@@ -361,14 +361,11 @@ class IoUtils:
         currentCount = int(self.__kV.getSession(key, val))  # for sequential chunks, current index = current count
 
         # on first chunk upload, set expected count, record uid in log table
-        if currentCount == 0:  # for async, use kv uploadCount rather than parameter chunkIndex == 0:
+        if currentCount == 0:
             self.__kV.setSession(key, "expectedCount", expectedChunks)
             self.__kV.setLog(logKey, uploadId)
             self.__kV.setSession(key, "timestamp", int(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))))
             self.__kV.setSession(key, "hashDigest", hashDigest)
-            # for async mode and return value expected from get session
-            chunksSaved = "0" * expectedChunks
-            self.__kV.setSession(key, "chunksSaved", chunksSaved)
 
         ret = None
         self.__kV.inc(key, val)
@@ -478,7 +475,7 @@ class IoUtils:
             ifh.close()
         return ret
 
-    # utility functions
+    # other functions
 
     def getNewUploadId(self) -> str:
         return uuid.uuid4().hex
@@ -513,13 +510,8 @@ class IoUtils:
         os.makedirs(dirPath, mode=0o777, exist_ok=True)
         return outPath
 
-    # must be different from getTempDirPath
     def getTempFilePath(self, uploadId, dirPath):
-        return os.path.join(dirPath, "." + uploadId)
-
-    # must be different from getTempFilePath
-    def getTempDirPath(self, uploadId, dirPath):
-        return os.path.join(dirPath, "._" + uploadId + "_")
+        return os.path.join(dirPath, "._" + uploadId)
 
     async def findVersion(self,
                           repositoryType: str = "archive",
@@ -579,7 +571,7 @@ class IoUtils:
     # database functions
 
     # return kv entry from file parameters, if have resumed upload, or None if don't
-    # if have resumed upload, kv response has chunk indices and count
+    # if have resumed upload, kv response has chunk count
     async def getUploadStatus(self,
                               repositoryType: str,
                               depId: str,
@@ -655,7 +647,7 @@ class IoUtils:
             logging.warning("error - no hash")
         return uploadId  # returns uploadId or None
 
-    # remove an entry from session table and log table, remove corresponding hidden files and folders
+    # remove an entry from session table and log table, remove corresponding hidden files
     # does not check expiration
     async def removeExpiredEntry(self,
                                  uploadId: str = None,
@@ -672,13 +664,10 @@ class IoUtils:
             self.__kV.clearLog(fileName)
         dirPath = self.__pathU.getDirPath(repositoryType, depId)
         try:
-            # don't know which save mode (temp file or temp dir) so remove both
             tempFile = self.getTempFilePath(uploadId, dirPath)
             os.unlink(tempFile)
-            tempDir = self.getTempDirPath(uploadId, dirPath)
-            shutil.rmtree(tempDir, ignore_errors=True)
         except Exception:
-            # either tempFile or tempDir was not found
+            # tempFile was not found
             pass
 
     # returns entire dictionary of session table entry

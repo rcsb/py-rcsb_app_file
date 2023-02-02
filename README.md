@@ -40,14 +40,17 @@ pip3 install .
 
 Edit paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY).
 
-Edit url variables to match server url in client.py, gui.py, example-upload.html, example-download.html, and example-list.html.
+Do not leave those paths at their default settings.
 
-Edit url in LAUNCH_GUNICORN.sh if necessary.
+They are presently set to the same data folder as the unit tests, which means that all data will be deleted after running any one of the unit tests.
 
+Edit url variables to match server url in client.py, gui.py, example-upload.html, example-download.html, example-list.html, and ClientUtils.py.
+
+Edit url in LAUNCH_GUNICORN.sh or port in Dockerfile.stage if necessary.
 
 # Endpoints and forwarding
 
-The repository contains three upload endpoints, one download endpoint, and one list-directory endpoint.
+The repository contains three upload endpoints, one download endpoint, and one list-directory endpoint, among others.
 
 For uploading a complete file as a stream, use the 'file-v2/upload' endpoint.
 
@@ -61,13 +64,19 @@ The resumable endpoint has server-side resumability support, and also uses seque
 
 Resumability first requires a request to the 'file-v2/getUploadStatus' endpoint prior to the resumableUpload endpoint.
 
+The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in both uploadRequest and IoUtils.
+
 The download endpoint is found at 'file-v1/download'.
 
 The list directory endpoint is found at 'file-v1/list-dir'.
 
-To skip endpoints and forward a chunk or file from Python, use functions by the same names in IoUtils.py.
+To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in IoUtils.py.
 
-Examples of forwarding are found in gui.py when FORWARDING = True, and have yet to be implemented in client.py.
+For streamlining, the upload, sequentialUpload, and getTempFilePath functions are duplicated in uploadRequests and IoUtils, so changes to one should be performed in the other.
+
+Examples of server-side forwarding are found in gui.py when FORWARDING = True, and have yet to be implemented in client.py.
+
+For client-side forwarding of an entire file, use rcsb/app/file/ClientUtils.py with an upload mode of 1 (stream), 2 (sequential chunks), or 3 (resumable chunks).
 
 # Uploads and downloads
 
@@ -335,3 +344,4 @@ After development testing with a Sqlite database, open the kv.sqlite file and de
 
 After development testing with Redis, open the redis-cli and delete the variables, and delete hidden files from the deposit or archives directories.
 
+The hidden files to be deleted are those that start with the value configured in getTempFilePath, referred to above, after checking that the file modification time is beyond a specified threshold.

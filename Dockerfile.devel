@@ -56,10 +56,6 @@ RUN chmod +x /app/launch.sh
 COPY ./deploy/entryPoint.sh /app/entryPoint.sh
 RUN chmod +x /app/entryPoint.sh
 
-COPY ./rcsb/app/tests-file/data/example-data.cif    /app/rcsb/app/tests-file/data/example-data.cif
-COPY ./rcsb/app/tests-file/data/testFile.dat /app/rcsb/app/tests-file/data/testFile.dat
-COPY ./rcsb/app/tests-file/data/repository/archive/D_1000000001/D_1000000001_model_P1.cif.V1 /app/rcsb/app/tests-file/data/repository/archive/D_1000000001/D_1000000001_model_P1.cif.V1
-
 RUN chown -R ubuntu /app
 
 EXPOSE 80
@@ -68,7 +64,6 @@ USER ubuntu
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
-ENV CACHE_PATH = ./rcsb/app/tests-file/data
 
 # Launch the service
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entryPoint.sh"]

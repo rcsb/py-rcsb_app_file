@@ -24,6 +24,7 @@ import platform
 import resource
 import time
 import unittest
+import shutil
 
 from rcsb.app.file import __version__
 from rcsb.app.file.PathUtils import PathUtils
