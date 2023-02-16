@@ -21,6 +21,7 @@ import os
 import typing
 
 from rcsb.app.file.ConfigProvider import ConfigProvider
+from rcsb.app.file.Definitions import Definitions
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -31,12 +32,13 @@ class PathUtils:
 
     def __init__(self, cP: typing.Type[ConfigProvider]):
         self.__cP = cP
+        self.__dP = Definitions()
         self.__repositoryDirPath = self.__cP.get("REPOSITORY_DIR_PATH")
         self.__sessionDirPath = self.__cP.get("SESSION_DIR_PATH")
         self.__sharedLockDirPath = self.__cP.get("SHARED_LOCK_PATH")
-        self.__contentTypeInfoD = self.__cP.get("CONTENT_TYPE")
-        self.__fileFormatExtensionD = self.__cP.get("FILE_FORMAT_EXTENSION")
         self.__milestoneList = self.__cP.get("MILESTONE_LIST")
+        self.__contentTypeInfoD = self.__dP.contentTypeD
+        self.__fileFormatExtensionD = self.__dP.fileFormatExtD
 
     def getSessionDirPath(self) -> str:
         return self.__sessionDirPath
