@@ -1,22 +1,23 @@
-import asyncio
-import copy
+##
+# File:    ClientUtils.py
+# Author:  James Smith
+# Date:    2-Feb-2023
+# Version: 1.001
+#
+# Updates: James Smith 2023
+##
+
 import sys
 import os
 import io
-import gzip
 from copy import deepcopy
 import math
 import requests
 import json
-import time
-import typing
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
-"""
-author James Smith 2023
-"""
 
 class ClientUtils(object):
     def __init__(self):
@@ -29,8 +30,7 @@ class ClientUtils(object):
         self.cP.getConfig()
         subject = self.cP.get("JWT_SUBJECT")
         self.headerD = {
-            "Authorization": "Bearer "
-                             + JWTAuthToken(configFilePath).createToken({}, subject)
+            "Authorization": "Bearer " + JWTAuthToken(configFilePath).createToken({}, subject)
         }
         self.repoTypeList = self.cP.get("REPO_TYPE_LIST")
         self.milestoneList = self.cP.get("MILESTONE_LIST")
@@ -39,7 +39,7 @@ class ClientUtils(object):
 
     def upload(self, uploadMode, sourceFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, copyMode):
         if not os.path.exists(sourceFilePath):
-            sys.exit(f'error - file does not exist: {sourceFilePath}')
+            sys.exit(f"error - file does not exist: {sourceFilePath}")
         # compress (externally), then hash, then upload
         # hash
         hD = CryptUtils().getFileHash(sourceFilePath, hashType=self.hashType)
@@ -233,7 +233,19 @@ class ClientUtils(object):
                     responses.append(response)
             return responses
 
-    def download(self, repositoryType: str, depId: str, contentType: str, milestone: str, partNumber: int, contentFormat: str, version: str, hashType: str, downloadFolder: str, allowOverwrite: bool):
+    def download(
+        self,
+        repositoryType: str,
+        depId: str,
+        contentType: str,
+        milestone: str,
+        partNumber: int,
+        contentFormat: str,
+        version: str,
+        hashType: str,
+        downloadFolder: str,
+        allowOverwrite: bool
+    ):
         if not os.path.exists(downloadFolder):
             print('error - download folder does not exist')
             return None
@@ -272,7 +284,7 @@ class ClientUtils(object):
         fileSize = int(fileSize)
         chunks = math.ceil(fileSize / self.chunkSize)
         url = os.path.join(self.base_url, "file-v1", "download")
-        url = f'{url}?repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}&partNumber={partNumber}&contentFormat={contentFormat}&version={version}&hashType={hashType}'
+        url = f"{url}?repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}&partNumber={partNumber}&contentFormat={contentFormat}&version={version}&hashType={hashType}"
         resp = None
         with requests.get(url, headers=self.headerD, timeout=None, stream=True) as response:
             with open(downloadFilePath, "ab") as ofh:
@@ -313,5 +325,3 @@ class ClientUtils(object):
             for fi in sorted(dirList):
                 results.append(fi)
         return results
-
-

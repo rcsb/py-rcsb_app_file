@@ -11,15 +11,15 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
-import sys
+# import sys
 import platform
 import resource
 import time
 import unittest
-import json
-import math
-import copy
-import io
+# import json
+# import math
+# import copy
+# import io
 import shutil
 
 # pylint: disable=wrong-import-position

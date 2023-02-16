@@ -443,5 +443,6 @@ async def resumableUpload(
         raise HTTPException(status_code=405, detail=ret["statusMessage"])
     return ret
 
+
 def getTempFilePath(uploadId, dirPath):
     return os.path.join(dirPath, "._" + uploadId)
