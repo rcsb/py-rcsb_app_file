@@ -109,14 +109,14 @@ class ClientTests(unittest.TestCase):
         """Test - basic file upload """
         hashType = testHash = None
         hashType = "MD5"
-        uploadMode = 1
-        for testFilePath, copyMode, partNumber, allowOverwrite, responseCode in [
-            (self.__testFileDatPath, "native", 1, True, 200),
-            (self.__testFileDatPath, "shell", 2, True, 200),
-            (self.__testFileDatPath, "native", 1, False, 405),
-            (self.__testFileGzipPath, "decompress_gzip", 3, True, 200),
+        resumable = False
+        for testFilePath, decompress, partNumber, allowOverwrite, responseCode in [
+            (self.__testFileDatPath, False, 1, True, 200),
+            (self.__testFileDatPath, False, 2, True, 200),
+            (self.__testFileDatPath, False, 1, False, 400),
+            (self.__testFileGzipPath, True, 3, True, 200),
         ]:
-            logging.warning(f'{copyMode} {partNumber} {allowOverwrite} {responseCode}')
+            logging.warning(f'{decompress} {partNumber} {allowOverwrite} {responseCode}')
             repositoryType = "onedep-archive"
             depId = "D_1000000001"
             contentType = "model"
@@ -125,7 +125,7 @@ class ClientTests(unittest.TestCase):
             for version in range(1, 2):
                 startTime = time.time()
                 try:
-                    response = self.__cU.upload(uploadMode, testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, copyMode)
+                    response = self.__cU.upload(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable)
                     self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
                 except Exception as e:
@@ -136,14 +136,14 @@ class ClientTests(unittest.TestCase):
         """Test - sequential file upload """
         hashType = testHash = None
         hashType = "MD5"
-        uploadMode = 2
-        for testFilePath, copyMode, partNumber, allowOverwrite, responseCode in [
-            (self.__testFileDatPath, "native", 1, True, 200),
-            (self.__testFileDatPath, "shell", 2, True, 200),
-            (self.__testFileDatPath, "native", 1, False, 405),
-            (self.__testFileGzipPath, "decompress_gzip", 3, True, 200),
+        resumable = False
+        for testFilePath, decompress, partNumber, allowOverwrite, responseCode in [
+            (self.__testFileDatPath, False, 1, True, 200),
+            (self.__testFileDatPath, False, 2, True, 200),
+            (self.__testFileDatPath, False, 1, False, 405),
+            (self.__testFileGzipPath, True, 3, True, 200),
         ]:
-            logging.warning(f'{copyMode} {partNumber} {allowOverwrite} {responseCode}')
+            logging.warning(f'{decompress} {partNumber} {allowOverwrite} {responseCode}')
             repositoryType = "onedep-archive"
             depId = "D_1000000001"
             contentType = "model"
@@ -152,9 +152,9 @@ class ClientTests(unittest.TestCase):
             for version in range(1, 2):
                 startTime = time.time()
                 try:
-                    responses = self.__cU.upload(uploadMode, testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, copyMode)
-                    print(responses)
-                    self.assertTrue([response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400) for response in responses])
+                    response = self.__cU.upload(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable)
+                    print(response)
+                    self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
                 except Exception as e:
                     logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
@@ -164,14 +164,14 @@ class ClientTests(unittest.TestCase):
         """Test - resumable file upload """
         hashType = testHash = None
         hashType = "MD5"
-        uploadMode = 3
-        for testFilePath, copyMode, partNumber, allowOverwrite, responseCode in [
-            (self.__testFileDatPath, "native", 1, True, 200),
-            (self.__testFileDatPath, "shell", 2, True, 200),
-            (self.__testFileDatPath, "native", 1, False, 405),
-            (self.__testFileGzipPath, "decompress_gzip", 3, True, 200),
+        resumable = True
+        for testFilePath, decompress, partNumber, allowOverwrite, responseCode in [
+            (self.__testFileDatPath, False, 1, True, 200),
+            (self.__testFileDatPath, False, 2, True, 200),
+            (self.__testFileDatPath, False, 1, False, 405),
+            (self.__testFileGzipPath, True, 3, True, 200),
         ]:
-            logging.warning(f'{copyMode} {partNumber} {allowOverwrite} {responseCode}')
+            logging.warning(f'{decompress} {partNumber} {allowOverwrite} {responseCode}')
             repositoryType = "onedep-archive"
             depId = "D_1000000001"
             contentType = "model"
@@ -180,9 +180,9 @@ class ClientTests(unittest.TestCase):
             for version in range(1, 2):
                 startTime = time.time()
                 try:
-                    responses = self.__cU.upload(uploadMode, testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, copyMode)
-                    print(responses)
-                    self.assertTrue([response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400) for response in responses])
+                    response = self.__cU.upload(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable)
+                    print(response)
+                    self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
                 except Exception as e:
                     logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)

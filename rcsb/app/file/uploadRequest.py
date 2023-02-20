@@ -49,181 +49,55 @@ class UploadResult(BaseModel):
     statusMessage: str = Field(
         None, title="Status message", description="Status message", example="Success"
     )
-    uploadId: str = Field(
-        None, title="uploadId", description="uploadId", example="asdf4as56df4657sd4f57"
-    )
-    fileName: str = Field(
-        None, title="fileName", description="fileName", example="D_10000_model_P1.cif.V1"
-    )
 
 
-# upload complete file
-@router.post("/upload")
+
+# upload chunked file
+@router.post("/upload", response_model=UploadResult)
 async def upload(
-    # upload file parameters
-    uploadFile: UploadFile = File(...),
-    # uploadId: str = Form(None),
-    hashType: HashType = Form(None),
-    hashDigest: str = Form(None),
-    # save file parameters
-    depId: str = Form(...),
-    repositoryType: str = Form(...),
-    contentType: str = Form(...),
-    milestone: str = Form(None),
-    partNumber: int = Form(...),
-    contentFormat: str = Form(...),
-    version: str = Form(None),
-    copyMode: str = Form("native"),
-    allowOverwrite: bool = Form(None)
-):
-    tempPath = None
-    outPath = None
-    ifh = uploadFile.file
-    ret = {"success": True, "statusCode": 200, "statusMessage": "Store uploaded"}
-    try:
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
-        pathU = PathUtils(cP)
-        if not pathU.checkContentTypeFormat(contentType, contentFormat):
-            raise HTTPException(status_code=405, detail="Bad content type and/or format - upload rejected")
-        outPath = pathU.getVersionedPath(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version
-        )
-        if not outPath:
-            raise HTTPException(status_code=405, detail="Bad content type metadata - cannot build a valid path")
-        if os.path.exists(outPath) and not allowOverwrite:
-            raise HTTPException(status_code=405, detail="Encountered existing file - overwrite prohibited")
-        dirPath, _ = os.path.split(outPath)
-        uploadId = await getNewUploadId()
-        uploadId = uploadId["id"]
-        tempPath = getTempFilePath(uploadId, dirPath)
-        os.makedirs(dirPath, mode=0o777, exist_ok=True)
-        # save (all copy modes), then hash, then decompress
-        with open(tempPath, "wb") as ofh:
-            shutil.copyfileobj(ifh, ofh)
-        # hash
-        if hashDigest and hashType:
-            if hashType == "SHA1":
-                hashObj = hashlib.sha1()
-            elif hashType == "SHA256":
-                hashObj = hashlib.sha256()
-            elif hashType == "MD5":
-                hashObj = hashlib.md5()
-            blockSize = 65536
-            with open(tempPath, "rb") as r:
-                while chunk := r.read(blockSize):
-                    hashObj.update(chunk)
-            hexdigest = hashObj.hexdigest()
-            ok = (hexdigest == hashDigest)
-            if not ok:
-                raise HTTPException(status_code=400, detail=f"{hashType} hash check failed {hexdigest} != {hashDigest}")
-            else:
-                # lock before saving
-                lockPath = os.path.join(os.path.dirname(outPath), "." + os.path.basename(outPath) + ".lock")
-                lock = FileLock(lockPath)
-                try:
-                    with lock.acquire(timeout=60 * 60 * 4):
-                        # last minute race condition prevention
-                        if os.path.exists(outPath) and not allowOverwrite:
-                            raise HTTPException(status_code=400, detail="Encountered existing file - cannot overwrite")
-                        else:
-                            # save final version
-                            os.replace(tempPath, outPath)
-                except Timeout:
-                    raise HTTPException(status_code=400, detail=f"error - file lock timed out on {outPath}")
-                finally:
-                    lock.release()
-                    if os.path.exists(lockPath):
-                        os.unlink(lockPath)
-                # decompress
-                if copyMode == "gzip_decompress":
-                    with gzip.open(outPath, "rb") as r:
-                        with open(tempPath, "wb") as w:
-                            w.write(r.read())
-                    os.replace(tempPath, outPath)
-        else:
-            raise HTTPException(status_code=500, detail="Error - missing hash")
-    except HTTPException as exc:
-        ret = {"success": False, "statusCode": exc.status_code, "statusMessage": f"Store fails with {exc.detail}"}
-        logging.warning(ret["statusMessage"])
-    except Exception as exc:
-        ret = {"success": False, "statusCode": 400, "statusMessage": f"Store fails with {str(exc)}"}
-        logging.warning(ret["statusMessage"])
-    finally:
-        if tempPath and os.path.exists(tempPath):
-            os.unlink(tempPath)
-        ifh.close()
-    if not ret["success"]:
-        raise HTTPException(status_code=405, detail=ret["statusMessage"])
-    return ret
-
-
-@router.get("/getNewUploadId")
-async def getNewUploadId():
-    return {"id": uuid.uuid4().hex}
-
-
-@router.get("/getSaveFilePath")
-async def getSaveFilePath(repositoryType: str = Query(...),
-                          depId: str = Query(...),
-                          contentType: str = Query(...),
-                          milestone: Optional[str] = Query(default="next"),
-                          partNumber: int = Query(...),
-                          contentFormat: str = Query(...),
-                          version: str = Query(default="next"),
-                          allowOverwrite: bool = Query(default=False)):
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(configFilePath)
-    pathU = PathUtils(cP)
-    if not pathU.checkContentTypeFormat(contentType, contentFormat):
-        raise HTTPException(status_code=400, detail="Bad content type and/or format - upload rejected")
-    outPath = None
-    outPath = pathU.getVersionedPath(
-        repositoryType=repositoryType,
-        depId=depId,
-        contentType=contentType,
-        milestone=milestone,
-        partNumber=partNumber,
-        contentFormat=contentFormat,
-        version=version
-    )
-    if not outPath:
-        raise HTTPException(status_code=400, detail="Bad content type metadata - cannot build a valid path")
-    if os.path.exists(outPath) and not allowOverwrite:
-        raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
-    dirPath, _ = os.path.split(outPath)
-    os.makedirs(dirPath, mode=0o777, exist_ok=True)
-    return {"path": outPath}
-
-
-# upload chunk
-@router.post("/sequentialUpload")
-async def sequentialUpload(
-    # upload file parameters
-    uploadFile: UploadFile = File(...),
-    uploadId: str = Form(None),
-    hashType: str = Form(None),
-    hashDigest: str = Form(None),
     # chunk parameters
+    chunk: UploadFile = File(...),
     chunkSize: int = Form(None),
     chunkIndex: int = Form(None),
     expectedChunks: int = Form(None),
+    # upload file parameters
+    uploadId: str = Form(None),
+    hashType: str = Form(None),
+    hashDigest: str = Form(None),
+    resumable: bool = Form(False),
     # save file parameters
     filePath: str = Form(...),
-    copyMode: str = Form("native"),
-    allowOverwrite: bool = Form(...)
+    decompress: bool = Form(False),
+    allowOverwrite: bool = Form(False),
 ):
+    if resumable:
+        # IoUtils has database functions
+        configFilePath = os.environ.get("CONFIG_FILE")
+        cP = ConfigProvider(configFilePath)
+        ioU = IoUtils(cP)
+        ret = await ioU.upload(
+            # chunk parameters
+            chunk=chunk.file,
+            chunkSize=chunkSize,
+            chunkIndex=chunkIndex,
+            expectedChunks=expectedChunks,
+            # upload file parameters
+            uploadId=uploadId,
+            hashType=hashType,
+            hashDigest=hashDigest,
+            resumable=resumable,
+            # save file parameters
+            filePath=filePath,
+            decompress=decompress,
+            allowOverwrite=allowOverwrite,
+        )
+        return ret
+    # expedite upload rather than instantiating ConfigProvider, IoUtils for each chunk, then passing file parameter
     chunkOffset = chunkIndex * chunkSize
     ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
     dirPath, _ = os.path.split(filePath)
     tempPath = getTempFilePath(uploadId, dirPath)
-    contents = await uploadFile.read()
+    contents = await chunk.read()
     # empty chunk beyond loop index from client side, don't erase tempPath so keep out of try block
     if contents and len(contents) <= 0:
         raise HTTPException(status_code=400, detail="error - empty file")
@@ -245,10 +119,10 @@ async def sequentialUpload(
                 elif hashType == "MD5":
                     hashObj = hashlib.md5()
                 blockSize = 65536
-                # hash
+                # hash temp file
                 with open(tempPath, "rb") as r:
-                    while chunk := r.read(blockSize):
-                        hashObj.update(chunk)
+                    while hash_chunk := r.read(blockSize):
+                        hashObj.update(hash_chunk)
                 hexdigest = hashObj.hexdigest()
                 ok = (hexdigest == hashDigest)
                 if not ok:
@@ -275,7 +149,7 @@ async def sequentialUpload(
                 if os.path.exists(tempPath):
                     os.unlink(tempPath)
                 # decompress
-                if copyMode == "gzip_decompress":
+                if decompress:
                     with gzip.open(filePath, "rb") as r:
                         with open(tempPath, "wb") as w:
                             w.write(r.read())
@@ -295,17 +169,42 @@ async def sequentialUpload(
     return ret
 
 
+# should match same function in IoUtils.py
+def getTempFilePath(uploadId, dirPath):
+    return os.path.join(dirPath, "._" + uploadId)
+
+
+@router.get("/getUploadParameters")
+async def getUploadParameters(
+        repositoryType: str = Query(...),
+        depId: str = Query(...),
+        contentType: str = Query(...),
+        milestone: Optional[str] = Query(default="next"),
+        partNumber: int = Query(...),
+        contentFormat: str = Query(...),
+        version: str = Query(default="next"),
+        hashDigest: str = Query(default=None),
+        allowOverwrite: bool = Query(default=True),
+        resumable: bool = Query(default=False)
+        ):
+    chunkIndex, uploadId = await getUploadStatus(repositoryType,depId,contentType,milestone,partNumber,contentFormat,version,hashDigest,resumable)
+    filePath = await getSaveFilePath(repositoryType,depId,contentType,milestone,partNumber,contentFormat,version,allowOverwrite)
+    if not filePath:
+        raise HTTPException(status_code=400, detail="Error - could not make file path from parameters")
+    return {"filePath": filePath, "chunkIndex": chunkIndex, "uploadId": uploadId}
+
+
 # return kv entry from file parameters, if have resumed upload, or None if don't
 # if have resumed upload, kv response has chunk count
-@router.get("/uploadStatus")
-async def getUploadStatus(repositoryType: str = Query(...),
-                          depId: str = Query(...),
-                          contentType: str = Query(...),
-                          milestone: Optional[str] = Query(default="next"),
-                          partNumber: int = Query(...),
-                          contentFormat: str = Query(...),
-                          version: str = Query(default="next"),
-                          hashDigest: str = Query(default=None)
+async def getUploadStatus(repositoryType: str,
+                          depId: str,
+                          contentType: str ,
+                          milestone: str,
+                          partNumber: int,
+                          contentFormat: str,
+                          version: str,
+                          hashDigest: str,
+                          resumable: bool
                           ):
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(configFilePath)
@@ -320,47 +219,68 @@ async def getUploadStatus(repositoryType: str = Query(...),
             contentFormat=contentFormat,
             version=version
         )
-    uploadId = await ioU.getResumedUpload(
+    uploadCount = 0
+    uploadId = None
+    if resumable:
+        uploadId = await ioU.getResumedUpload(
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version,
+            hashDigest=hashDigest
+        )
+    if uploadId:
+        status = await ioU.getSession(uploadId)
+        if status:
+            status = str(status)
+            status = status.replace("'", '"')
+            status = json.loads(status)
+            uploadCount = status['uploadCount']
+    else:
+        uploadId = getNewUploadId()
+    return uploadCount, uploadId
+
+
+async def getSaveFilePath(repositoryType: str,
+                          depId: str,
+                          contentType: str,
+                          milestone: str,
+                          partNumber: int,
+                          contentFormat: str,
+                          version: str,
+                          allowOverwrite: bool):
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(configFilePath)
+    pathU = PathUtils(cP)
+    if not pathU.checkContentTypeFormat(contentType, contentFormat):
+        logging.warning("Bad content type and/or format - upload rejected")
+        return None
+    outPath = None
+    outPath = pathU.getVersionedPath(
         repositoryType=repositoryType,
         depId=depId,
         contentType=contentType,
         milestone=milestone,
         partNumber=partNumber,
         contentFormat=contentFormat,
-        version=version,
-        hashDigest=hashDigest
+        version=version
     )
-    if not uploadId:
+    if not outPath:
+        logging.warning("Bad content type metadata - cannot build a valid path")
         return None
-    status = await ioU.getSession(uploadId)
-    status = status.replace("'", '"')
-    status = json.loads(status)
-    return status
+    if os.path.exists(outPath) and not allowOverwrite:
+        logging.warning("Encountered existing file - overwrite prohibited")
+        return None
+    dirPath, _ = os.path.split(outPath)
+    os.makedirs(dirPath, mode=0o777, exist_ok=True)
+    return outPath
 
 
-# return kv entry from upload id
-@router.get("/uploadStatusFromId/{uploadId}")
-async def getUploadStatusFromId(uploadId: str = Path(...)):
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(configFilePath)
-    ioU = IoUtils(cP)
-    status = await ioU.getSession(uploadId)
-    return status
-
-
-# find upload id from file parameters
-@router.get("/findUploadId")
-async def findUploadId(repositoryType: str = Query(),
-                       depId: str = Query(...),
-                       contentType: str = Query(...),
-                       milestone: str = Query(...),
-                       partNumber: int = Query(...),
-                       contentFormat: str = Query(...),
-                       version: str = Query(...)):
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(configFilePath)
-    ioU = IoUtils(cP)
-    return ioU.getResumedUpload(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)
+def getNewUploadId():
+    return uuid.uuid4().hex
 
 
 # clear kv entries from one user
@@ -379,69 +299,3 @@ async def clearKv():
     cP = ConfigProvider(configFilePath)
     ioU = IoUtils(cP)
     return await ioU.clearKv()
-
-
-@router.post("/resumableUpload")  # response_model=UploadResult)
-async def resumableUpload(
-    # upload file parameters
-    uploadFile: UploadFile = File(...),
-    uploadId: str = Form(None),
-    hashType: HashType = Form(None),
-    hashDigest: str = Form(None),
-    # chunk parameters
-    chunkSize: int = Form(None),
-    chunkIndex: int = Form(0),
-    expectedChunks: int = Form(1),
-    # save file parameters
-    depId: str = Form(...),
-    repositoryType: str = Form(...),
-    contentType: str = Form(...),
-    milestone: str = Form(None),
-    partNumber: int = Form(...),
-    contentFormat: str = Form(...),
-    version: str = Form(...),
-    copyMode: str = Form("native"),
-    allowOverwrite: bool = Form(None),
-):
-    fn = None
-    ct = None
-    try:
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
-        fn = uploadFile.filename
-        ct = uploadFile.content_type
-        ioU = IoUtils(cP)
-        ret = await ioU.resumableUpload(
-            # upload file parameters
-            ifh=uploadFile.file,
-            uploadId=uploadId,
-            hashType=hashType,
-            hashDigest=hashDigest,
-            copyMode=copyMode,
-            # chunk parameters
-            chunkSize=chunkSize,
-            chunkIndex=chunkIndex,
-            expectedChunks=expectedChunks,
-            # save file parameters
-            depId=depId,
-            repositoryType=repositoryType,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version,
-            allowOverwrite=allowOverwrite,
-        )
-    except Exception as e:
-        logger.exception("Failing for %r %r with %s", fn, ct, str(e))
-        ret = {
-            "success": False,
-            "statusCode": 400,
-            "statusMessage": f"Upload fails with {str(e)}",
-        }
-    if not ret["success"]:
-        raise HTTPException(status_code=405, detail=ret["statusMessage"])
-    return ret
-
-def getTempFilePath(uploadId, dirPath):
-    return os.path.join(dirPath, "._" + uploadId)

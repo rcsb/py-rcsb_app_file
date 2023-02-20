@@ -7,6 +7,7 @@ import gzip
 from copy import deepcopy
 import math
 import requests
+from http.client import HTTPResponse
 import json
 import time
 import typing
@@ -37,201 +38,95 @@ class ClientUtils(object):
         self.fileFormatExtensionD = self.cP.get("FILE_FORMAT_EXTENSION")
         self.contentTypeInfoD = self.cP.get("CONTENT_TYPE")
 
-    def upload(self, uploadMode, sourceFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, copyMode):
+    def upload(self, sourceFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable):
         if not os.path.exists(sourceFilePath):
-            sys.exit(f'error - file does not exist: {sourceFilePath}')
+            print(f'error - file does not exist: {sourceFilePath}')
+            return None
         # compress (externally), then hash, then upload
         # hash
         hD = CryptUtils().getFileHash(sourceFilePath, hashType=self.hashType)
         fullTestHash = hD["hashDigest"]
+        # compute expected chunks
         fileSize = os.path.getsize(sourceFilePath)
         expectedChunks = 1
         if self.chunkSize < fileSize:
             expectedChunks = math.ceil(fileSize / self.chunkSize)
+        # get upload parameters
+        saveFilePath = None
         chunkIndex = 0
-        # upload as one file
-        if uploadMode == 1:
-            mD = {
-                # upload file parameters
-                "uploadId": None,
-                "hashType": self.hashType,
-                "hashDigest": fullTestHash,
-                # save file parameters
-                "repositoryType": repositoryType,
-                "depId": depId,
-                "contentType": contentType,
-                "milestone": milestone,
-                "partNumber": partNumber,
-                "contentFormat": contentFormat,
-                "version": version,
-                "copyMode": copyMode,
-                "allowOverwrite": allowOverwrite
-            }
-            response = None
+        uploadId = None
+        parameters = {"repositoryType": repositoryType,
+                      "depId": depId,
+                      "contentType": contentType,
+                      "milestone": milestone,
+                      "partNumber": partNumber,
+                      "contentFormat": contentFormat,
+                      "version": version,
+                      "hashDigest": fullTestHash,
+                      "allowOverwrite": allowOverwrite,
+                      "resumable": resumable
+                      }
+        url = os.path.join(self.base_url, "file-v2", "getUploadParameters")
+        response = requests.get(
+            url,
+            params=parameters,
+            headers=self.headerD,
+            timeout=None
+        )
+        print(f'status code {response.status_code}')
+        if response.status_code == 200:
+            result = json.loads(response.text)
+            if result:
+                saveFilePath = result["filePath"]
+                chunkIndex = result["chunkIndex"]
+                uploadId = result["uploadId"]
+        if not saveFilePath or not uploadId:
+            print('error - no file path or upload id were formed')
+            return response
+        # chunk file and upload
+        mD = {
+            # chunk parameters
+            "chunkSize": self.chunkSize,
+            "chunkIndex": chunkIndex,
+            "expectedChunks": expectedChunks,
+            # upload file parameters
+            "uploadId": uploadId,
+            "hashType": self.hashType,
+            "hashDigest": fullTestHash,
+            "resumable": resumable,
+            # save file parameters
+            "filePath": saveFilePath,
+            "decompress": decompress,
+            "allowOverwrite": allowOverwrite
+        }
+        offset = chunkIndex * self.chunkSize
+        response = None
+        tmp = io.BytesIO()
+        with open(sourceFilePath, "rb") as to_upload:
+            to_upload.seek(offset)
             url = os.path.join(self.base_url, "file-v2", "upload")
-            with open(sourceFilePath, "rb") as to_upload:
+            for x in range(chunkIndex, mD["expectedChunks"]):
+                packet_size = min(
+                    int(fileSize) - (int(mD["chunkIndex"]) * int(self.chunkSize)),
+                    int(self.chunkSize),
+                )
+                tmp.truncate(packet_size)
+                tmp.seek(0)
+                tmp.write(to_upload.read(packet_size))
+                tmp.seek(0)
                 response = requests.post(
-                    url=url,
-                    files={"uploadFile": to_upload},
-                    stream=True,
+                    url,
                     data=deepcopy(mD),
                     headers=self.headerD,
-                    timeout=None
+                    files={"chunk": tmp},
+                    stream=True,
+                    timeout=None,
                 )
-            if response and response.status_code != 200:
-                sys.exit(
-                    f"error - status code {response.status_code} {response.text}...terminating"
-                )
-            return response
-        # upload chunks sequentially
-        elif uploadMode == 2:
-            mD = {
-                # upload file parameters
-                "uploadId": None,
-                "hashType": self.hashType,
-                "hashDigest": fullTestHash,
-                # chunk parameters
-                "chunkSize": self.chunkSize,
-                "chunkIndex": chunkIndex,
-                "expectedChunks": expectedChunks,
-                # save file parameters
-                "filePath": None,
-                "copyMode": copyMode,
-                "allowOverwrite": allowOverwrite
-            }
-            parameters = {"repositoryType": repositoryType,
-                          "depId": depId,
-                          "contentType": contentType,
-                          "milestone": milestone,
-                          "partNumber": str(partNumber),
-                          "contentFormat": contentFormat,
-                          "version": version,
-                          "allowOverwrite": allowOverwrite
-                          }
-            url = os.path.join(self.base_url, "file-v2", "getSaveFilePath")
-            response = requests.get(
-                url,
-                params=parameters,
-                headers=self.headerD,
-                timeout=None
-            )
-            if response.status_code == 200:
-                result = json.loads(response.text)
-                if result:
-                    mD["filePath"] = result["path"]
-            else:
-                return [response]
-            url = os.path.join(self.base_url, "file-v2", "getNewUploadId")
-            response = requests.get(
-                url,
-                headers=self.headerD,
-                timeout=None
-            )
-            if response.status_code == 200:
-                result = json.loads(response.text)
-                if result:
-                    mD["uploadId"] = result["id"]
-            else:
-                return [response]
-            # chunk file and upload
-            offset = 0
-            offsetIndex = 0
-            responses = []
-            tmp = io.BytesIO()
-            with open(sourceFilePath, "rb") as to_upload:
-                to_upload.seek(offset)
-                url = os.path.join(self.base_url, "file-v2", "sequentialUpload")
-                for x in range(offsetIndex, mD["expectedChunks"]):
-                    packet_size = min(
-                        int(fileSize) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
-                        int(mD["chunkSize"]),
-                    )
-                    tmp.truncate(packet_size)
-                    tmp.seek(0)
-                    tmp.write(to_upload.read(packet_size))
-                    tmp.seek(0)
-                    response = requests.post(
-                        url,
-                        data=deepcopy(mD),
-                        headers=self.headerD,
-                        files={"uploadFile": tmp},
-                        stream=True,
-                        timeout=None,
-                    )
-                    responses.append(response)
-                    mD["chunkIndex"] += 1
-            return responses
-        # upload resumable sequential chunks
-        elif uploadMode == 3:
-            mD = {
-                # upload file parameters
-                "uploadId": None,
-                "hashType": self.hashType,
-                "hashDigest": fullTestHash,
-                # chunk parameters
-                "chunkSize": self.chunkSize,
-                "chunkIndex": chunkIndex,
-                "expectedChunks": expectedChunks,
-                # save file parameters
-                "repositoryType": repositoryType,
-                "depId": depId,
-                "contentType": contentType,
-                "milestone": milestone,
-                "partNumber": partNumber,
-                "contentFormat": contentFormat,
-                "version": version,
-                "copyMode": copyMode,
-                "allowOverwrite": allowOverwrite
-            }
-            uploadCount = 0
-            # test for resumed upload
-            parameters = {"repositoryType": mD["repositoryType"],
-                          "depId": mD["depId"],
-                          "contentType": mD["contentType"],
-                          "milestone": mD["milestone"],
-                          "partNumber": str(mD["partNumber"]),
-                          "contentFormat": mD["contentFormat"],
-                          "version": mD["version"],
-                          "hashDigest": mD["hashDigest"]
-                          }
-            url = os.path.join(self.base_url, "file-v2", "uploadStatus")
-            response = requests.get(
-                url,
-                params=parameters,
-                headers=self.headerD,
-                timeout=None
-            )
-            if response.status_code == 200:
-                result = json.loads(response.text)
-                if result:
-                    result = eval(result)
-                    uploadCount = result["uploadCount"]
-            responses = []
-            for index in range(uploadCount, expectedChunks):
-                offset = index * self.chunkSize
-                mD["chunkIndex"] = index
-                tmp = io.BytesIO()
-                with open(sourceFilePath, "rb") as to_upload:
-                    to_upload.seek(offset)
-                    packet_size = min(
-                        int(fileSize) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
-                        int(mD["chunkSize"]),
-                    )
-                    tmp.truncate(packet_size)
-                    tmp.seek(0)
-                    tmp.write(to_upload.read(packet_size))
-                    tmp.seek(0)
-                    url = os.path.join(self.base_url, "file-v2", "resumableUpload")
-                    response = requests.post(
-                        url,
-                        data=mD,
-                        headers=self.headerD,
-                        files={"uploadFile": tmp},
-                        stream=True,
-                        timeout=None,
-                    )
-                    responses.append(response)
-            return responses
+                if response.status_code != 200:
+                    print(f"error - status code {response.status_code} {response.text}...terminating")
+                    break
+                mD["chunkIndex"] += 1
+        return response
 
     def download(self, repositoryType: str, depId: str, contentType: str, milestone: str, partNumber: int, contentFormat: str, version: str, hashType: str, downloadFolder: str, allowOverwrite: bool):
         if not os.path.exists(downloadFolder):

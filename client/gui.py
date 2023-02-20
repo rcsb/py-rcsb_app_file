@@ -47,6 +47,7 @@ headerD = {
     "Authorization": "Bearer "
     + JWTAuthToken(configFilePath).createToken({}, subject)
 }
+HERE = os.path.abspath(os.path.dirname(__file__))
 
 repoTypeList = ["deposit", "archive", "workflow", "session"]
 
@@ -809,7 +810,7 @@ class Gui(tk.Frame):
         self.tabs.add(self.listTab, text='LIST')
         self.tabs.pack(expand=1, fill='both')
 
-        load = Image.open("./onedep_logo.png")
+        load = Image.open(os.path.join(HERE, "onedep_logo.png"))
         render = ImageTk.PhotoImage(load)
         img = ttk.Label(self.splashTab, image=render)
         img.image = render
@@ -825,7 +826,7 @@ class Gui(tk.Frame):
         self.part_number = tk.StringVar(master)
         self.file_format = tk.StringVar(master)
         self.version_number = tk.StringVar(master)
-        self.upload_radio = tk.IntVar(master)
+        self.resumable = tk.IntVar(master)
         self.allow_overwrite = tk.IntVar(master)
         self.compress = tk.IntVar(master)
         self.decompress = tk.IntVar(master)
@@ -882,19 +883,14 @@ class Gui(tk.Frame):
         self.versionEntry.pack()
 
         self.upload_group = ttk.Frame(self.uploadTab)
-        self.streamFileRadio = ttk.Radiobutton(self.upload_group, text="stream file", variable=self.upload_radio, value=1)
-        self.streamFileRadio.pack(anchor=tk.W)
-        self.sequentialChunkRadio = ttk.Radiobutton(self.upload_group, text="sequential chunks", variable=self.upload_radio, value=2)
-        self.sequentialChunkRadio.pack(anchor=tk.W)
-        self.resumableRadio = ttk.Radiobutton(self.upload_group, text="resumable chunks", variable=self.upload_radio, value=3)
-        self.resumableRadio.pack(anchor=tk.W)
+        self.resumableButton = ttk.Checkbutton(self.upload_group, text="resumable", variable=self.resumable)
+        self.resumableButton.pack(anchor=tk.W)
         self.allowOverwriteButton = ttk.Checkbutton(self.upload_group, text="allow overwrite", variable=self.allow_overwrite)
         self.allowOverwriteButton.pack(anchor=tk.W)
         self.compressCheckbox = ttk.Checkbutton(self.upload_group, text="compress", variable=self.compress)
         self.compressCheckbox.pack(anchor=tk.W)
         self.decompressCheckbox = ttk.Checkbutton(self.upload_group, text="decompress after upload", variable=self.decompress)
         self.decompressCheckbox.pack(anchor=tk.W)
-        self.upload_radio.set(1)
         self.upload_group.pack()
 
         self.uploadButton = ttk.Button(self.uploadTab, text='submit', command=self.upload)
@@ -1024,7 +1020,8 @@ class Gui(tk.Frame):
         global cP
         global iou
         t1 = time.perf_counter()
-        filePath = self.file_path
+        readFilePath = self.file_path
+        resumable = self.resumable.get() == 1
         allowOverwrite = self.allow_overwrite.get() == 1
         COMPRESS = self.compress.get() == 1
         DECOMPRESS = self.decompress.get() == 1
@@ -1035,24 +1032,25 @@ class Gui(tk.Frame):
         partNumber = self.part_number.get()
         contentFormat = self.file_format.get()
         version = self.version_number.get()
-        if not filePath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
+        if not readFilePath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
             print('error - missing values')
             sys.exit()
-        if not os.path.exists(filePath):
-            sys.exit(f'error - file does not exist: {filePath}')
+        if not os.path.exists(readFilePath):
+            sys.exit(f'error - file does not exist: {readFilePath}')
         if milestone.lower() == "none":
             milestone = ""
         # compress, then hash, then upload
         if COMPRESS:
-            tempPath = filePath + ".gz"
-            with open(filePath, "rb") as r:
+            tempPath = readFilePath + ".gz"
+            with open(readFilePath, "rb") as r:
                 with gzip.open(tempPath, "wb") as w:
                     w.write(r.read())
-            filePath = tempPath
+            readFilePath = tempPath
         # hash
-        hD = CryptUtils().getFileHash(filePath, hashType=hashType)
+        hD = CryptUtils().getFileHash(readFilePath, hashType=hashType)
         fullTestHash = hD["hashDigest"]
-        fileSize = os.path.getsize(filePath)
+        fileSize = os.path.getsize(readFilePath)
+        chunkIndex = 0
         expectedChunks = 0
         if chunkSize < fileSize:
             expectedChunks = fileSize // chunkSize
@@ -1060,244 +1058,102 @@ class Gui(tk.Frame):
                 expectedChunks = expectedChunks + 1
         else:
             expectedChunks = 1
-        chunkIndex = 0
         copyMode = "native"
         if DECOMPRESS:
             copyMode = "gzip_decompress"
-        # upload as one file
-        if self.upload_radio.get() == 1:
-            mD = {
-                # upload file parameters
-                "uploadId": None,
-                "hashType": hashType,
-                "hashDigest": fullTestHash,
-                # save file parameters
-                "repositoryType": repositoryType,
-                "depId": depId,
-                "contentType": contentType,
-                "milestone": milestone,
-                "partNumber": partNumber,
-                "contentFormat": contentFormat,
-                "version": version,
-                "copyMode": copyMode,
-                "allowOverwrite": allowOverwrite
-            }
-            response = None
-            if FORWARDING:
-                uploadFile = open(filePath, "rb")
-                mD["uploadFile"] = uploadFile
-                response = asyncio.run(iou.upload(**mD))
-                uploadFile.close()
-            else:
-                url = os.path.join(base_url, "file-v2", "upload")
-                with open(filePath, "rb") as to_upload:
+        # upload chunks sequentially
+        saveFilePath = None
+        uploadId = None
+        parameters = {"repositoryType": repositoryType,
+                      "depId": depId,
+                      "contentType": contentType,
+                      "milestone": milestone,
+                      "partNumber": partNumber,
+                      "contentFormat": contentFormat,
+                      "version": version,
+                      "hashDigest": fullTestHash,
+                      "allowOverwrite": allowOverwrite,
+                      "resumable": resumable
+                      }
+        if FORWARDING:
+            saveFilePath, chunkIndex, uploadId = asyncio.run(iou.getUploadParameters(**parameters))
+        else:
+            url = os.path.join(base_url, "file-v2", "getUploadParameters")
+            response = requests.get(
+                url,
+                params=parameters,
+                headers=headerD,
+                timeout=None
+            )
+            print(f'status code {response.status_code}')
+            if response.status_code == 200:
+                result = json.loads(response.text)
+                if result:
+                    # result = eval(result)
+                    saveFilePath = result["filePath"]
+                    chunkIndex = result["chunkIndex"]
+                    uploadId = result["uploadId"]
+                # print(f'result = {result}')
+        if not saveFilePath or not uploadId:
+            print('error - no file path or upload id were formed')
+            sys.exit()
+        mD = {
+            # chunk parameters
+            "chunkSize": chunkSize,
+            "chunkIndex": chunkIndex,
+            "expectedChunks": expectedChunks,
+            # upload file parameters
+            "uploadId": uploadId,
+            "hashType": hashType,
+            "hashDigest": fullTestHash,
+            "resumable": resumable,
+            # save file parameters
+            "filePath": saveFilePath,
+            "copyMode": copyMode,
+            "allowOverwrite": allowOverwrite
+        }
+        # chunk file and upload
+        offset = chunkIndex * chunkSize
+        responses = []
+        tmp = io.BytesIO()
+        with open(readFilePath, "rb") as to_upload:
+            to_upload.seek(offset)
+            url = os.path.join(base_url, "file-v2", "upload")
+            for x in range(chunkIndex, mD["expectedChunks"]):
+                packet_size = min(
+                    int(fileSize) - (int(mD["chunkIndex"]) * int(chunkSize)),
+                    int(chunkSize),
+                )
+                tmp.truncate(packet_size)
+                tmp.seek(0)
+                tmp.write(to_upload.read(packet_size))
+                tmp.seek(0)
+                if FORWARDING:
+                    mD["chunk"] = tmp
+                    response = asyncio.run(iou.upload(**(deepcopy(mD))))
+                else:
                     response = requests.post(
-                        url=url,
-                        files={"uploadFile": to_upload},
-                        stream=True,
+                        url,
                         data=deepcopy(mD),
                         headers=headerD,
-                        timeout=None
+                        files={"chunk": tmp},
+                        stream=True,
+                        timeout=None,
                     )
-                if response.status_code != 200:
-                    sys.exit(
-                        f"error - status code {response.status_code} {response.text}...terminating"
-                    )
-            print(response)
-            self.upload_status.set(f'100%')
-            self.master.update()
-            print(f'time {time.perf_counter() - t1} s')
-            return
-        # upload chunks sequentially
-        elif self.upload_radio.get() == 2:
-            mD = {
-                # upload file parameters
-                "uploadId": None,
-                "hashType": hashType,
-                "hashDigest": fullTestHash,
-                # chunk parameters
-                "chunkSize": chunkSize,
-                "chunkIndex": chunkIndex,
-                "expectedChunks": expectedChunks,
-                # save file parameters
-                "filePath": filePath,
-                "copyMode": copyMode,
-                "allowOverwrite": allowOverwrite
-            }
-            readFilePath = mD["filePath"]
-            parameters = {"repositoryType": repositoryType,
-                          "depId": depId,
-                          "contentType": contentType,
-                          "milestone": milestone,
-                          "partNumber": str(partNumber),
-                          "contentFormat": contentFormat,
-                          "version": version,
-                          "allowOverwrite": allowOverwrite
-                          }
-            if FORWARDING:
-                result = asyncio.run(iou.getSaveFilePath(**parameters))
-                if result:
-                    mD["filePath"] = result
-                else:
-                    sys.exit('error - could not get save file path')
-            else:
-                url = os.path.join(base_url, "file-v2", "getSaveFilePath")
-                response = requests.get(
-                    url,
-                    params=parameters,
-                    headers=headerD,
-                    timeout=None
-                )
-                if response.status_code == 200:
-                    result = json.loads(response.text)
-                    if result:
-                        mD["filePath"] = result["path"]
-                else:
-                    sys.exit(f'error - {response.status_code}')
-            if FORWARDING:
-                result = iou.getNewUploadId()
-                if result:
-                    mD["uploadId"] = result
-            else:
-                url = os.path.join(base_url, "file-v2", "getNewUploadId")
-                response = requests.get(
-                    url,
-                    headers=headerD,
-                    timeout=None
-                )
-                if response.status_code == 200:
-                    result = json.loads(response.text)
-                    if result:
-                        mD["uploadId"] = result["id"]
-                else:
-                    sys.exit(f'error - {response.status_code}')
-            # chunk file and upload
-            offset = 0
-            offsetIndex = 0
-            responses = []
-            tmp = io.BytesIO()
-            with open(readFilePath, "rb") as to_upload:
-                to_upload.seek(offset)
-                url = os.path.join(base_url, "file-v2", "sequentialUpload")
-                for x in range(offsetIndex, mD["expectedChunks"]):
-                    packet_size = min(
-                        int(fileSize) - (int(mD["chunkIndex"]) * int(chunkSize)),
-                        int(chunkSize),
-                    )
-                    tmp.truncate(packet_size)
-                    tmp.seek(0)
-                    tmp.write(to_upload.read(packet_size))
-                    tmp.seek(0)
-                    if FORWARDING:
-                        mD["uploadFile"] = tmp
-                        response = asyncio.run(iou.sequentialUpload(**(deepcopy(mD))))
-                    else:
-                        response = requests.post(
-                            url,
-                            data=deepcopy(mD),
-                            headers=headerD,
-                            files={"uploadFile": tmp},
-                            stream=True,
-                            timeout=None,
+                    if response.status_code != 200:
+                        print(
+                            f"error - status code {response.status_code} {response.text}...terminating"
                         )
-                        if response.status_code != 200:
-                            print(
-                                f"error - status code {response.status_code} {response.text}...terminating"
-                            )
-                            break
-                    responses.append(response)
-                    mD["chunkIndex"] += 1
-                    self.status = math.ceil((mD["chunkIndex"] / mD["expectedChunks"]) * 100)
-                    self.upload_status.set(f'{self.status}%')
-                    self.master.update()
-            print(responses)
-            print(f'time {time.perf_counter() - t1} s')
-            return
-        # upload resumable sequential chunks
-        elif self.upload_radio.get() == 3:
-            mD = {
-                # upload file parameters
-                "uploadId": None,
-                "hashType": hashType,
-                "hashDigest": fullTestHash,
-                # chunk parameters
-                "chunkSize": chunkSize,
-                "chunkIndex": chunkIndex,
-                "expectedChunks": expectedChunks,
-                # save file parameters
-                "repositoryType": repositoryType,
-                "depId": depId,
-                "contentType": contentType,
-                "milestone": milestone,
-                "partNumber": partNumber,
-                "contentFormat": contentFormat,
-                "version": version,
-                "copyMode": copyMode,
-                "allowOverwrite": allowOverwrite
-            }
-            uploadCount = 0
-            # test for resumed upload
-            parameters = {"repositoryType": mD["repositoryType"],
-                          "depId": mD["depId"],
-                          "contentType": mD["contentType"],
-                          "milestone": mD["milestone"],
-                          "partNumber": str(mD["partNumber"]),
-                          "contentFormat": mD["contentFormat"],
-                          "version": mD["version"],
-                          "hashDigest": mD["hashDigest"]
-                          }
-            if FORWARDING:
-                result = asyncio.run(iou.getUploadStatus(**parameters))
-                if result:
-                    print(f'{type(result)} {result}')
-                    result = eval(result)
-                    uploadCount = result["uploadCount"]
-            else:
-                url = os.path.join(base_url, "file-v2", "uploadStatus")
-                response = requests.get(
-                    url,
-                    params=parameters,
-                    headers=headerD,
-                    timeout=None
-                )
-                if response.status_code == 200:
-                    result = json.loads(response.text)
-                    if result:
-                        result = eval(result)
-                        uploadCount = result["uploadCount"]
-            responses = []
-            for index in range(uploadCount, expectedChunks):
-                offset = index * chunkSize
-                mD["chunkIndex"] = index
-                tmp = io.BytesIO()
-                with open(filePath, "rb") as to_upload:
-                    to_upload.seek(offset)
-                    packet_size = min(
-                        int(fileSize) - (int(mD["chunkIndex"]) * int(chunkSize)),
-                        int(chunkSize),
-                    )
-                    tmp.truncate(packet_size)
-                    tmp.seek(0)
-                    tmp.write(to_upload.read(packet_size))
-                    tmp.seek(0)
-                    if FORWARDING:
-                        mD["ifh"] = tmp
-                        response = asyncio.run(iou.resumableUpload(**mD))
-                    else:
-                        url = os.path.join(base_url, "file-v2", "resumableUpload")
-                        response = requests.post(
-                            url,
-                            data=mD,
-                            headers=headerD,
-                            files={"uploadFile": tmp},
-                            stream=True,
-                            timeout=None,
-                        )
-                    responses.append(response)
-                    self.status = math.ceil(((mD["chunkIndex"]+1) / mD["expectedChunks"]) * 100)
-                    self.upload_status.set(f'{self.status}%')
-                    self.master.update()
-            print(responses)
+                        break
+                responses.append(response)
+                mD["chunkIndex"] += 1
+                self.status = math.ceil((mD["chunkIndex"] / mD["expectedChunks"]) * 100)
+                self.upload_status.set(f'{self.status}%')
+                self.master.update()
+        print(responses)
+        print(f'time {time.perf_counter() - t1} s')
+        return
+
 
     def download(self):
         global headerD

@@ -201,7 +201,7 @@
               async function resumableChunks(file){
                 var fileSize = file.size;
                 var chunkSize = 1024 * 1024 * 8; // bytes
-                var expectedChunks = Math.ceil((fileSize) / chunkSize);
+                var expectedChunks = Math.ceil(fileSize / chunkSize);
                 var chunkIndex = 0;
                 var chunkOffset = 0;
                 await getUploadStatus();
@@ -211,6 +211,7 @@
                     chunkOffset = chunkSize * chunkIndex;
                 }
                 console.log('chunk index = ' + chunkIndex);
+                console.log('expected chunks = ' + expectedChunks);
                 var hashType = "MD5";
                 var copyMode = "native";
                 if(document.getElementsByName('decompress')[0].checked){
@@ -272,7 +273,8 @@
                   }).then(() => {
                     chunkOffset += chunkSize;
                     chunkIndex = chunkIndex + 1;
-                    readChunks(chunkIndex, chunkOffset)
+                    // console.log(`index ${chunkIndex}`);
+                    readChunks(chunkIndex, chunkOffset);
                   })
                 }
               }
