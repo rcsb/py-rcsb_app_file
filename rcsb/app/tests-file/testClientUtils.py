@@ -11,15 +11,10 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
-import sys
 import platform
 import resource
 import time
 import unittest
-import json
-import math
-import copy
-import io
 import shutil
 
 # requires server
@@ -52,7 +47,6 @@ logger.setLevel(logging.INFO)
 class ClientTests(unittest.TestCase):
 
     def setUp(self):
-
         self.__cU = ClientUtils()
         self.__dataPath = os.path.join(HERE, "data")
         self.__configFilePath = os.environ.get("CONFIG_FILE")
