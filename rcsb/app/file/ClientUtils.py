@@ -1,23 +1,22 @@
-import asyncio
-import copy
-import sys
 import os
 import io
-import gzip
+import logging
 from copy import deepcopy
 import math
-import requests
-from http.client import HTTPResponse
 import json
-import time
-import typing
+import requests
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
+from rcsb.app.file.Definitions import Definitions
 
 """
 author James Smith 2023
 """
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
 
 class ClientUtils(object):
     def __init__(self):
@@ -29,14 +28,15 @@ class ClientUtils(object):
         self.cP = ConfigProvider(configFilePath)
         self.cP.getConfig()
         subject = self.cP.get("JWT_SUBJECT")
+        self.dP = Definitions()
         self.headerD = {
             "Authorization": "Bearer "
                              + JWTAuthToken(configFilePath).createToken({}, subject)
         }
         self.repoTypeList = self.cP.get("REPO_TYPE_LIST")
         self.milestoneList = self.cP.get("MILESTONE_LIST")
-        self.fileFormatExtensionD = self.cP.get("FILE_FORMAT_EXTENSION")
-        self.contentTypeInfoD = self.cP.get("CONTENT_TYPE")
+        self.fileFormatExtensionD = self.dP.fileFormatExtD
+        self.contentTypeInfoD = self.dP.contentTypeD
 
     def upload(self, sourceFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable):
         if not os.path.exists(sourceFilePath):
