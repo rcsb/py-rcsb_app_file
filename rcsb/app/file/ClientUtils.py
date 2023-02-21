@@ -20,7 +20,7 @@ logger.setLevel(logging.INFO)
 
 class ClientUtils(object):
     def __init__(self):
-        self.base_url = "http://0.0.0.0:8000"
+        self.baseUrl = "http://0.0.0.0:8000"
         self.chunkSize = 1024 * 1024 * 8
         self.hashType = "MD5"
         os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
@@ -30,8 +30,7 @@ class ClientUtils(object):
         subject = self.cP.get("JWT_SUBJECT")
         self.dP = Definitions()
         self.headerD = {
-            "Authorization": "Bearer "
-                             + JWTAuthToken(configFilePath).createToken({}, subject)
+            "Authorization": "Bearer " + JWTAuthToken(configFilePath).createToken({}, subject)
         }
         self.repoTypeList = self.cP.get("REPO_TYPE_LIST")
         self.milestoneList = self.cP.get("MILESTONE_LIST")
@@ -40,7 +39,7 @@ class ClientUtils(object):
 
     def upload(self, sourceFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable):
         if not os.path.exists(sourceFilePath):
-            print(f'error - file does not exist: {sourceFilePath}')
+            logger.error("File does not exist: %r", sourceFilePath)
             return None
         # compress (externally), then hash, then upload
         # hash
@@ -55,25 +54,26 @@ class ClientUtils(object):
         saveFilePath = None
         chunkIndex = 0
         uploadId = None
-        parameters = {"repositoryType": repositoryType,
-                      "depId": depId,
-                      "contentType": contentType,
-                      "milestone": milestone,
-                      "partNumber": partNumber,
-                      "contentFormat": contentFormat,
-                      "version": version,
-                      "hashDigest": fullTestHash,
-                      "allowOverwrite": allowOverwrite,
-                      "resumable": resumable
-                      }
-        url = os.path.join(self.base_url, "file-v2", "getUploadParameters")
+        parameters = {
+            "repositoryType": repositoryType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+            "version": version,
+            "hashDigest": fullTestHash,
+            "allowOverwrite": allowOverwrite,
+            "resumable": resumable
+        }
+        url = os.path.join(self.baseUrl, "file-v2", "getUploadParameters")
         response = requests.get(
             url,
             params=parameters,
             headers=self.headerD,
             timeout=None
         )
-        print(f'status code {response.status_code}')
+        logger.info("status code %r", response.status_code)
         if response.status_code == 200:
             result = json.loads(response.text)
             if result:
@@ -81,7 +81,7 @@ class ClientUtils(object):
                 chunkIndex = result["chunkIndex"]
                 uploadId = result["uploadId"]
         if not saveFilePath or not uploadId:
-            print('error - no file path or upload id were formed')
+            logger.error("No file path or upload id were formed")
             return response
         # chunk file and upload
         mD = {
@@ -102,17 +102,17 @@ class ClientUtils(object):
         offset = chunkIndex * self.chunkSize
         response = None
         tmp = io.BytesIO()
-        with open(sourceFilePath, "rb") as to_upload:
-            to_upload.seek(offset)
-            url = os.path.join(self.base_url, "file-v2", "upload")
+        with open(sourceFilePath, "rb") as fUpload:
+            fUpload.seek(offset)
+            url = os.path.join(self.baseUrl, "file-v2", "upload")
             for x in range(chunkIndex, mD["expectedChunks"]):
-                packet_size = min(
+                packetSize = min(
                     int(fileSize) - (int(mD["chunkIndex"]) * int(self.chunkSize)),
                     int(self.chunkSize),
                 )
-                tmp.truncate(packet_size)
+                tmp.truncate(packetSize)
                 tmp.seek(0)
-                tmp.write(to_upload.read(packet_size))
+                tmp.write(fUpload.read(packetSize))
                 tmp.seek(0)
                 response = requests.post(
                     url,
@@ -123,29 +123,41 @@ class ClientUtils(object):
                     timeout=None,
                 )
                 if response.status_code != 200:
-                    print(f"error - status code {response.status_code} {response.text}...terminating")
+                    logger.error("Status code %r with text %r ...terminating", response.status_code, response.text)
                     break
                 mD["chunkIndex"] += 1
         return response
 
-    def download(self, repositoryType: str, depId: str, contentType: str, milestone: str, partNumber: int, contentFormat: str, version: str, hashType: str, downloadFolder: str, allowOverwrite: bool):
+    def download(
+        self,
+        repositoryType: str,
+        depId: str,
+        contentType: str,
+        milestone: str,
+        partNumber: int,
+        contentFormat: str,
+        version: str,
+        hashType: str,
+        downloadFolder: str,
+        allowOverwrite: bool
+    ):
         if not os.path.exists(downloadFolder):
-            print('error - download folder does not exist')
+            logger.error("Download folder does not exist")
             return None
         convertedMilestone = None
-        if milestone and milestone.lower() != 'none':
-            convertedMilestone = f'-{milestone}'
+        if milestone and milestone.lower() != "none":
+            convertedMilestone = f"-{milestone}"
         else:
             convertedMilestone = ""
         convertedContentFormat = self.fileFormatExtensionD[contentFormat]
-        fileName = f'{depId}_{contentType}{convertedMilestone}_P{partNumber}.{convertedContentFormat}.V{version}'
+        fileName = f"{depId}_{contentType}{convertedMilestone}_P{partNumber}.{convertedContentFormat}.V{version}"
         downloadFilePath = os.path.join(downloadFolder, "download" + "_" + fileName)
         if not os.path.exists(downloadFolder):
-            print(f'error - folder does not exist: {downloadFolder}')
+            logger.error("Folder does not exist: %r", downloadFolder)
             return None
         if os.path.exists(downloadFilePath):
             if not allowOverwrite:
-                print(f'error - file already exists: {downloadFilePath}')
+                logger.error("File already exists: %r", downloadFilePath)
                 return None
             os.remove(downloadFilePath)
         if milestone.lower() == "none":
@@ -159,27 +171,30 @@ class ClientUtils(object):
             "contentFormat": contentFormat,
             "version": version
         }
-        url = os.path.join(self.base_url, "file-v1", "downloadSize")
-        fileSize = requests.get(url, params=downloadDict, headers=self.headerD, timeout=None).text
+        downloadSizeUrl = os.path.join(self.baseUrl, "file-v1", "downloadSize")
+        fileSize = requests.get(downloadSizeUrl, params=downloadDict, headers=self.headerD, timeout=None).text
         if not fileSize.isnumeric():
-            print(f'error - no response for {downloadFilePath}')
+            logger.error("no response for: %r", downloadFilePath)
             return None
         fileSize = int(fileSize)
-        chunks = math.ceil(fileSize / self.chunkSize)
-        url = os.path.join(self.base_url, "file-v1", "download")
-        url = f'{url}?repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}&partNumber={partNumber}&contentFormat={contentFormat}&version={version}&hashType={hashType}'
+        # chunks = math.ceil(fileSize / self.chunkSize)
+        downloadUrlPrefix = os.path.join(self.baseUrl, "file-v1", "download")
+        downloadUrl = (
+            f"{downloadUrlPrefix}?repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}"
+            f"&partNumber={partNumber}&contentFormat={contentFormat}&version={version}&hashType={hashType}"
+        )
         resp = None
-        with requests.get(url, headers=self.headerD, timeout=None, stream=True) as response:
+        with requests.get(downloadUrl, headers=self.headerD, timeout=None, stream=True) as response:
             with open(downloadFilePath, "ab") as ofh:
                 for chunk in response.iter_content(chunk_size=self.chunkSize):
                     if chunk:
                         ofh.write(chunk)
-            responseCode = response.status_code
+            # responseCode = response.status_code
             rspHashType = response.headers["rcsb_hash_type"]
             rspHashDigest = response.headers["rcsb_hexdigest"]
             thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
             if not thD["hashDigest"] == rspHashDigest:
-                print('error - hash comparison failed')
+                logger.error("Hash comparison failed")
                 return None
             resp = response
         return resp
@@ -190,9 +205,9 @@ class ClientUtils(object):
             "depId": depId
         }
         if not depId or not repoType:
-            print('error - missing values')
+            logger.error("Missing values")
             return None
-        url = os.path.join(self.base_url, "file-v1", "list-dir")
+        url = os.path.join(self.baseUrl, "file-v1", "list-dir")
         responseCode = None
         dirList = None
         with requests.get(url, params=parameters, headers=self.headerD, timeout=None) as response:
@@ -208,5 +223,3 @@ class ClientUtils(object):
             for fi in sorted(dirList):
                 results.append(fi)
         return results
-
-
