@@ -19,6 +19,7 @@ from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
+from rcsb.app.file.ClientUtils import ClientUtils
 
 """
 author James Smith 2023
@@ -39,6 +40,7 @@ cP = ConfigProvider(configFilePath)
 cP.getConfig()
 subject = cP.get("JWT_SUBJECT")
 ioU = IoUtils(cP)
+cU = ClientUtils()
 headerD = {
     "Authorization": "Bearer "
     + JWTAuthToken(configFilePath).createToken({}, subject)
@@ -58,35 +60,21 @@ signature = """
 """
 
 
-def upload(self):
-    global headerD
-    global ioU
-    global maxChunkSize
+def upload(mD):
     global COMPRESS
     global DECOMPRESS
     global RESUMABLE
     global OVERWRITE
-    global hashType
-    global base_url
-    global cP
-    # global contentTypeInfoD
-    # global fileFormatExtensionD
-    # global headerD
-    # global chunkSize
-    # global iou
+    global cU
     t1 = time.perf_counter()
-    readFilePath = self.file_path
-    resumable = self.resumable.get() == 1
-    allowOverwrite = self.allow_overwrite.get() == 1
-    COMPRESS = self.compress.get() == 1
-    DECOMPRESS = self.decompress.get() == 1
-    repositoryType = self.repo_type.get()
-    depId = self.dep_id.get()
-    contentType = self.content_type.get()
-    milestone = self.mile_stone.get()
-    partNumber = self.part_number.get()
-    contentFormat = self.file_format.get()
-    version = self.version_number.get()
+    readFilePath = mD["filePath"]
+    respositoryType = mD["repositoryType"]
+    depId = mD["depId"]
+    contentType = mD["contentType"]
+    milestone = mD["milestone"]
+    partNumber = mD["partNumber"]
+    contentFormat = mD["contentFormat"]
+    version = mD["version"]
     if not readFilePath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
         print('error - missing values')
         sys.exit()
@@ -101,270 +89,20 @@ def upload(self):
             with gzip.open(tempPath, "wb") as w:
                 w.write(r.read())
         readFilePath = tempPath
-    # hash
-    hD = CryptUtils().getFileHash(readFilePath, hashType=hashType)
-    fullTestHash = hD["hashDigest"]
-    fileSize = os.path.getsize(readFilePath)
-    chunkIndex = 0
-    expectedChunks = 0
-    if chunkSize < fileSize:
-        expectedChunks = fileSize // chunkSize
-        if fileSize % chunkSize:
-            expectedChunks = expectedChunks + 1
-    else:
-        expectedChunks = 1
-    copyMode = "native"
-    if DECOMPRESS:
-        copyMode = "gzip_decompress"
-    # upload chunks sequentially
-    saveFilePath = None
-    uploadId = None
-    parameters = {"repositoryType": repositoryType,
-                  "depId": depId,
-                  "contentType": contentType,
-                  "milestone": milestone,
-                  "partNumber": partNumber,
-                  "contentFormat": contentFormat,
-                  "version": version,
-                  "hashDigest": fullTestHash,
-                  "allowOverwrite": allowOverwrite,
-                  "resumable": resumable
-                  }
-    if FORWARDING:
-        saveFilePath, chunkIndex, uploadId = asyncio.run(ioU.getUploadParameters(**parameters))
-    else:
-        url = os.path.join(base_url, "file-v2", "getUploadParameters")
-        response = requests.get(
-            url,
-            params=parameters,
-            headers=headerD,
-            timeout=None
-        )
-        print(f'status code {response.status_code}')
-        if response.status_code == 200:
-            result = json.loads(response.text)
-            if result:
-                # result = eval(result)
-                saveFilePath = result["filePath"]
-                chunkIndex = result["chunkIndex"]
-                uploadId = result["uploadId"]
-            # print(f'result = {result}')
-    if not saveFilePath or not uploadId:
-        print('error - no file path or upload id were formed')
-        sys.exit()
-    mD = {
-        # chunk parameters
-        "chunkSize": chunkSize,
-        "chunkIndex": chunkIndex,
-        "expectedChunks": expectedChunks,
-        # upload file parameters
-        "uploadId": uploadId,
-        "hashType": hashType,
-        "hashDigest": fullTestHash,
-        "resumable": resumable,
-        # save file parameters
-        "filePath": saveFilePath,
-        "copyMode": copyMode,
-        "allowOverwrite": allowOverwrite
-    }
-    # chunk file and upload
-    offset = chunkIndex * chunkSize
-    responses = []
-    tmp = io.BytesIO()
-    with open(readFilePath, "rb") as to_upload:
-        to_upload.seek(offset)
-        url = os.path.join(base_url, "file-v2", "upload")
-        for x in range(chunkIndex, mD["expectedChunks"]):
-            packet_size = min(
-                int(fileSize) - (int(mD["chunkIndex"]) * int(chunkSize)),
-                int(chunkSize),
-            )
-            tmp.truncate(packet_size)
-            tmp.seek(0)
-            tmp.write(to_upload.read(packet_size))
-            tmp.seek(0)
-            if FORWARDING:
-                mD["chunk"] = tmp
-                response = asyncio.run(ioU.upload(**(deepcopy(mD))))
-            else:
-                response = requests.post(
-                    url,
-                    data=deepcopy(mD),
-                    headers=headerD,
-                    files={"chunk": tmp},
-                    stream=True,
-                    timeout=None,
-                )
-                if response.status_code != 200:
-                    print(
-                        f"error - status code {response.status_code} {response.text}...terminating"
-                    )
-                    break
-            responses.append(response)
-            mD["chunkIndex"] += 1
-            self.status = math.ceil((mD["chunkIndex"] / mD["expectedChunks"]) * 100)
-            self.upload_status.set(f'{self.status}%')
-            self.master.update()
-    print(responses)
-    print(f'time {time.perf_counter() - t1} s')
-    return
+    # get upload parameters
+    response = cU.getUploadParameters(readFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, OVERWRITE, RESUMABLE)
+    if not response:
+        print('error in get upload parameters')
+        return
+    saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash = response
+    # upload chunks
+    for index in tqdm(range(chunkIndex,expectedChunks), leave=False, total=expectedChunks - chunkIndex, desc=os.path.basename(readFilePath)):
+        response = cU.uploadChunk(readFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, DECOMPRESS, OVERWRITE, RESUMABLE)
+        if not response:
+            print('error in upload chunk')
+            break
+    return response
 
-
-def upload(mD):
-    global headerD
-    global ioU
-    global maxChunkSize
-    global COMPRESS
-    global DECOMPRESS
-    global RESUMABLE
-    global OVERWRITE
-    if not SEQUENTIAL and not RESUMABLE:
-        # upload as one file
-        response = None
-        with open(mD["filePath"], "rb") as to_upload:
-            url = os.path.join(base_url, "file-v2", "upload")
-            response = requests.post(
-                url,
-                data=deepcopy(mD),
-                headers=headerD,
-                files={"uploadFile": to_upload},
-                stream=True,
-                timeout=None,
-            )
-        if response.status_code != 200:
-            print(
-                f"error - status code {response.status_code} {response.text}"
-            )
-        return [response]
-    elif SEQUENTIAL:
-        # sequential chunks
-        readFilePath = mD["filePath"]
-        url = os.path.join(base_url, "file-v2", "getSaveFilePath")
-        parameters = {"repositoryType": mD["repositoryType"],
-                      "depId": mD["depId"],
-                      "contentType": mD["contentType"],
-                      "milestone": mD["milestone"],
-                      "partNumber": str(mD["partNumber"]),
-                      "contentFormat": mD["contentFormat"],
-                      "version": mD["version"],
-                      "allowOverwrite": mD["allowOverwrite"]
-                      }
-        response = requests.get(
-            url,
-            params=parameters,
-            headers=headerD,
-            timeout=None
-        )
-        if response.status_code == 200:
-            result = json.loads(response.text)
-            if result:
-                mD["filePath"] = result["path"]
-        url = os.path.join(base_url, "file-v2", "getNewUploadId")
-        response = requests.get(
-            url,
-            headers=headerD,
-            timeout=None
-        )
-        if response.status_code == 200:
-            result = json.loads(response.text)
-            if result:
-                mD["uploadId"] = result["id"]
-        # chunk file and upload
-        offset = 0
-        uploadCount = 0
-        responses = []
-        tmp = io.BytesIO()
-        with open(readFilePath, "rb") as to_upload:
-            to_upload.seek(offset)
-            url = os.path.join(base_url, "file-v2", "sequentialUpload")
-            for x in tqdm(range(uploadCount, mD["expectedChunks"]), leave=False, desc=os.path.basename(mD["filePath"])):
-                packet_size = min(
-                    int(mD["fileSize"]) - (int(mD["chunkIndex"]) * int(mD["chunkSize"])),
-                    int(mD["chunkSize"]),
-                )
-                tmp.truncate(packet_size)
-                tmp.seek(0)
-                tmp.write(to_upload.read(packet_size))
-                tmp.seek(0)
-                response = requests.post(
-                    url,
-                    data=deepcopy(mD),
-                    headers=headerD,
-                    files={"uploadFile": tmp},
-                    stream=True,
-                    timeout=None,
-                )
-                if response.status_code != 200:
-                    print(
-                        f"error - status code {response.status_code} {response.text}...terminating"
-                    )
-                    break
-                responses.append(response)
-                mD["chunkIndex"] += 1
-        return responses
-    elif RESUMABLE:
-        # resumable sequential chunk upload
-        responses = []
-        uploadId = mD["uploadId"]
-        url = os.path.join(base_url, "file-v2", "uploadStatus")
-        parameters = {"repositoryType": mD["repositoryType"],
-                  "depId": mD["depId"],
-                  "contentType": mD["contentType"],
-                  "milestone": mD["milestone"],
-                  "partNumber": str(mD["partNumber"]),
-                  "contentFormat": mD["contentFormat"],
-                  "hashDigest": mD["hashDigest"]
-                  }
-        response = requests.get(
-            url,
-            params=parameters,
-            headers=headerD,
-            timeout=None
-        )
-        uploadCount = 0
-        offset = 0
-        if response.status_code == 200:
-            result = json.loads(response.text)
-            if result:
-                if not isinstance(result, dict):
-                    result = eval(result)
-                uploadCount = int(result["uploadCount"])
-                packet_size = min(
-                    int(mD["fileSize"]) - ( int(mD["chunkIndex"]) * int(mD["chunkSize"]) ),
-                    int(mD["chunkSize"]),
-                )
-                offset = uploadCount * packet_size
-                mD["chunkIndex"] = uploadCount
-        # chunk file and upload
-        tmp = io.BytesIO()
-        with open(mD["filePath"], "rb") as to_upload:
-            to_upload.seek(offset)
-            url = os.path.join(base_url, "file-v2", "resumableUpload")
-            for x in tqdm(range(uploadCount, mD["expectedChunks"]), leave=False, desc=os.path.basename(mD["filePath"])):
-                packet_size = min(
-                    int(mD["fileSize"]) - ( int(mD["chunkIndex"]) * int(mD["chunkSize"]) ),
-                    int(mD["chunkSize"]),
-                )
-                tmp.truncate(packet_size)
-                tmp.seek(0)
-                tmp.write(to_upload.read(packet_size))
-                tmp.seek(0)
-                response = requests.post(
-                    url,
-                    data=deepcopy(mD),
-                    headers=headerD,
-                    files={"uploadFile": tmp},
-                    stream=True,
-                    timeout=None,
-                )
-                if response.status_code != 200:
-                    print(
-                        f"error - status code {response.status_code} {response.text}...terminating"
-                    )
-                    break
-                responses.append(response)
-                mD["chunkIndex"] += 1
-        return responses
 
 def download(downloadFilePath, downloadDict):
     global headerD
@@ -458,43 +196,9 @@ if __name__ == "__main__":
             partNumber = arglist[5]
             contentFormat = arglist[6]
             version = arglist[7]
-            allowOverwrite = OVERWRITE
-            # compress, then hash, then upload
-            if COMPRESS:
-                tempPath = filePath + ".gz"
-                with open(filePath, "rb") as r:
-                    with gzip.open(tempPath, "wb") as w:
-                        w.write(r.read())
-                filePath = tempPath
-            # hash
-            hD = CryptUtils().getFileHash(filePath, hashType=hashType)
-            fullTestHash = hD["hashDigest"]
-            chunkSize = maxChunkSize
-            fileSize = os.path.getsize(filePath)
-            expectedChunks = 0
-            if chunkSize < fileSize:
-                expectedChunks = fileSize // chunkSize
-                if fileSize % chunkSize:
-                    expectedChunks = expectedChunks + 1
-            else:
-                expectedChunks = 1
-            chunkIndex = 0
-            copyMode = "native"
-            if DECOMPRESS:
-                copyMode = "gzip_decompress"
             uploads.append(
                 {
-                    # upload file parameters
                     "filePath": filePath,
-                    "uploadId": None,
-                    "fileSize": fileSize,
-                    "hashType": hashType,
-                    "hashDigest": fullTestHash,
-                    # chunk parameters
-                    "chunkSize": chunkSize,
-                    "chunkIndex": chunkIndex,
-                    "expectedChunks": expectedChunks,
-                    # save file parameters
                     "repositoryType": repositoryType,
                     "depId": depId,
                     "contentType": contentType,
@@ -502,8 +206,6 @@ if __name__ == "__main__":
                     "partNumber": partNumber,
                     "contentFormat": contentFormat,
                     "version": version,
-                    "copyMode": copyMode,  # whether file is a zip file
-                    "allowOverwrite": allowOverwrite,
                 }
             )
     if args.download:
@@ -534,19 +236,17 @@ if __name__ == "__main__":
             }
             downloads.append((downloadFilePath, downloadDict))
     if len(uploads) > 0:
-        # upload concurrent files sequential chunks or no chunks
+        # upload concurrent files sequential chunks
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {executor.submit(upload, u): u for u in uploads}
             results = []
             for future in concurrent.futures.as_completed(futures):
                 results.append(future.result())
-            for result in results:
-                for response in result:
+            for response in results:
+                if response:
                     uploadResults.append(response.status_code)
-                    res = json.loads(response.text)
-                    if res and res.get("uploadId"):
-                        uploadIds.append(res["uploadId"])
-                    uploadTexts.append(res)
+                else:
+                    uploadResults.append(None)
     if len(downloads) > 0:
         with ThreadPoolExecutor(max_workers=10) as executor:
             futures = {executor.submit(download, tpl[0], tpl[1]): tpl for tpl in downloads}

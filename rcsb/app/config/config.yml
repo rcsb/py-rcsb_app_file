@@ -12,7 +12,7 @@ configuration:
   REPOSITORY_DIR_PATH: rcsb/app/tests-file/data/repository
   SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks
   PDBX_REPOSITORY: rcsb/app/tests-file/data/mmcif
-  KV_MODE: sqlite
+  KV_MODE: redis
   KV_SESSION_TABLE_NAME: sessions
   KV_LOG_TABLE_NAME: log
   KV_MAX_SECONDS: 14400

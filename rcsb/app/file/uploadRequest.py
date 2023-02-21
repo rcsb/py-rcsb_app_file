@@ -241,7 +241,7 @@ async def getUploadStatus(repositoryType: str,
             uploadCount = status['uploadCount']
     else:
         uploadId = getNewUploadId()
-    return uploadCount, uploadId
+    return int(uploadCount), uploadId
 
 
 async def getSaveFilePath(repositoryType: str,

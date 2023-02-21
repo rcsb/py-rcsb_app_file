@@ -17,6 +17,7 @@ from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
+from rcsb.app.file.ClientUtils import ClientUtils
 
 """
 author James Smith 2023
@@ -799,6 +800,8 @@ class Gui(tk.Frame):
         # master.geometry("500x500")
         master.title("FILE ACCESS AND DEPOSITION APPLICATION")
 
+        self.__cU = ClientUtils()
+
         self.tabs = ttk.Notebook(master)
         self.splashTab = ttk.Frame(master)
         self.uploadTab = ttk.Frame(master)
@@ -1010,7 +1013,7 @@ class Gui(tk.Frame):
         self.file_path = askdirectory()
         self.download_fileButton.config(text='\u2713')
 
-    def upload(self):
+    def uploadFile(self):
         global headerD
         global hashType
         global chunkSize
@@ -1058,9 +1061,6 @@ class Gui(tk.Frame):
                 expectedChunks = expectedChunks + 1
         else:
             expectedChunks = 1
-        copyMode = "native"
-        if DECOMPRESS:
-            copyMode = "gzip_decompress"
         # upload chunks sequentially
         saveFilePath = None
         uploadId = None
@@ -1109,7 +1109,7 @@ class Gui(tk.Frame):
             "resumable": resumable,
             # save file parameters
             "filePath": saveFilePath,
-            "copyMode": copyMode,
+            "resumable": resumable,
             "allowOverwrite": allowOverwrite
         }
         # chunk file and upload
@@ -1154,6 +1154,63 @@ class Gui(tk.Frame):
         print(f'time {time.perf_counter() - t1} s')
         return
 
+    def upload(self):
+        global headerD
+        global hashType
+        global chunkSize
+        global base_url
+        global contentTypeInfoD
+        global fileFormatExtensionD
+        global cP
+        global iou
+        t1 = time.perf_counter()
+        readFilePath = self.file_path
+        resumable = self.resumable.get() == 1
+        allowOverwrite = self.allow_overwrite.get() == 1
+        COMPRESS = self.compress.get() == 1
+        DECOMPRESS = self.decompress.get() == 1
+        repositoryType = self.repo_type.get()
+        depId = self.dep_id.get()
+        contentType = self.content_type.get()
+        milestone = self.mile_stone.get()
+        partNumber = self.part_number.get()
+        contentFormat = self.file_format.get()
+        version = self.version_number.get()
+        if not readFilePath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
+            print('error - missing values')
+            sys.exit()
+        if not os.path.exists(readFilePath):
+            sys.exit(f'error - file does not exist: {readFilePath}')
+        if milestone.lower() == "none":
+            milestone = ""
+        # compress, then hash, then upload
+        if COMPRESS:
+            tempPath = readFilePath + ".gz"
+            with open(readFilePath, "rb") as r:
+                with gzip.open(tempPath, "wb") as w:
+                    w.write(r.read())
+            readFilePath = tempPath
+        # get upload parameters
+        response = self.__cU.getUploadParameters(readFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, resumable)
+        if not response:
+            print('error in get upload parameters')
+            return
+        saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash = response
+        # upload chunks
+        for index in range(chunkIndex, expectedChunks):
+            response = self.__cU.uploadChunk(readFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, DECOMPRESS, allowOverwrite, resumable)
+            if not response:
+                print('error in upload chunk')
+                break
+            self.status = math.ceil((index / expectedChunks) * 100)
+            self.upload_status.set(f'{self.status}%')
+            self.master.update()
+        self.status = 100
+        self.upload_status.set(f'{self.status}%')
+        self.master.update()
+        print(response)
+        print(f'time {time.perf_counter() - t1} s')
+        return
 
     def download(self):
         global headerD

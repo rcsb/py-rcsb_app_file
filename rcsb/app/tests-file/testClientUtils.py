@@ -17,6 +17,8 @@ import time
 import unittest
 import shutil
 
+# requires server
+
 # pylint: disable=wrong-import-position
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
@@ -120,34 +122,6 @@ class ClientTests(unittest.TestCase):
                 startTime = time.time()
                 try:
                     response = self.__cU.upload(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable)
-                    self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
-                    logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
-                except Exception as e:
-                    logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
-                    self.fail()
-
-    def test_sequential_upload(self):
-        """Test - sequential file upload """
-        hashType = testHash = None
-        hashType = "MD5"
-        resumable = False
-        for testFilePath, decompress, partNumber, allowOverwrite, responseCode in [
-            (self.__testFileDatPath, False, 1, True, 200),
-            (self.__testFileDatPath, False, 2, True, 200),
-            (self.__testFileDatPath, False, 1, False, 405),
-            (self.__testFileGzipPath, True, 3, True, 200),
-        ]:
-            logging.warning(f'{decompress} {partNumber} {allowOverwrite} {responseCode}')
-            repositoryType = "onedep-archive"
-            depId = "D_1000000001"
-            contentType = "model"
-            milestone = ""
-            contentFormat = "pdbx"
-            for version in range(1, 2):
-                startTime = time.time()
-                try:
-                    response = self.__cU.upload(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable)
-                    print(response)
                     self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
                 except Exception as e:
