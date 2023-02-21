@@ -32,7 +32,7 @@ class KvRedis:
         if not self.kV.exists(hashvar) or not self.kV.hexists(hashvar, key):
             self.kV.hset(hashvar, key, 0)
             self.kV.expire(hashvar, self.duration)
-        return self.kV.hget(hashvar, key)
+        return str(self.kV.hget(hashvar, key))
 
     # hashvar = uid
     def setSession(self, hashvar, key, val):
@@ -87,13 +87,13 @@ class KvRedis:
         if table == self.sessionTable:
             return self.kV.hgetall(hashvar)
         elif table == self.logTable:
-            return self.kV.get(hashvar)
+            return str(self.kV.get(hashvar))
 
     def getLog(self, key):
         # validate args
         if not key:
             return None
-        return self.kV.get(key)
+        return str(self.kV.get(key))
 
     def setLog(self, key, val):
         # validate args
