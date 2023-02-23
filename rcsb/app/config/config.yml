@@ -1,6 +1,7 @@
 # File: config.yml
 # Date: 6-Mar-2022
 #
+# Config file for File Access API server
 ---
 configuration:
   JWT_SUBJECT: aTestSubject
@@ -17,9 +18,5 @@ configuration:
   KV_LOG_TABLE_NAME: log
   KV_MAX_SECONDS: 14400
   KV_FILE_PATH: ./kv.sqlite
-  ACCESS_KEY: awsKey
-  SECRET_KEY: awsSecret
-  AWS_REGION: awsRegion
-  AWS_BUCKET: awsBucket
   MILESTONE_LIST: ['upload', 'upload-convert', 'deposit', 'annotate', 'release', 'review']
   REPO_TYPE_LIST: ['deposit', 'archive', 'workflow', 'session']

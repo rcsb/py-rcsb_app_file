@@ -20,7 +20,7 @@ import gzip
 import hashlib
 import logging
 import os
-import shutil
+# import shutil
 import typing
 import uuid
 import aiofiles
@@ -215,10 +215,8 @@ class IoUtils:
             chunk.close()
         return ret
 
-
     def getTempFilePath(self, uploadId, dirPath):
         return os.path.join(dirPath, "._" + uploadId)
-
 
     # file path functions
 
@@ -357,7 +355,7 @@ class IoUtils:
         return response
 
     # clear one entry from session table and corresponding entry from log table
-    def clearSession(self, uid: str, logKey: typing.Optional):
+    def clearSession(self, uid: str, logKey: str):
         response = True
         try:
             res = self.__kV.clearSessionKey(uid)
@@ -376,41 +374,40 @@ class IoUtils:
         self.__kV.clearTable(self.__kV.sessionTable)
         self.__kV.clearTable(self.__kV.logTable)
 
-
     # duplicates of upload request functions
-
-    async def getUploadParameters(self,
-            repositoryType: str,
-            depId: str,
-            contentType: str,
-            milestone: str,
-            partNumber: int,
-            contentFormat: str,
-            version: str,
-            hashDigest: str,
-            allowOverwrite: bool,
-            resumable: bool
-            ):
-        chunkIndex, uploadId = await self.getUploadStatus(repositoryType,depId,contentType,milestone,partNumber,contentFormat,version,hashDigest,resumable)
-        filePath = await self.getSaveFilePath(repositoryType,depId,contentType,milestone,partNumber,contentFormat,version,allowOverwrite)
+    async def getUploadParameters(
+        self,
+        repositoryType: str,
+        depId: str,
+        contentType: str,
+        milestone: str,
+        partNumber: int,
+        contentFormat: str,
+        version: str,
+        hashDigest: str,
+        allowOverwrite: bool,
+        resumable: bool,
+    ):
+        chunkIndex, uploadId = await self.getUploadStatus(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, hashDigest, resumable)
+        filePath = await self.getSaveFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite)
         if not filePath:
             raise HTTPException(status_code=400, detail="Error - could not make file path from parameters")
         return filePath, chunkIndex, uploadId
 
-
     # return kv entry from file parameters, if have resumed upload, or None if don't
     # if have resumed upload, kv response has chunk count
-    async def getUploadStatus(self,
-                              repositoryType: str,
-                              depId: str,
-                              contentType: str ,
-                              milestone: str,
-                              partNumber: int,
-                              contentFormat: str,
-                              version: str,
-                              hashDigest: str,
-                              resumable: bool
-                              ):
+    async def getUploadStatus(
+        self,
+        repositoryType: str,
+        depId: str,
+        contentType: str,
+        milestone: str,
+        partNumber: int,
+        contentFormat: str,
+        version: str,
+        hashDigest: str,
+        resumable: bool,
+    ):
         if version is None or not re.match(r"\d+", version):
             version = await self.findVersion(
                 repositoryType=repositoryType,
@@ -445,16 +442,17 @@ class IoUtils:
             uploadId = self.getNewUploadId()
         return uploadCount, uploadId
 
-
-    async def getSaveFilePath(self,
-                              repositoryType: str,
-                              depId: str,
-                              contentType: str,
-                              milestone: str,
-                              partNumber: int,
-                              contentFormat: str,
-                              version: str,
-                              allowOverwrite: bool):
+    async def getSaveFilePath(
+        self,
+        repositoryType: str,
+        depId: str,
+        contentType: str,
+        milestone: str,
+        partNumber: int,
+        contentFormat: str,
+        version: str,
+        allowOverwrite: bool,
+    ):
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         pathU = PathUtils(cP)
@@ -480,7 +478,6 @@ class IoUtils:
         dirPath, _ = os.path.split(outPath)
         os.makedirs(dirPath, mode=0o777, exist_ok=True)
         return outPath
-
 
     def getNewUploadId(self):
         return uuid.uuid4().hex

@@ -62,16 +62,16 @@ class PathUtils:
         fnBase = self.__getBaseFileName(depId, contentType, milestone, partNumber, contentFormat)
         return os.path.join(lockPath, fnBase + ".lock")
 
-
-    def getVersionedPath(self,
-                         repositoryType: str = "archive",
-                         depId: str = None,
-                         contentType: str = "model",
-                         milestone: str = None,
-                         partNumber: str = "1",
-                         contentFormat: str = "pdbx",
-                         version: str = "next"
-                         ) -> typing.Optional[str]:
+    def getVersionedPath(
+        self,
+        repositoryType: str = "archive",
+        depId: str = None,
+        contentType: str = "model",
+        milestone: str = None,
+        partNumber: str = "1",
+        contentFormat: str = "pdbx",
+        version: str = "next",
+    ) -> typing.Optional[str]:
         fTupL = []
         filePath = None
         filePattern = None
@@ -194,20 +194,22 @@ class PathUtils:
             return '-' + milestone
         return ""
 
-    def getBaseFileName(self,
-                        depId: str = None,
-                        contentType: str = "model",
-                        milestone: typing.Optional[str] = None,
-                        partNumber: int = 1,
-                        contentFormat: str = "pdbx"
-                        ) -> str:
+    def getBaseFileName(
+        self,
+        depId: str = None,
+        contentType: str = "model",
+        milestone: typing.Optional[str] = None,
+        partNumber: int = 1,
+        contentFormat: str = "pdbx",
+    ) -> str:
         return self.__getBaseFileName(depId, contentType, milestone, partNumber, contentFormat)
 
-    def __getBaseFileName(self,
-                          depId: str = None,
-                          contentType: str = "model",
-                          milestone: str = None,
-                          partNumber: int = 1,
-                          contentFormat: str = "pdbx"
-                          ) -> str:
+    def __getBaseFileName(
+        self,
+        depId: str = None,
+        contentType: str = "model",
+        milestone: str = None,
+        partNumber: int = 1,
+        contentFormat: str = "pdbx",
+    ) -> str:
         return f"{depId}_{self.__contentTypeInfoD[contentType][1]}{self.__validateMilestone(milestone)}_P{partNumber}.{self.__fileFormatExtensionD[contentFormat]}"

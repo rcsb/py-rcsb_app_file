@@ -17,7 +17,7 @@ from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
-from rcsb.app.file.ClientUtils import ClientUtils
+from rcsb.app.client.ClientUtils import ClientUtils
 
 """
 author James Smith 2023

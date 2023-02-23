@@ -1,3 +1,20 @@
+##
+# File:    PathUtils.py
+# Author:  js
+# Date:    22-Feb-2023
+# Version: 0.001
+#
+# Updates: James Smith 2023
+##
+"""
+Client utilities - wrapper of basic functionalities
+"""
+
+__docformat__ = "google en"
+__author__ = "John Westbrook"
+__email__ = "john.westbrook@rcsb.org"
+__license__ = "Apache 2.0"
+
 import os
 import io
 import logging
@@ -10,30 +27,25 @@ from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.Definitions import Definitions
 
-"""
-author James Smith 2023
-"""
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
 class ClientUtils(object):
     def __init__(self):
-        self.baseUrl = "http://0.0.0.0:8000"
-        self.chunkSize = 1024 * 1024 * 8
-        self.hashType = "MD5"
-        os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
-        configFilePath = os.environ.get("CONFIG_FILE")
+        configFilePath = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "client.yml"))
         self.cP = ConfigProvider(configFilePath)
         self.cP.getConfig()
+        self.baseUrl = self.cP.get("SERVER_HOST_AND_PORT")
+        self.chunkSize = self.cP.get("CHUNK_SIZE")
+        self.hashType = self.cP.get("HASH_TYPE")
         subject = self.cP.get("JWT_SUBJECT")
-        self.dP = Definitions()
+        self.repoTypeList = self.cP.get("REPO_TYPE_LIST")
+        self.milestoneList = self.cP.get("MILESTONE_LIST")
         self.headerD = {
             "Authorization": "Bearer " + JWTAuthToken(configFilePath).createToken({}, subject)
         }
-        self.repoTypeList = self.cP.get("REPO_TYPE_LIST")
-        self.milestoneList = self.cP.get("MILESTONE_LIST")
+        self.dP = Definitions()
         self.fileFormatExtensionD = self.dP.fileFormatExtD
         self.contentTypeInfoD = self.dP.contentTypeD
 
@@ -66,7 +78,7 @@ class ClientUtils(object):
             "version": version,
             "hashDigest": fullTestHash,
             "allowOverwrite": allowOverwrite,
-            "resumable": resumable
+            "resumable": resumable,
         }
         url = os.path.join(self.baseUrl, "file-v2", "getUploadParameters")
         response = requests.get(
@@ -99,7 +111,7 @@ class ClientUtils(object):
             # save file parameters
             "filePath": saveFilePath,
             "decompress": decompress,
-            "allowOverwrite": allowOverwrite
+            "allowOverwrite": allowOverwrite,
         }
         offset = chunkIndex * self.chunkSize
         response = None
@@ -107,7 +119,7 @@ class ClientUtils(object):
         with open(sourceFilePath, "rb") as fUpload:
             fUpload.seek(offset)
             url = os.path.join(self.baseUrl, "file-v2", "upload")
-            for x in range(chunkIndex, mD["expectedChunks"]):
+            for _ in range(chunkIndex, mD["expectedChunks"]):
                 packetSize = min(
                     int(fileSize) - (int(mD["chunkIndex"]) * int(self.chunkSize)),
                     int(self.chunkSize),
@@ -134,7 +146,7 @@ class ClientUtils(object):
 
     def getUploadParameters(self, sourceFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, resumable):
         if not os.path.exists(sourceFilePath):
-            print(f'error - file does not exist: {sourceFilePath}')
+            logger.error("File does not exist: %r", sourceFilePath)
             return None
         # compress (externally), then hash, then upload
         # hash
@@ -144,18 +156,19 @@ class ClientUtils(object):
         saveFilePath = None
         chunkIndex = 0
         uploadId = None
-        parameters = {"repositoryType": repositoryType,
-                      "depId": depId,
-                      "contentType": contentType,
-                      "milestone": milestone,
-                      "partNumber": partNumber,
-                      "contentFormat": contentFormat,
-                      "version": version,
-                      "hashDigest": fullTestHash,
-                      "allowOverwrite": allowOverwrite,
-                      "resumable": resumable
-                      }
-        url = os.path.join(self.base_url, "file-v2", "getUploadParameters")
+        parameters = {
+            "repositoryType": repositoryType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+            "version": version,
+            "hashDigest": fullTestHash,
+            "allowOverwrite": allowOverwrite,
+            "resumable": resumable,
+        }
+        url = os.path.join(self.baseUrl, "file-v2", "getUploadParameters")
         response = requests.get(
             url,
             params=parameters,
@@ -169,7 +182,7 @@ class ClientUtils(object):
                 chunkIndex = result["chunkIndex"]
                 uploadId = result["uploadId"]
         if not saveFilePath or not uploadId:
-            print('error - no file path or upload id were formed')
+            logger.error("No file path or upload id were formed")
             return response
         # compute expected chunks
         fileSize = os.path.getsize(sourceFilePath)
@@ -182,7 +195,7 @@ class ClientUtils(object):
 
     def uploadChunk(self, sourceFilePath, saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash, decompress, allowOverwrite, resumable):
         if not os.path.exists(sourceFilePath):
-            print(f'error - file does not exist: {sourceFilePath}')
+            logger.error("File does not exist: %r", sourceFilePath)
             return None
         # chunk file and upload
         mD = {
@@ -198,23 +211,23 @@ class ClientUtils(object):
             # save file parameters
             "filePath": saveFilePath,
             "decompress": decompress,
-            "allowOverwrite": allowOverwrite
+            "allowOverwrite": allowOverwrite,
         }
         fileSize = os.path.getsize(sourceFilePath)
         offset = chunkIndex * self.chunkSize
         response = None
         tmp = io.BytesIO()
-        with open(sourceFilePath, "rb") as to_upload:
-            to_upload.seek(offset)
-            packet_size = min(
+        with open(sourceFilePath, "rb") as toUpload:
+            toUpload.seek(offset)
+            packetSize = min(
                 int(fileSize) - int(offset),
                 int(self.chunkSize),
             )
-            tmp.truncate(packet_size)
+            tmp.truncate(packetSize)
             tmp.seek(0)
-            tmp.write(to_upload.read(packet_size))
+            tmp.write(toUpload.read(packetSize))
             tmp.seek(0)
-            url = os.path.join(self.base_url, "file-v2", "upload")
+            url = os.path.join(self.baseUrl, "file-v2", "upload")
             response = requests.post(
                 url,
                 data=deepcopy(mD),
@@ -224,7 +237,7 @@ class ClientUtils(object):
                 timeout=None,
             )
             if response.status_code != 200:
-                print(f"error - status code {response.status_code} {response.text}...terminating")
+                logger.error("Terminating with status code %r and response text: %r", response.status_code, response.text)
         return response
 
     def download(
@@ -268,7 +281,7 @@ class ClientUtils(object):
             "milestone": milestone,
             "partNumber": partNumber,
             "contentFormat": contentFormat,
-            "version": version
+            "version": version,
         }
         downloadSizeUrl = os.path.join(self.baseUrl, "file-v1", "downloadSize")
         fileSize = requests.get(downloadSizeUrl, params=downloadDict, headers=self.headerD, timeout=None).text
