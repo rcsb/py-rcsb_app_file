@@ -20,7 +20,6 @@ import gzip
 import hashlib
 import logging
 import os
-# import shutil
 import typing
 import uuid
 import aiofiles

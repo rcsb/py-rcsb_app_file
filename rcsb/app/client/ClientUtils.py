@@ -33,21 +33,21 @@ logger.setLevel(logging.INFO)
 
 class ClientUtils(object):
     def __init__(self):
-        configFilePath = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "client.yml"))
+        configFilePath = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
         self.cP = ConfigProvider(configFilePath)
         self.cP.getConfig()
         self.baseUrl = self.cP.get("SERVER_HOST_AND_PORT")
         self.chunkSize = self.cP.get("CHUNK_SIZE")
         self.hashType = self.cP.get("HASH_TYPE")
         subject = self.cP.get("JWT_SUBJECT")
-        self.repoTypeList = self.cP.get("REPO_TYPE_LIST")
-        self.milestoneList = self.cP.get("MILESTONE_LIST")
         self.headerD = {
             "Authorization": "Bearer " + JWTAuthToken(configFilePath).createToken({}, subject)
         }
         self.dP = Definitions()
         self.fileFormatExtensionD = self.dP.fileFormatExtD
         self.contentTypeInfoD = self.dP.contentTypeD
+        self.repoTypeList = self.dP.repoTypeList
+        self.milestoneList = self.dP.milestoneList
 
     # file parameter is complete file
 

@@ -18,5 +18,6 @@ configuration:
   KV_LOG_TABLE_NAME: log
   KV_MAX_SECONDS: 14400
   KV_FILE_PATH: ./kv.sqlite
-  MILESTONE_LIST: ['upload', 'upload-convert', 'deposit', 'annotate', 'release', 'review']
-  REPO_TYPE_LIST: ['deposit', 'archive', 'workflow', 'session']
+  SERVER_HOST_AND_PORT: http://0.0.0.0:8000
+  CHUNK_SIZE: 8388608
+  HASH_TYPE: MD5

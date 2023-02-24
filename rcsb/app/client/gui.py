@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename, askdirectory

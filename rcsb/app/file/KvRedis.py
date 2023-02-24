@@ -1,8 +1,8 @@
 import redis
 import typing
 import logging
+from fastapi.exceptions import HTTPException
 from rcsb.app.file.ConfigProvider import ConfigProvider
-
 
 class KvRedis:
     def __init__(self, cP: typing.Type[ConfigProvider]):
@@ -20,7 +20,7 @@ class KvRedis:
             logging.warning("exception in KvRedis: %s %s", type(exc), exc)
 
         if self.kV is None:
-            raise Exception("error in KvRedis - no database")
+            raise HTTPException(status_code=400, detail="error in KvRedis - no database")
 
     # hashvar = uid
     # if no key, sets to zero and returns, even if not a numeric variable

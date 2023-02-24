@@ -36,7 +36,8 @@ class PathUtils:
         self.__repositoryDirPath = self.__cP.get("REPOSITORY_DIR_PATH")
         self.__sessionDirPath = self.__cP.get("SESSION_DIR_PATH")
         self.__sharedLockDirPath = self.__cP.get("SHARED_LOCK_PATH")
-        self.__milestoneList = self.__cP.get("MILESTONE_LIST")
+        self.__milestoneList = self.__dP.milestoneList
+        self.__repoTypeList = self.__dP.repoTypeList
         self.__contentTypeInfoD = self.__dP.contentTypeD
         self.__fileFormatExtensionD = self.__dP.fileFormatExtD
 
@@ -47,15 +48,12 @@ class PathUtils:
         return self.__sharedLockDirPath
 
     def getRepositoryDirPath(self, repositoryType: str) -> typing.Optional[str]:
-        if repositoryType.lower() in ["onedep-archive", "archive"]:
-            return os.path.join(self.__repositoryDirPath, "archive")
-        elif repositoryType.lower() in ["onedep-deposit", "deposit"]:
-            return os.path.join(self.__repositoryDirPath, "deposit")
-        elif repositoryType.lower() in ["onedep-session", "session"]:
-            return os.path.join(self.__repositoryDirPath, "session")
-        elif repositoryType.lower() in ["onedep-workflow", "workflow"]:
-            return os.path.join(self.__repositoryDirPath, "workflow")
-        return None
+        if not repositoryType.lower() in self.__repoTypeList:
+            return None
+        repositoryType = repositoryType.lower()
+        repositoryType = repositoryType.replace('onedep-', '')
+        return os.path.join(self.__repositoryDirPath, repositoryType)
+
 
     def getFileLockPath(self, depId: str, contentType: str, milestone: str, partNumber: int, contentFormat: str) -> str:
         lockPath = self.getSharedLockDirPath()

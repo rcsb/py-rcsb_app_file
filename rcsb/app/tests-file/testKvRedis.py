@@ -7,7 +7,6 @@
 
 import unittest
 import os
-import logging
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.KvRedis import KvRedis
 

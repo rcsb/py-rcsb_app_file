@@ -23,19 +23,14 @@ import shutil
 # This environment must be set before main.app is imported
 HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "client.yml"))
+os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
-from fastapi.testclient import TestClient
+
 from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
-from rcsb.app.file.IoUtils import IoUtils
-from rcsb.app.file.JWTAuthToken import JWTAuthToken
-from rcsb.app.file.main import app
-from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.utils.io.LogUtil import StructFormatter
 from rcsb.app.client.ClientUtils import ClientUtils
-
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -48,15 +43,21 @@ class ClientTests(unittest.TestCase):
 
     def setUp(self):
         self.__cU = ClientUtils()
-        self.__dataPath = os.path.join(HERE, "data")
         self.__configFilePath = os.environ.get("CONFIG_FILE")
+        self.__cP = ConfigProvider(self.__configFilePath)
+        self.__chunkSize = self.__cP.get('CHUNK_SIZE')
+        self.__hashType = self.__cP.get('HASH_TYPE')
+        self.__dataPath = self.__cP.get('REPOSITORY_DIR_PATH')  # os.path.join(HERE, "data")
+        self.__repositoryType = "unit-test"
+        self.__unitTestFolder = os.path.join(self.__dataPath, self.__repositoryType)
         logger.info("self.__dataPath %s", self.__dataPath)
         logger.info("self.__configFilePath %s", self.__configFilePath)
         self.__fU = FileUtil()
 
-        self.__repositoryFile1 = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P1.cif.V1")
-        self.__repositoryFile2 = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P2.cif.V1")
-        self.__repositoryFile3 = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P3.cif.V1")
+        self.__repositoryFile1 = os.path.join(self.__dataPath, self.__repositoryType, "D_1000000001", "D_1000000001_model_P1.cif.V1")
+        self.__repositoryFile2 = os.path.join(self.__dataPath, self.__repositoryType, "D_1000000001", "D_1000000001_model_P2.cif.V1")
+        self.__repositoryFile3 = os.path.join(self.__dataPath, self.__repositoryType, "D_1000000001", "D_1000000001_model_P3.cif.V1")
+        self.__downloadFile = os.path.join(self.__dataPath, "download_D_1000000001_model_P1.cif.V1")
         if os.path.exists(self.__repositoryFile1):
             os.unlink(self.__repositoryFile1)
         if os.path.exists(self.__repositoryFile2):
@@ -68,7 +69,7 @@ class ClientTests(unittest.TestCase):
         self.__testFileDatPath = os.path.join(self.__dataPath, "testFile.dat")
         if not os.path.exists(self.__testFileDatPath):
             os.makedirs(os.path.dirname(self.__testFileDatPath), mode=0o757, exist_ok=True)
-            nB = 1024 * 1024 * 8
+            nB = self.__chunkSize
             with open(self.__testFileDatPath, "wb") as out:
                 out.write(os.urandom(nB))
         self.__testFileGzipPath = os.path.join(self.__dataPath, "testFile.dat.gz")
@@ -93,8 +94,11 @@ class ClientTests(unittest.TestCase):
             os.unlink(self.__testFileDatPath)
         if os.path.exists(self.__testFileGzipPath):
             os.unlink(self.__testFileGzipPath)
-        if os.path.exists(self.__dataPath):
-            shutil.rmtree(self.__dataPath)
+        if os.path.exists(self.__downloadFile):
+            os.unlink(self.__downloadFile)
+        # warning - do not delete the data/repository folder for production, just the unit-test folder within that folder
+        if os.path.exists(self.__unitTestFolder):
+            shutil.rmtree(self.__unitTestFolder)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
@@ -103,8 +107,6 @@ class ClientTests(unittest.TestCase):
 
     def test_simple_upload(self):
         """Test - basic file upload """
-        hashType = testHash = None
-        hashType = "MD5"
         resumable = False
         for testFilePath, decompress, partNumber, allowOverwrite, responseCode in [
             (self.__testFileDatPath, False, 1, True, 200),
@@ -113,7 +115,7 @@ class ClientTests(unittest.TestCase):
             (self.__testFileGzipPath, True, 3, True, 200),
         ]:
             logging.warning(f'{decompress} {partNumber} {allowOverwrite} {responseCode}')
-            repositoryType = "onedep-archive"
+            repositoryType = self.__repositoryType
             depId = "D_1000000001"
             contentType = "model"
             milestone = ""
@@ -130,8 +132,6 @@ class ClientTests(unittest.TestCase):
 
     def test_resumable_upload(self):
         """Test - resumable file upload """
-        hashType = testHash = None
-        hashType = "MD5"
         resumable = True
         for testFilePath, decompress, partNumber, allowOverwrite, responseCode in [
             (self.__testFileDatPath, False, 1, True, 200),
@@ -140,7 +140,7 @@ class ClientTests(unittest.TestCase):
             (self.__testFileGzipPath, True, 3, True, 200),
         ]:
             logging.warning(f'{decompress} {partNumber} {allowOverwrite} {responseCode}')
-            repositoryType = "onedep-archive"
+            repositoryType = self.__repositoryType
             depId = "D_1000000001"
             contentType = "model"
             milestone = ""
@@ -161,16 +161,14 @@ class ClientTests(unittest.TestCase):
         """Test - basic file download """
         if not os.path.exists(self.__repositoryFile1):
             os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
-            nB = 1024 * 1024 * 8
+            nB = self.__chunkSize
             with open(self.__repositoryFile1, "wb") as out:
                 out.write(os.urandom(nB))
-        hashType = testHash = None
-        hashType = "MD5"
         for downloadFolderPath, partNumber, allowOverwrite, responseCode in [
             (self.__dataPath, 1, True, 200)
         ]:
             logging.warning(f'{partNumber} {allowOverwrite} {responseCode}')
-            repositoryType = "onedep-archive"
+            repositoryType = self.__repositoryType
             depId = "D_1000000001"
             contentType = "model"
             milestone = ""
@@ -178,7 +176,7 @@ class ClientTests(unittest.TestCase):
             for version in range(1, 2):
                 startTime = time.time()
                 try:
-                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, hashType, downloadFolderPath, allowOverwrite)
+                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, self.__hashType, downloadFolderPath, allowOverwrite)
                     self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
                 except Exception as e:
@@ -190,12 +188,12 @@ class ClientTests(unittest.TestCase):
         """Test - list dir"""
         if not os.path.exists(self.__repositoryFile1):
             os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
-            nB = 1024 * 1024 * 8
+            nB = self.__chunkSize
             with open(self.__repositoryFile1, "wb") as out:
                 out.write(os.urandom(nB))
         try:
             # First test for dir that actually exists
-            repoType = "onedep-archive"
+            repoType = self.__repositoryType
             depId = "D_1000000001"
             response = self.__cU.listDir(repoType, depId)
             self.assertTrue(response and len(response) > 0)
@@ -208,5 +206,15 @@ class ClientTests(unittest.TestCase):
             self.fail()
 
 
+def client_tests():
+    suite = unittest.TestSuite()
+    suite.addTest(ClientTests('test_simple_upload'))
+    suite.addTest(ClientTests('test_resumable_upload'))
+    suite.addTest(ClientTests('test_simple_download'))
+    suite.addTest(ClientTests('test_list_dir'))
+    return suite
+
+
 if __name__ == "__main__":
-    unittest.main()
+    runner = unittest.TextTestRunner(failfast=True)
+    runner.run(client_tests())

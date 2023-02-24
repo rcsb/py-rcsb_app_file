@@ -13,14 +13,14 @@ import hashlib
 import logging
 import os
 import re
-import shutil
+# import shutil
 import uuid
 import json
 from enum import Enum
 from typing import Optional
 from filelock import Timeout, FileLock
 import aiofiles
-from fastapi import APIRouter, Path, Query, File, Form, HTTPException, UploadFile, Depends
+from fastapi import APIRouter, Query, File, Form, HTTPException, UploadFile, Depends
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -51,7 +51,7 @@ class UploadResult(BaseModel):
     )
 
 
-
+#
 # upload chunked file
 @router.post("/upload", response_model=UploadResult)
 async def upload(
@@ -186,9 +186,9 @@ async def getUploadParameters(
         hashDigest: str = Query(default=None),
         allowOverwrite: bool = Query(default=True),
         resumable: bool = Query(default=False)
-        ):
-    chunkIndex, uploadId = await getUploadStatus(repositoryType,depId,contentType,milestone,partNumber,contentFormat,version,hashDigest,resumable)
-    filePath = await getSaveFilePath(repositoryType,depId,contentType,milestone,partNumber,contentFormat,version,allowOverwrite)
+    ):
+    chunkIndex, uploadId = await getUploadStatus(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, hashDigest, resumable)
+    filePath = await getSaveFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite)
     if not filePath:
         raise HTTPException(status_code=400, detail="Error - could not make file path from parameters")
     return {"filePath": filePath, "chunkIndex": chunkIndex, "uploadId": uploadId}

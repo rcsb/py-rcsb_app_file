@@ -37,6 +37,7 @@ from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.main import app
+from rcsb.app.client.ClientUtils import ClientUtils
 from rcsb.utils.io.CryptUtils import CryptUtils
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
@@ -47,21 +48,35 @@ logger.setLevel(logging.INFO)
 class FileUpdateTests(unittest.TestCase):
     def setUp(self):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
-        self.__dataPath = os.path.join(HERE, "data")
-        self.__repositoryFilePath = os.path.join(self.__dataPath, "repository", "archive", "D_2000000001", "D_2000000001_model_P1.cif.V1")
+        self.__cU = ClientUtils()
+        self.__cP = ConfigProvider(self.__configFilePath)
+        self.__chunkSize = self.__cP.get('CHUNK_SIZE')
+        self.__hashType = self.__cP.get('HASH_TYPE')
+        self.__dataPath = self.__cP.get('REPOSITORY_DIR_PATH')  # os.path.join(HERE, "data")
+        self.__repositoryType = "unit-test"
+        self.__depId = "D_2000000001"
+        self.__contentType = "model"
+        self.__milestone = ""
+        self.__partNumber = 1
+        self.__contentFormat = "pdbx"
+        self.__version = 1
+        self.__decompress = False
+        self.__allowOverwrite = True
+        self.__resumable = False
+        self.__repositoryFilePath = os.path.join(self.__dataPath, self.__repositoryType, self.__depId, f"{self.__depId}_{self.__contentType}_P{self.__partNumber}.cif.V{self.__version}")
+        self.__unitTestFolder = os.path.join(self.__dataPath, self.__repositoryType)
         if not os.path.exists(self.__repositoryFilePath):
             os.makedirs(os.path.dirname(self.__repositoryFilePath), mode=0o757, exist_ok=True)
-            nB = 1024 * 1024 * 8
+            nB = self.__chunkSize
             with open(self.__repositoryFilePath, "wb") as out:
                 out.write(os.urandom(nB))
         self.__readFilePath = os.path.join(self.__dataPath, "testFile.dat")
         if not os.path.exists(self.__readFilePath):
             os.makedirs(os.path.dirname(self.__readFilePath), mode=0o757, exist_ok=True)
-            nB = 1024 * 1024 * 6
+            nB = self.__chunkSize
             with open(self.__readFilePath, "wb") as out:
                 out.write(os.urandom(nB))
-        cP = ConfigProvider(self.__configFilePath)
-        subject = cP.get("JWT_SUBJECT")
+        subject = self.__cP.get("JWT_SUBJECT")
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
         logger.info("header %r", self.__headerD)
         self.__startTime = time.time()
@@ -74,8 +89,9 @@ class FileUpdateTests(unittest.TestCase):
             os.unlink(self.__repositoryFilePath)
         if os.path.exists(self.__readFilePath):
             os.unlink(self.__readFilePath)
-        if os.path.exists(self.__dataPath):
-            shutil.rmtree(self.__dataPath)
+        # warning - do not delete the data/repository folder for production, just the unit-test folder within that folder
+        if os.path.exists(self.__unitTestFolder):
+            shutil.rmtree(self.__unitTestFolder)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
@@ -88,39 +104,16 @@ class FileUpdateTests(unittest.TestCase):
         # Update file content
 
         endPoint = "upload"
-        hashType = "MD5"
-        hD = CryptUtils().getFileHash(self.__readFilePath, hashType=hashType)
-        testHash = hD["hashDigest"]
         responseCode = 200
 
         startTime = time.time()
         try:
-            mD = {
-                "hashType": hashType,
-                "hashDigest": testHash,
-                "repositoryType": "onedep-archive",  # First upload into "onedep-archive"
-                "depId": "D_2000000001",
-                "contentType": "model",
-                "milestone": "None",
-                "partNumber": 1,
-                "contentFormat": "pdbx",
-                "version": "1",
-                "copyMode": "native",
-                "allowOverwrite": True
-            }
-            #
-            with TestClient(app) as client:
-                with open(self.__readFilePath, "rb") as ifh:
-                    files = {"uploadFile": ifh}
-                    response = client.post("/file-v2/%s" % endPoint, files=files, data=mD, headers=self.__headerD)
-
-                self.assertTrue(response.status_code == responseCode)
-                rD = response.json()
-                logger.info("rD %r", rD.items())
-                if responseCode == 200:
-                    self.assertTrue(rD["success"])
-                #
-            #
+            response = self.__cU.upload(self.__readFilePath, self.__repositoryType, self.__depId, self.__contentType, self.__milestone, self.__partNumber, self.__contentFormat, self.__version, self.__decompress, self.__allowOverwrite, self.__resumable)
+            self.assertTrue(response.status_code == responseCode)
+            rD = response.json()
+            logger.info("rD %r", rD.items())
+            if responseCode == 200:
+                self.assertTrue(rD["success"])
             logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
         except Exception as e:
             logger.exception("Failing with %s", str(e))

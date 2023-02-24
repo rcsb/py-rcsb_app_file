@@ -20,6 +20,13 @@ class Definitions(object):
     def __init__(self):
         self.contentTypeD = self.getContentTypeD()
         self.fileFormatExtD = self.getFileFormatExtD()
+        self.milestoneList = self.getMilestoneList()
+        self.repoTypeList = self.getRepoTypeList()
+    def getMilestoneList(self):
+        return ['upload', 'upload-convert', 'deposit', 'annotate', 'release', 'review']
+
+    def getRepoTypeList(self):
+        return ['deposit', 'archive', 'workflow', 'session', 'onedep-deposit', 'onedep-archive', 'onedep-workflow', 'onedep-session', 'test', 'tests', 'unit-test', 'unit-tests']
 
     def getContentTypeD(self):
         contentTypeD = {

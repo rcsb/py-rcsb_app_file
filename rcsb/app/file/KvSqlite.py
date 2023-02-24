@@ -1,6 +1,7 @@
 import typing
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.KvConnection import KvConnection
+from fastapi.exceptions import HTTPException
 
 
 class KvSqlite:
@@ -19,7 +20,7 @@ class KvSqlite:
             # table already exists
             pass
         if self.kV is None:
-            raise Exception("error in KvSqlite - no database")
+            raise HTTPException(status_code=400, detail="error in KvSqlite - no database")
 
     def convert(self, _d):
         return str(_d)
@@ -47,7 +48,7 @@ class KvSqlite:
         try:
             return _d[val]
         except Exception:
-            raise Exception(f"error in KV get for table {table}, {_d}")
+            raise HTTPException(status_code=400, detail=f"error in KV get for table {table}, {_d}")
 
     def setSession(self, key, val, vval):
         if not key:
