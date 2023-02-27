@@ -11,7 +11,6 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
-# import subprocess
 import time
 import redis
 import psutil
@@ -56,7 +55,7 @@ def getRedisStatus():
         # already exists
         logging.warning("exception in redis status: %s %s", type(exc), exc)
     try:
-        result = r.ping() == True # noqa: E712
+        result = r.ping() == True  # noqa: E712
     except Exception:
         result = False
     return {"running": result}

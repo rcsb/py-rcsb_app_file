@@ -32,13 +32,10 @@ HERE = os.path.abspath(os.path.dirname(__file__))
 TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
-from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
-from rcsb.app.file.main import app
 from rcsb.app.client.ClientUtils import ClientUtils
-from rcsb.utils.io.CryptUtils import CryptUtils
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -48,7 +45,7 @@ logger.setLevel(logging.INFO)
 class FileUpdateTests(unittest.TestCase):
     def setUp(self):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
-        self.__cU = ClientUtils()
+        self.__cU = ClientUtils(unit_test=True)
         self.__cP = ConfigProvider(self.__configFilePath)
         self.__chunkSize = self.__cP.get('CHUNK_SIZE')
         self.__hashType = self.__cP.get('HASH_TYPE')

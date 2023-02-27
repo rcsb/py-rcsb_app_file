@@ -13,7 +13,6 @@ import hashlib
 import logging
 import os
 import re
-# import shutil
 import uuid
 import json
 from enum import Enum
@@ -51,7 +50,6 @@ class UploadResult(BaseModel):
     )
 
 
-#
 # upload chunked file
 @router.post("/upload", response_model=UploadResult)
 async def upload(
@@ -186,7 +184,7 @@ async def getUploadParameters(
         hashDigest: str = Query(default=None),
         allowOverwrite: bool = Query(default=True),
         resumable: bool = Query(default=False)
-    ):
+):
     chunkIndex, uploadId = await getUploadStatus(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, hashDigest, resumable)
     filePath = await getSaveFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite)
     if not filePath:
@@ -198,7 +196,7 @@ async def getUploadParameters(
 # if have resumed upload, kv response has chunk count
 async def getUploadStatus(repositoryType: str,
                           depId: str,
-                          contentType: str ,
+                          contentType: str,
                           milestone: str,
                           partNumber: int,
                           contentFormat: str,

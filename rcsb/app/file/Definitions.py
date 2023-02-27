@@ -22,6 +22,7 @@ class Definitions(object):
         self.fileFormatExtD = self.getFileFormatExtD()
         self.milestoneList = self.getMilestoneList()
         self.repoTypeList = self.getRepoTypeList()
+
     def getMilestoneList(self):
         return ['upload', 'upload-convert', 'deposit', 'annotate', 'release', 'review']
 

@@ -26,13 +26,15 @@ from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.Definitions import Definitions
+from fastapi.testclient import TestClient
+from rcsb.app.file.main import app
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
 class ClientUtils(object):
-    def __init__(self):
+    def __init__(self, unit_test=False):
         configFilePath = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
         self.cP = ConfigProvider(configFilePath)
         self.cP.getConfig()
@@ -48,6 +50,7 @@ class ClientUtils(object):
         self.contentTypeInfoD = self.dP.contentTypeD
         self.repoTypeList = self.dP.repoTypeList
         self.milestoneList = self.dP.milestoneList
+        self.__unit_test = unit_test
 
     # file parameter is complete file
 
@@ -81,12 +84,22 @@ class ClientUtils(object):
             "resumable": resumable,
         }
         url = os.path.join(self.baseUrl, "file-v2", "getUploadParameters")
-        response = requests.get(
-            url,
-            params=parameters,
-            headers=self.headerD,
-            timeout=None
-        )
+        response = None
+        if not self.__unit_test:
+            response = requests.get(
+                url,
+                params=parameters,
+                headers=self.headerD,
+                timeout=None
+            )
+        else:
+            with TestClient(app) as client:
+                response = client.get(
+                    url,
+                    params=parameters,
+                    headers=self.headerD,
+                    timeout=None
+                )
         # logger.info("status code %r", response.status_code)
         if response.status_code == 200:
             result = json.loads(response.text)
@@ -128,14 +141,26 @@ class ClientUtils(object):
                 tmp.seek(0)
                 tmp.write(fUpload.read(packetSize))
                 tmp.seek(0)
-                response = requests.post(
-                    url,
-                    data=deepcopy(mD),
-                    headers=self.headerD,
-                    files={"chunk": tmp},
-                    stream=True,
-                    timeout=None,
-                )
+
+                if not self.__unit_test:
+                    response = requests.post(
+                        url,
+                        data=deepcopy(mD),
+                        headers=self.headerD,
+                        files={"chunk": tmp},
+                        stream=True,
+                        timeout=None,
+                    )
+                else:
+                    with TestClient(app) as client:
+                        response = client.post(
+                            url,
+                            data=deepcopy(mD),
+                            headers=self.headerD,
+                            files={"chunk": tmp},
+                            timeout=None,
+                        )
+
                 if response.status_code != 200:
                     logger.error("Status code %r with text %r ...terminating", response.status_code, response.text)
                     break
@@ -169,12 +194,23 @@ class ClientUtils(object):
             "resumable": resumable,
         }
         url = os.path.join(self.baseUrl, "file-v2", "getUploadParameters")
-        response = requests.get(
-            url,
-            params=parameters,
-            headers=self.headerD,
-            timeout=None
-        )
+
+        if not self.__unit_test:
+            response = requests.get(
+                url,
+                params=parameters,
+                headers=self.headerD,
+                timeout=None
+            )
+        else:
+            with TestClient(app) as client:
+                response = client.get(
+                    url,
+                    params=parameters,
+                    headers=self.headerD,
+                    timeout=None
+                )
+
         if response.status_code == 200:
             result = json.loads(response.text)
             if result:
@@ -182,8 +218,8 @@ class ClientUtils(object):
                 chunkIndex = result["chunkIndex"]
                 uploadId = result["uploadId"]
         if not saveFilePath or not uploadId:
-            logger.error("No file path or upload id were formed")
-            return response
+            logger.error("error - no file path or upload id were formed")
+            return None
         # compute expected chunks
         fileSize = os.path.getsize(sourceFilePath)
         expectedChunks = 1
@@ -228,14 +264,26 @@ class ClientUtils(object):
             tmp.write(toUpload.read(packetSize))
             tmp.seek(0)
             url = os.path.join(self.baseUrl, "file-v2", "upload")
-            response = requests.post(
-                url,
-                data=deepcopy(mD),
-                headers=self.headerD,
-                files={"chunk": tmp},
-                stream=True,
-                timeout=None,
-            )
+
+            if not self.__unit_test:
+                response = requests.post(
+                    url,
+                    data=deepcopy(mD),
+                    headers=self.headerD,
+                    files={"chunk": tmp},
+                    stream=True,
+                    timeout=None,
+                )
+            else:
+                with TestClient(app) as client:
+                    response = client.post(
+                    url,
+                    data=deepcopy(mD),
+                    headers=self.headerD,
+                    files={"chunk": tmp},
+                    timeout=None,
+                    )
+
             if response.status_code != 200:
                 logger.error("Terminating with status code %r and response text: %r", response.status_code, response.text)
         return response
@@ -284,7 +332,13 @@ class ClientUtils(object):
             "version": version,
         }
         downloadSizeUrl = os.path.join(self.baseUrl, "file-v1", "downloadSize")
-        fileSize = requests.get(downloadSizeUrl, params=downloadDict, headers=self.headerD, timeout=None).text
+
+        if not self.__unit_test:
+            fileSize = requests.get(downloadSizeUrl, params=downloadDict, headers=self.headerD, timeout=None).text
+        else:
+            with TestClient(app) as client:
+                fileSize = client.get(downloadSizeUrl, params=downloadDict, headers=self.headerD, timeout=None).text
+
         if not fileSize.isnumeric():
             logger.error("no response for: %r", downloadFilePath)
             return None
@@ -296,19 +350,36 @@ class ClientUtils(object):
             f"&partNumber={partNumber}&contentFormat={contentFormat}&version={version}&hashType={hashType}"
         )
         resp = None
-        with requests.get(downloadUrl, headers=self.headerD, timeout=None, stream=True) as response:
-            with open(downloadFilePath, "ab") as ofh:
-                for chunk in response.iter_content(chunk_size=self.chunkSize):
-                    if chunk:
-                        ofh.write(chunk)
-            # responseCode = response.status_code
-            rspHashType = response.headers["rcsb_hash_type"]
-            rspHashDigest = response.headers["rcsb_hexdigest"]
-            thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
-            if not thD["hashDigest"] == rspHashDigest:
-                logger.error("Hash comparison failed")
-                return None
-            resp = response
+
+        if not self.__unit_test:
+            with requests.get(downloadUrl, headers=self.headerD, timeout=None, stream=True) as response:
+                with open(downloadFilePath, "ab") as ofh:
+                    for chunk in response.iter_content(chunk_size=self.chunkSize):
+                        if chunk:
+                            ofh.write(chunk)
+                # responseCode = response.status_code
+                rspHashType = response.headers["rcsb_hash_type"]
+                rspHashDigest = response.headers["rcsb_hexdigest"]
+                thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
+                if not thD["hashDigest"] == rspHashDigest:
+                    logger.error("Hash comparison failed")
+                    return None
+                resp = response
+        else:
+            resp = None
+            with TestClient(app) as client:
+                response = client.get(downloadUrl, headers=self.headerD, timeout=None)
+                with open(downloadFilePath, "ab") as ofh:
+                    ofh.write(response.content)
+                responseCode = response.status_code
+                rspHashType = response.headers["rcsb_hash_type"]
+                rspHashDigest = response.headers["rcsb_hexdigest"]
+                thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
+                if not thD["hashDigest"] == rspHashDigest:
+                    logger.error("Hash comparison failed")
+                    return None
+                resp = responseCode
+
         return resp
 
     def listDir(self, repoType: str, depId: str) -> list:
@@ -322,14 +393,25 @@ class ClientUtils(object):
         url = os.path.join(self.baseUrl, "file-v1", "list-dir")
         responseCode = None
         dirList = None
-        with requests.get(url, params=parameters, headers=self.headerD, timeout=None) as response:
-            responseCode = response.status_code
-            if responseCode == 200:
-                resp = response.text
-                if resp:
-                    if not isinstance(resp, dict):
-                        resp = json.loads(resp)
-                    dirList = resp["dirList"]
+        if not self.__unit_test:
+            with requests.get(url, params=parameters, headers=self.headerD, timeout=None) as response:
+                responseCode = response.status_code
+                if responseCode == 200:
+                    resp = response.text
+                    if resp:
+                        if not isinstance(resp, dict):
+                            resp = json.loads(resp)
+                        dirList = resp["dirList"]
+        else:
+            with TestClient(app) as client:
+                response = client.get(url, params=parameters, headers=self.headerD, timeout=None)
+                responseCode = response.status_code
+                if responseCode == 200:
+                    resp = response.text
+                    if resp:
+                        if not isinstance(resp, dict):
+                            resp = json.loads(resp)
+                        dirList = resp["dirList"]
         results = []
         if responseCode == 200:
             for fi in sorted(dirList):

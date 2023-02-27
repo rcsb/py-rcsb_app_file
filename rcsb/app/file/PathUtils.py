@@ -54,7 +54,6 @@ class PathUtils:
         repositoryType = repositoryType.replace('onedep-', '')
         return os.path.join(self.__repositoryDirPath, repositoryType)
 
-
     def getFileLockPath(self, depId: str, contentType: str, milestone: str, partNumber: int, contentFormat: str) -> str:
         lockPath = self.getSharedLockDirPath()
         fnBase = self.__getBaseFileName(depId, contentType, milestone, partNumber, contentFormat)
