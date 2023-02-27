@@ -139,6 +139,11 @@ class FileUploadTests(unittest.TestCase):
                 startTime = time.time()
                 try:
                     response = self.__cU.upload(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable)
+                    if not allowOverwrite:
+                        self.assertTrue(response is None, 'error - did not detect pre-existing file')
+                    if not response:
+                        print('error in test simple upload')
+                        break
                     self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
                 except Exception as e:

@@ -109,7 +109,7 @@ class ClientUtils(object):
                 uploadId = result["uploadId"]
         if not saveFilePath or not uploadId:
             logger.error("No file path or upload id were formed")
-            return response
+            return None
         # chunk file and upload
         mD = {
             # chunk parameters
