@@ -22,15 +22,7 @@ from rcsb.app.client.ClientUtils import ClientUtils
 author James Smith 2023
 """
 
-""" modifiable global variables
-"""
-base_url = "http://0.0.0.0:8000"
-chunkSize = 1024 * 1024 * 8
-hashType = "MD5"
-FORWARDING = False  # for testing chunk forwarding to IoUtils.py, skipping uploadRequest.py
 
-""" do not alter from here
-"""
 
 # other global variables
 contentTypeInfoD = None
@@ -40,8 +32,13 @@ os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.y
 configFilePath = os.environ.get("CONFIG_FILE")
 cP = ConfigProvider(configFilePath)
 cP.getConfig()
-if FORWARDING:
-    iou = IoUtils(cP)
+""" modifiable global variables
+"""
+base_url = cP.get('SERVER_HOST_AND_PORT')
+chunkSize = cP.get('CHUNK_SIZE')
+hashType = cP.get('HASH_TYPE')
+""" do not alter from here
+"""
 subject = cP.get("JWT_SUBJECT")
 headerD = {
     "Authorization": "Bearer "

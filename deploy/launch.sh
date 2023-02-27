@@ -19,7 +19,7 @@ echo "HERE=${HERE}"
 echo "TOPDIR=${TOPDIR}"
 UPTIME_START=`echo $(date +%s)`
 echo "UPTIME_START=${UPTIME_START}"
-echo $UPTIME_START > deploy/uptime.txt
+echo $UPTIME_START > uptime.txt
 
 # Optional setup.sh
 SETUP_PATH=${SETUP_PATH:-/app/setup.sh}

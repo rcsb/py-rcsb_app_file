@@ -19,19 +19,17 @@ from rcsb.app.client.ClientUtils import ClientUtils
 author James Smith 2023
 """
 
-""" modifiable variables
-"""
-base_url = "http://0.0.0.0:8000"
-maxChunkSize = 1024 * 1024 * 8
-hashType = "MD5"
-
-""" do not alter from here
-"""
-
 os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
 configFilePath = os.environ.get("CONFIG_FILE")
 cP = ConfigProvider(configFilePath)
 cP.getConfig()
+""" modifiable variables
+"""
+base_url = cP.get('SERVER_HOST_AND_PORT')
+maxChunkSize = cP.get('CHUNK_SIZE')
+hashType = cP.get('HASH_TYPE')
+""" do not alter from here
+"""
 subject = cP.get("JWT_SUBJECT")
 ioU = IoUtils(cP)
 cU = ClientUtils()

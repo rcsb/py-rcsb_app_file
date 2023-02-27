@@ -17,7 +17,7 @@ import psutil
 import shutil
 from fastapi import APIRouter
 
-from . import ConfigProvider
+from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.ProcessStatusUtil import ProcessStatusUtil
 
 HERE = os.path.abspath(os.path.dirname(__file__))
@@ -32,7 +32,7 @@ router = APIRouter()
 @router.get("/uptime", tags=["status"])
 def getUptime():
     global TOPDIR
-    uptime_file = os.path.join(TOPDIR, "deploy", "uptime.txt")
+    uptime_file = os.path.join(TOPDIR, "uptime.txt")
     uptime_start = 0
     with open(uptime_file, "r") as read:
         uptime_start = float(read.read())
@@ -49,8 +49,10 @@ def getUptime():
 def getRedisStatus():
     # create database if not exists
     # create table if not exists
+    cP = ConfigProvider(os.environ.get('CONFIG_FILE'))
+    redis_host = cP.get('REDIS_HOST')
     try:
-        r = redis.Redis(host="localhost", decode_responses=True)
+        r = redis.Redis(host=redis_host, decode_responses=True)
     except Exception as exc:
         # already exists
         logging.warning("exception in redis status: %s %s", type(exc), exc)
@@ -64,7 +66,7 @@ def getRedisStatus():
 @router.get("/storage", tags=["status"])
 def getServerStorage():
     percent_ram_used = psutil.virtual_memory()[2]
-    cP = ConfigProvider.ConfigProvider(os.environ.get('CONFIG_FILE'))
+    cP = ConfigProvider(os.environ.get('CONFIG_FILE'))
     repository_dir_path = cP.get('REPOSITORY_DIR_PATH')
     disk_usage = shutil.disk_usage(repository_dir_path)
     disk_total = disk_usage[0]
@@ -76,7 +78,7 @@ def getServerStorage():
 
 @router.get("/status", tags=["status"])
 def serverStatus():
-    cP = ConfigProvider.ConfigProvider()
+    cP = ConfigProvider()
     psU = ProcessStatusUtil()
     psD = psU.getInfo()
     return {"msg": "Status is nominal!", "version": cP.getVersion(), "status": psD}

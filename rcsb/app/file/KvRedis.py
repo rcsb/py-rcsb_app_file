@@ -12,10 +12,11 @@ class KvRedis:
         self.duration = self.__cP.get("KV_MAX_SECONDS")
         self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
         self.logTable = self.__cP.get("KV_LOG_TABLE_NAME")
+        self.redis_host = self.__cP.get("REDIS_HOST")  # localhost, redis, or url
         # create database if not exists
         # create table if not exists
         try:
-            self.kV = redis.Redis(host="localhost", decode_responses=True)
+            self.kV = redis.Redis(host=self.redis_host, port=6379, decode_responses=True)
         except Exception as exc:
             # already exists
             logging.warning("exception in KvRedis: %s %s", type(exc), exc)

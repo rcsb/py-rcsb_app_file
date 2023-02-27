@@ -18,7 +18,7 @@ ADDR=${THISIP}:${THISPORT}
 #
 UPTIME_START=`echo $(date +%s)`
 echo "UPTIME_START=${UPTIME_START}"
-echo $UPTIME_START > $TOPDIR/deploy/uptime.txt
+echo $UPTIME_START > $TOPDIR/uptime.txt
 
 cd ${TOPDIR}
 gunicorn \
