@@ -20,3 +20,6 @@ redis
 redis-server
 Pillow
 tqdm
+# required by tox
+httpx
+jwt
