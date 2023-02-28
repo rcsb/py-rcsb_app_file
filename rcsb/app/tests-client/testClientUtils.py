@@ -45,9 +45,9 @@ class ClientTests(unittest.TestCase):
         self.__cU = ClientUtils(unit_test=True)
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__cP = ConfigProvider(self.__configFilePath)
-        self.__chunkSize = self.__cP.get('CHUNK_SIZE')
-        self.__hashType = self.__cP.get('HASH_TYPE')
-        self.__dataPath = self.__cP.get('REPOSITORY_DIR_PATH')  # os.path.join(HERE, "data")
+        self.__chunkSize = self.__cP.get("CHUNK_SIZE")
+        self.__hashType = self.__cP.get("HASH_TYPE")
+        self.__dataPath = self.__cP.get("REPOSITORY_DIR_PATH")  # os.path.join(HERE, "data")
         self.__repositoryType = "unit-test"
         self.__unitTestFolder = os.path.join(self.__dataPath, self.__repositoryType)
         logger.info("self.__dataPath %s", self.__dataPath)
@@ -105,7 +105,7 @@ class ClientTests(unittest.TestCase):
         endTime = time.time()
         logger.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
 
-    def test_simple_upload(self):
+    def testSimpleUpload(self):
         """Test - basic file upload """
         resumable = False
         for testFilePath, decompress, partNumber, allowOverwrite, responseCode in [
@@ -114,7 +114,7 @@ class ClientTests(unittest.TestCase):
             (self.__testFileDatPath, False, 1, False, 400),
             (self.__testFileGzipPath, True, 3, True, 200),
         ]:
-            logging.warning(f'{decompress} {partNumber} {allowOverwrite} {responseCode}')
+            logging.warning(f"{decompress} {partNumber} {allowOverwrite} {responseCode}")
             repositoryType = self.__repositoryType
             depId = "D_1000000001"
             contentType = "model"
@@ -125,9 +125,9 @@ class ClientTests(unittest.TestCase):
                 try:
                     response = self.__cU.upload(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable)
                     if not allowOverwrite:
-                        self.assertTrue(response is None, 'error - did not detect pre-existing file')
+                        self.assertTrue(response is None, "error - did not detect pre-existing file")
                     if not response:
-                        print('error in test simple upload')
+                        logger.info("error in test simple upload")
                         break
                     self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
@@ -135,7 +135,7 @@ class ClientTests(unittest.TestCase):
                     logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
                     self.fail()
 
-    def test_resumable_upload(self):
+    def testResumableUpload(self):
         """Test - resumable file upload """
         resumable = True
         for testFilePath, decompress, partNumber, allowOverwrite, responseCode in [
@@ -144,7 +144,7 @@ class ClientTests(unittest.TestCase):
             (self.__testFileDatPath, False, 1, False, 405),
             (self.__testFileGzipPath, True, 3, True, 200),
         ]:
-            logging.warning(f'{decompress} {partNumber} {allowOverwrite} {responseCode}')
+            logging.warning(f"{decompress} {partNumber} {allowOverwrite} {responseCode}")
             repositoryType = self.__repositoryType
             depId = "D_1000000001"
             contentType = "model"
@@ -157,38 +157,38 @@ class ClientTests(unittest.TestCase):
                     # null test - should find nothing
                     response = self.__cU.getUploadParameters(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, resumable)
                     if not allowOverwrite:
-                        self.assertTrue(response == None, 'error - did not detect pre-existing file')
+                        self.assertTrue(response == None, "error - did not detect pre-existing file")
                     if not response:
-                        print('error in get upload parameters')
+                        logger.info("error in get upload parameters")
                         break
-                    print(f'response {response}')
+                    logger.info(f"response {response}")
                     saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash = response
                     self.assertTrue(chunkIndex == 0, f"error - chunk index {chunkIndex}")
                     # upload first chunk, not last chunk
                     for index in range(chunkIndex, expectedChunks - 1):
                         response = self.__cU.uploadChunk(testFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, decompress, allowOverwrite, resumable)
                         if not response:
-                            print('error in upload chunk')
+                            logger.info("error in upload chunk")
                             break
-                    print(response)
+                    logger.info(response)
                     self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     # get upload parameters - should find at least one chunk
                     response = self.__cU.getUploadParameters(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, resumable)
                     if not allowOverwrite:
-                        self.assertTrue(response == None, 'error - did not detect pre-existing file')
+                        self.assertTrue(response == None, "error - did not detect pre-existing file")
                     if not response:
-                        print('error in get upload parameters')
+                        logger.info("error in get upload parameters")
                         break
-                    print(f'response {response}')
+                    logger.info(f"response {response}")
                     saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash = response
                     self.assertTrue(chunkIndex > 0, f"error - chunk index {chunkIndex}")
                     # upload remaining chunks
                     for index in range(chunkIndex, expectedChunks):
                         response = self.__cU.uploadChunk(testFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, decompress, allowOverwrite, resumable)
                         if not response:
-                            print('error in upload chunk')
+                            logger.info("error in upload chunk")
                             break
-                    print(response)
+                    logger.info(response)
                     self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
                 except Exception as e:
@@ -196,7 +196,7 @@ class ClientTests(unittest.TestCase):
                     self.fail()
 
 
-    def test_simple_download(self):
+    def testSimpleDownload(self):
         """Test - basic file download """
         if not os.path.exists(self.__repositoryFile1):
             os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
@@ -206,7 +206,7 @@ class ClientTests(unittest.TestCase):
         for downloadFolderPath, partNumber, allowOverwrite, responseCode in [
             (self.__dataPath, 1, True, 200)
         ]:
-            logging.warning(f'{partNumber} {allowOverwrite} {responseCode}')
+            logging.warning(f"{partNumber} {allowOverwrite} {responseCode}")
             repositoryType = self.__repositoryType
             depId = "D_1000000001"
             contentType = "model"
@@ -223,7 +223,7 @@ class ClientTests(unittest.TestCase):
                     self.fail()
 
 
-    def test_list_dir(self):
+    def testListDir(self):
         """Test - list dir"""
         if not os.path.exists(self.__repositoryFile1):
             os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
@@ -247,10 +247,10 @@ class ClientTests(unittest.TestCase):
 
 def client_tests():
     suite = unittest.TestSuite()
-    suite.addTest(ClientTests('test_simple_upload'))
-    suite.addTest(ClientTests('test_resumable_upload'))
-    suite.addTest(ClientTests('test_simple_download'))
-    suite.addTest(ClientTests('test_list_dir'))
+    suite.addTest(ClientTests("testSimpleUpload"))
+    suite.addTest(ClientTests("testResumableUpload"))
+    suite.addTest(ClientTests("testSimpleDownload"))
+    suite.addTest(ClientTests("testListDir"))
     return suite
 
 

@@ -16,7 +16,7 @@ os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "
 
 class KvRedisTest(unittest.TestCase):
 
-    def test_kv(self):
+    def testKv(self):
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         kV = KvRedis(cP)

@@ -176,7 +176,7 @@ class IoUtils:
                                     # save final version
                                     os.replace(tempPath, filePath)
                         except Timeout:
-                            raise HTTPException(status_code=400, detail=f'error - lock timed out on {filePath}')
+                            raise HTTPException(status_code=400, detail=f"error - lock timed out on {filePath}")
                         finally:
                             lock.release()
                             if os.path.exists(lockPath):
@@ -209,7 +209,7 @@ class IoUtils:
             if resumable:
                 self.clearSession(key, logKey)
             ret = {"success": False, "statusCode": 400, "statusMessage": f"error in sequential upload {str(exc)}"}
-            raise HTTPException(status_code=400, detail=f'error in sequential upload {str(exc)}')
+            raise HTTPException(status_code=400, detail=f"error in sequential upload {str(exc)}")
         finally:
             chunk.close()
         return ret
@@ -436,7 +436,7 @@ class IoUtils:
                 status = str(status)
                 status = status.replace("'", '"')
                 status = json.loads(status)
-                uploadCount = status['uploadCount']
+                uploadCount = status["uploadCount"]
         else:
             uploadId = self.getNewUploadId()
         return uploadCount, uploadId

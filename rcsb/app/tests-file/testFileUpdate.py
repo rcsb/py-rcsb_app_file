@@ -47,9 +47,9 @@ class FileUpdateTests(unittest.TestCase):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__cU = ClientUtils(unit_test=True)
         self.__cP = ConfigProvider(self.__configFilePath)
-        self.__chunkSize = self.__cP.get('CHUNK_SIZE')
-        self.__hashType = self.__cP.get('HASH_TYPE')
-        self.__dataPath = self.__cP.get('REPOSITORY_DIR_PATH')  # os.path.join(HERE, "data")
+        self.__chunkSize = self.__cP.get("CHUNK_SIZE")
+        self.__hashType = self.__cP.get("HASH_TYPE")
+        self.__dataPath = self.__cP.get("REPOSITORY_DIR_PATH")  # os.path.join(HERE, "data")
         self.__repositoryType = "unit-test"
         self.__depId = "D_2000000001"
         self.__contentType = "model"

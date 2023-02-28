@@ -13,16 +13,14 @@ import requests
 import json
 import time
 from rcsb.utils.io.CryptUtils import CryptUtils
-from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.client.ClientUtils import ClientUtils
+from rcsb.app.file.Definitions import Definitions
 
 """
 author James Smith 2023
 """
-
-
 
 # other global variables
 contentTypeInfoD = None
@@ -34,9 +32,9 @@ cP = ConfigProvider(configFilePath)
 cP.getConfig()
 """ modifiable global variables
 """
-base_url = cP.get('SERVER_HOST_AND_PORT')
-chunkSize = cP.get('CHUNK_SIZE')
-hashType = cP.get('HASH_TYPE')
+base_url = cP.get("SERVER_HOST_AND_PORT")
+chunkSize = cP.get("CHUNK_SIZE")
+hashType = cP.get("HASH_TYPE")
 """ do not alter from here
 """
 subject = cP.get("JWT_SUBJECT")
@@ -46,749 +44,12 @@ headerD = {
 }
 HERE = os.path.abspath(os.path.dirname(__file__))
 
-repoTypeList = ["deposit", "archive", "workflow", "session"]
+dF = Definitions()
+repoTypeList = dF.getRepoTypeList()
+milestoneList = dF.getMilestoneList()
+fileFormatExtensionD = dF.getFileFormatExtD()
+contentTypeInfoD = dF.getContentTypeD()
 
-milestoneList = ["upload", "upload-convert", "deposit", "annotate", "release", "review", "none"]
-
-fileFormatExtensions = """pdbx: cif
-    pdb: pdb
-    cifeps: cifeps
-    pdbml: xml
-    nmr - star: str
-    gz: gz
-    tgz: tgz
-    mtz: mtz
-    html: html
-    jpg: jpg
-    png: png
-    svg: svg
-    gif: gif
-    tif: tif
-    tiff: tiff
-    sdf: sdf
-    ccp4: ccp4
-    mrc2000: mrc
-    pic: pic
-    txt: txt
-    xml: xml
-    pdf: pdf
-    map: map
-    bcif: bcif
-    amber: amber
-    amber - aux: amber - aux
-    cns: cns
-    cyana: cyana
-    xplor: xplor
-    xplor - nih: xplor - nih
-    pdb - mr: mr
-    mr: mr
-    json: json
-    fsa: fsa
-    fasta: fasta
-    any: dat
-    mdl: mdl
-    tar: tar"""
-fileFormatExtensionD = dict()
-for s in fileFormatExtensions.split('\n'):
-    key = s.split(':')[0].lstrip().rstrip()
-    val = s.split(':')[1].lstrip().rstrip()
-    fileFormatExtensionD[key] = val
-
-contentTypes = """model:
-      -
-        - pdbx
-        - pdb
-        - pdbml
-        - cifeps
-      - model
-    model-emd:
-      -
-        - pdbx
-        - xml
-      - model-emd
-    model-aux:
-      -
-        - pdbx
-      - model-aux
-    model-legacy-rcsb:
-      -
-        - pdbx
-        - pdb
-      - model-legacy-rcsb
-    structure-factors:
-      -
-        - pdbx
-        - mtz
-        - txt
-      - sf
-    structure-factors-legacy-rcsb:
-      -
-        - pdbx
-        - mtz
-      - sf-legacy-rcsb
-    nmr-data-config:
-      -
-        - json
-      - nmr-data-config
-    nmr-data-nef:
-      -
-        - nmr-star
-        - pdbx
-      - nmr-data-nef
-    nmr-data-str:
-      -
-        - nmr-star
-        - pdbx
-      - nmr-data-str
-    nmr-data-nef-report:
-      -
-        - json
-      - nmr-data-nef-report
-    nmr-data-str-report:
-      -
-        - json
-      - nmr-data-str-report
-    nmr-restraints:
-      -
-        - any
-        - nmr-star
-        - amber
-        - amber-aux
-        - cns
-        - cyana
-        - xplor
-        - xplor-nih
-        - pdb-mr
-        - mr
-      - mr
-    nmr-chemical-shifts:
-      -
-        - nmr-star
-        - pdbx
-        - any
-      - cs
-    nmr-chemical-shifts-raw:
-      -
-        - nmr-star
-        - pdbx
-      - cs-raw
-    nmr-chemical-shifts-auth:
-      -
-        - nmr-star
-        - pdbx
-      - cs-auth
-    nmr-chemical-shifts-upload-report:
-      -
-        - pdbx
-      - nmr-chemical-shifts-upload-report
-    nmr-chemical-shifts-atom-name-report:
-      -
-        - pdbx
-      - nmr-chemical-shifts-atom-name-report
-    nmr-shift-error-report:
-      -
-        - json
-      - nmr-shift-error-report
-    nmr-bmrb-entry:
-      -
-        - nmr-star
-        - pdbx
-      - nmr-bmrb-entry
-    nmr-harvest-file:
-      -
-        - tgz
-      - nmr-harvest-file
-    nmr-peaks:
-      -
-        - any
-      - nmr-peaks
-    nmr-nef:
-      -
-        - nmr-star
-        - pdbx
-      - nmr-nef
-    nmr-cs-check-report:
-      -
-        - html
-      - nmr-cs-check-report
-    nmr-cs-xyz-check-report:
-      -
-        - html
-      - nmr-cs-xyz-check-report
-    nmr-cs-path-list:
-      -
-        - txt
-      - nmr-cs-path-list
-    nmr-cs-auth-file-name-list:
-      -
-        - txt
-      - nmr-cs-auth-file-name-list
-    nmr-mr-path-list:
-      -
-        - json
-      - nmr-mr-path-list
-    component-image:
-      -
-        - jpg
-        - png
-        - gif
-        - svg
-        - tif
-        - tiff
-      - ccimg
-    component-definition:
-      -
-        - pdbx
-        - sdf
-      - ccdef
-    em-volume:
-      -
-        - map
-        - ccp4
-        - mrc2000
-        - bcif
-      - em-volume
-    em-mask-volume:
-      -
-        - map
-        - ccp4
-        - mrc2000
-        - bcif
-      - em-mask-volume
-    em-additional-volume:
-      -
-        - map
-        - ccp4
-        - mrc2000
-        - bcif
-      - em-additional-volume
-    em-half-volume:
-      -
-        - map
-        - ccp4
-        - mrc2000
-        - bcif
-      - em-half-volume
-    em-raw-volume:
-      -
-        - map
-        - ccp4
-        - mrc2000
-        - bcif
-      - em-raw-volume
-    em-fsc-half-mask-volume:
-      -
-        - map
-        - ccp4
-        - mrc2000
-        - bcif
-      - em-fsc-half-mask-volume
-    em-fsc-map-model-mask-volume:
-      -
-        - map
-        - ccp4
-        - mrc2000
-        - bcif
-      - em-fsc-map-model-mask-volume
-    em-alignment-mask-volume:
-      -
-        - map
-        - ccp4
-        - mrc2000
-        - bcif
-      - em-alignment-mask-volume
-    em-focused-refinement-mask-volume:
-      -
-        - map
-        - ccp4
-        - mrc2000
-        - bcif
-      - em-focused-refinement-mask-volume
-    em-3d-classification-additional-volume:
-      -
-        - map
-        - ccp4
-        - mrc2000
-        - bcif
-      - em-3d-classification-additional-volume
-    em-focus-refinement-additional-volume:
-      -
-        - map
-        - ccp4
-        - mrc2000
-        - bcif
-      - em-focus-refinement-additional-volume
-    em-segmentation-volume:
-      -
-        - map
-        - ccp4
-        - mrc2000
-        - bcif
-      - em-segmentation-volume
-    em-volume-wfcfg:
-      -
-        - json
-      - em-volume-wfcfg
-    em-mask-volume-wfcfg:
-      -
-        - json
-      - em-mask-volume-wfcfg
-    em-additional-volume-wfcfg:
-      -
-        - json
-      - em-additional-volume-wfcfg
-    em-half-volume-wfcfg:
-      -
-        - json
-      - em-half-volume-wfcfg
-    em-volume-report:
-      -
-        - json
-      - em-volume-report
-    em-volume-header:
-      -
-        - xml
-      - em-volume-header
-    em-model-emd:
-      -
-        - pdbx
-      - em-model-emd
-    em-structure-factors:
-      -
-        - pdbx
-        - mtz
-      - em-sf
-    emd-xml-header-report:
-      -
-        - txt
-      - emd-xml-header-report
-    validation-report-depositor:
-      -
-        - pdf
-      - valdep
-    seqdb-match:
-      -
-        - pdbx
-        - pic
-      - seqdb-match
-    blast-match:
-      -
-        - xml
-      - blast-match
-    seq-assign:
-      -
-        - pdbx
-      - seq-assign
-    partial-seq-annotate:
-      -
-        - txt
-      - partial-seq-annotate
-    seq-data-stats:
-      -
-        - pic
-      - seq-data-stats
-    seq-align-data:
-      -
-        - pic
-      - seq-align-data
-    pre-seq-align-data:
-      -
-        - pic
-      - pre-seq-align-data
-    seqmatch:
-      -
-        - pdbx
-      - seqmatch
-    mismatch-warning:
-      -
-        - pic
-      - mismatch-warning
-    polymer-linkage-distances:
-      -
-        - pdbx
-        - json
-      - poly-link-dist
-    polymer-linkage-report:
-      -
-        - html
-      - poly-link-report
-    geometry-check-report:
-      -
-        - pdbx
-      - geometry-check-report
-    chem-comp-link:
-      -
-        - pdbx
-      - cc-link
-    chem-comp-assign:
-      -
-        - pdbx
-      - cc-assign
-    chem-comp-assign-final:
-      -
-        - pdbx
-      - cc-assign-final
-    chem-comp-assign-details:
-      -
-        - pic
-      - cc-assign-details
-    chem-comp-depositor-info:
-      -
-        - pdbx
-      - cc-dpstr-info
-    prd-search:
-      -
-        - pdbx
-      - prd-summary
-    assembly-report:
-      -
-        - txt
-        - xml
-      - assembly-report
-    assembly-assign:
-      -
-        - pdbx
-        - txt
-      - assembly-assign
-    assembly-depinfo-update:
-      -
-        - txt
-      - assembly-depinfo-update
-    interface-assign:
-      -
-        - xml
-      - interface-assign
-    assembly-model:
-      -
-        - pdb
-        - pdbx
-      - assembly-model
-    assembly-model-xyz:
-      -
-        - pdb
-        - pdbx
-      - assembly-model-xyz
-    site-assign:
-      -
-        - pdbx
-      - site-assign
-    dict-check-report:
-      -
-        - txt
-      - dict-check-report
-    dict-check-report-r4:
-      -
-        - txt
-      - dict-check-report-r4
-    dict-check-report-next:
-      -
-        - txt
-      - dict-check-report-next
-    tom-complex-report:
-      -
-        - txt
-      - tom-upload-report
-    tom-merge-report:
-      -
-        - txt
-      - tom-merge-report
-    format-check-report:
-      -
-        - txt
-      - format-check-report
-    misc-check-report:
-      -
-        - txt
-      - misc-check-report
-    special-position-report:
-      -
-        - txt
-      - special-position-report
-    merge-xyz-report:
-      -
-        - txt
-      - merge-xyz-report
-    model-issues-report:
-      -
-        - json
-      - model-issues-report
-    structure-factor-report:
-      -
-        - json
-      - structure-factor-report
-    validation-report:
-      -
-        - pdf
-      - val-report
-    validation-report-full:
-      -
-        - pdf
-      - val-report-full
-    validation-report-slider:
-      -
-        - png
-        - svg
-      - val-report-slider
-    validation-data:
-      -
-        - pdbx
-        - xml
-      - val-data
-    validation-report-2fo-map-coef:
-      -
-        - pdbx
-      - val-report-wwpdb-2fo-fc-edmap-coef
-    validation-report-fo-map-coef:
-      -
-        - pdbx
-      - val-report-wwpdb-fo-fc-edmap-coef
-    validation-report-images:
-      -
-        - tar
-      - val-report-images
-    map-xray:
-      -
-        - bcif
-      - map-xray
-    map-2fofc:
-      -
-        - map
-      - map-2fofc
-    map-fofc:
-      -
-        - map
-      - map-fofc
-    map-omit-2fofc:
-      -
-        - map
-      - map-omit-2fofc
-    map-omit-fofc:
-      -
-        - map
-      - map-omit-fofc
-    sf-convert-report:
-      -
-        - pdbx
-        - txt
-      - sf-convert-report
-    em-sf-convert-report:
-      -
-        - pdbx
-        - txt
-      - em-sf-convert-report
-    dcc-report:
-      -
-        - pdbx
-        - txt
-      - dcc-report
-    mapfix-header-report:
-      -
-        - json
-      - mapfix-header-report
-    mapfix-report:
-      -
-        - txt
-      - mapfix-report
-    secondary-structure-topology:
-      -
-        - txt
-      - ss-topology
-    sequence-fasta:
-      -
-        - fasta
-        - fsa
-      - fasta
-    messages-from-depositor:
-      -
-        - pdbx
-      - messages-from-depositor
-    messages-to-depositor:
-      -
-        - pdbx
-      - messages-to-depositor
-    notes-from-annotator:
-      -
-        - pdbx
-      - notes-from-annotator
-    correspondence-to-depositor:
-      -
-        - txt
-      - correspondence-to-depositor
-    correspondence-legacy-rcsb:
-      -
-        - pdbx
-      - correspondence-legacy-rcsb
-    correspondence-info:
-      -
-        - pdbx
-      - correspondence-info
-    map-header-data:
-      -
-        - json
-        - pic
-        - txt
-      - map-header-data
-    deposit-volume-params:
-      -
-        - pic
-      - deposit-volume-params
-    fsc:
-      -
-        - xml
-      - fsc-xml
-    fsc-report:
-      -
-        - txt
-      - fsc-report
-    res-est-fsc:
-      -
-        - xml
-      - res-est-fsc
-    res-est-fsc-report:
-      -
-        - txt
-      - res-est-fsc-report
-    map-model-fsc:
-      -
-        - xml
-      - map-model-fsc
-    map-model-fsc-report:
-      -
-        - txt
-      - map-model-fsc-report
-    em2em-report:
-      -
-        - txt
-      - em2em-report
-    img-emdb:
-      -
-        - jpg
-        - png
-        - gif
-        - svg
-        - tif
-      - img-emdb
-    img-emdb-report:
-      -
-        - txt
-      - img-emdb-report
-    layer-lines:
-      -
-        - txt
-      - layer-lines
-    auxiliary-file:
-      -
-        - any
-      - aux-file
-    status-history:
-      -
-        - pdbx
-      - status-history
-    virus-matrix:
-      -
-        - any
-      - virus
-    parameter-file:
-      -
-        - any
-      - parm
-    structure-def-file:
-      -
-        - any
-      - struct
-    topology-file:
-      -
-        - any
-      - topo
-    cmd-line-args:
-      -
-        - txt
-      - cmd-line-args
-    sd-dat:
-      -
-        - a
-        - n
-        - y
-      - sd-dat
-    sx-pr:
-      -
-        - a
-        - n
-        - y
-      - sx-pr
-    sm-fit:
-      -
-        - a
-        - n
-        - y
-      - sm-fit
-    deposition-info:
-      -
-        - pdbx
-        - json
-      - deposition-info
-    deposition-store:
-      -
-        - tar
-      - deposition-store
-    bundle-session-archive:
-      -
-        - tar
-        - tgz
-      - bundle-session-archive
-    bundle-session-deposit:
-      -
-        - tar
-        - tgz
-      - bundle-session-deposit
-    bundle-session-upload:
-      -
-        - tar
-        - tgz
-      - bundle-session-upload
-    bundle-session-tempdep:
-      -
-        - tar
-        - tgz
-      - bundle-session-tempdep
-    bundle-session-uitemp:
-      -
-        - tar
-        - tgz
-      - bundle-session-uitemp
-    bundle-session-workflow:
-      -
-        - tar
-        - tgz
-      - bundle-session-workflow
-    session-backup:
-      -
-        - tar
-        - tgz
-      - bundle-session-workflow
-    manifest-session:
-      -
-        - json
-      - manifest-session
-    manifest-session-bundle:
-      -
-        - json
-      - manifest-session-bundle
-    any:
-      -
-        - any
-      - any"""
-contentTypeInfoD = dict()
-key = None
-val = None
-prev = None
-for content in contentTypes.split('\n'):
-    contentType = content.replace(':','').replace('- ','').lstrip().rstrip()
-    if content.find(':') >= 0:
-        if key and val:
-            contentTypeInfoD.update({key: val})
-        key = contentType
-    val = contentType
 
 class Gui(tk.Frame):
     def __init__(self, master):
@@ -803,11 +64,11 @@ class Gui(tk.Frame):
         self.uploadTab = ttk.Frame(master)
         self.downloadTab = ttk.Frame(master)
         self.listTab = ttk.Frame(master)
-        self.tabs.add(self.splashTab, text='HOME')
-        self.tabs.add(self.uploadTab, text='UPLOAD')
-        self.tabs.add(self.downloadTab, text='DOWNLOAD')
-        self.tabs.add(self.listTab, text='LIST')
-        self.tabs.pack(expand=1, fill='both')
+        self.tabs.add(self.splashTab, text="HOME")
+        self.tabs.add(self.uploadTab, text="UPLOAD")
+        self.tabs.add(self.downloadTab, text="DOWNLOAD")
+        self.tabs.add(self.listTab, text="LIST")
+        self.tabs.pack(expand=1, fill="both")
 
         load = Image.open(os.path.join(HERE, "onedep_logo.png"))
         render = ImageTk.PhotoImage(load)
@@ -830,19 +91,19 @@ class Gui(tk.Frame):
         self.compress = tk.IntVar(master)
         self.decompress = tk.IntVar(master)
         self.upload_status = tk.StringVar(master)
-        self.upload_status.set('0%')
+        self.upload_status.set("0%")
         self.file_path = None
 
         self.fileButtonLabel = ttk.Label(self.uploadTab, text="UPLOAD FILE")
         self.fileButtonLabel.pack()
-        self.fileButton = ttk.Button(self.uploadTab, text="select", command=self.selectfile)
+        self.fileButton = ttk.Button(self.uploadTab, text="select", command=self.selectFile)
         self.fileButton.pack()
 
         self.repoTypeLabel = ttk.Label(self.uploadTab, text="REPOSITORY TYPE")
         self.repoTypeLabel.pack()
         self.repoTypeListbox = ttk.Combobox(self.uploadTab, exportselection=0, textvariable=self.repo_type)
         self.repoTypeListbox.pack()
-        self.repoTypeListbox['values'] = repoTypeList
+        self.repoTypeListbox["values"] = repoTypeList
         self.repoTypeListbox.current()
 
         self.depIdLabel = ttk.Label(self.uploadTab, text="DEPOSIT ID")
@@ -854,13 +115,13 @@ class Gui(tk.Frame):
         self.contentTypeLabel.pack()
         self.contentTypeListbox = ttk.Combobox(self.uploadTab, exportselection=0, textvariable=self.content_type)
         self.contentTypeListbox.pack()
-        self.contentTypeListbox['values'] = [key for key in contentTypeInfoD.keys()]
+        self.contentTypeListbox["values"] = [key for key in contentTypeInfoD.keys()]
 
         self.milestoneLabel = ttk.Label(self.uploadTab, text="MILESTONE")
         self.milestoneLabel.pack()
         self.milestoneListbox = ttk.Combobox(self.uploadTab, exportselection=0, textvariable=self.mile_stone)
         self.milestoneListbox.pack()
-        self.milestoneListbox['values'] = milestoneList
+        self.milestoneListbox["values"] = milestoneList
         self.milestoneListbox.current()
 
         self.partLabel = ttk.Label(self.uploadTab, text="PART NUMBER")
@@ -873,7 +134,7 @@ class Gui(tk.Frame):
         self.contentFormatLabel.pack()
         self.contentFormatListbox = ttk.Combobox(self.uploadTab, exportselection=0, textvariable=self.file_format)
         self.contentFormatListbox.pack()
-        self.contentFormatListbox['values'] = [key for key in fileFormatExtensionD.keys()]
+        self.contentFormatListbox["values"] = [key for key in fileFormatExtensionD.keys()]
 
         self.versionLabel = ttk.Label(self.uploadTab, text="VERSION")
         self.versionLabel.pack()
@@ -892,13 +153,13 @@ class Gui(tk.Frame):
         self.decompressCheckbox.pack(anchor=tk.W)
         self.upload_group.pack()
 
-        self.uploadButton = ttk.Button(self.uploadTab, text='submit', command=self.upload)
+        self.uploadButton = ttk.Button(self.uploadTab, text="submit", command=self.upload)
         self.uploadButton.pack()
 
         self.statusLabel = ttk.Label(self.uploadTab, textvariable=self.upload_status)
         self.statusLabel.pack()
 
-        self.resetButton = ttk.Button(self.uploadTab, text='reset', command=self.reset)
+        self.resetButton = ttk.Button(self.uploadTab, text="reset", command=self.reset)
         self.resetButton.pack()
 
         # DOWNLOADS
@@ -912,12 +173,12 @@ class Gui(tk.Frame):
         self.download_version_number = tk.StringVar(master)
         self.download_allow_overwrite = tk.IntVar(master)
         self.download_status = tk.StringVar(master)
-        self.download_status.set('0%')
+        self.download_status.set("0%")
         self.download_file_path = None
 
         self.download_fileButtonLabel = ttk.Label(self.downloadTab, text="DESTINATION FOLDER")
         self.download_fileButtonLabel.pack()
-        self.download_fileButton = ttk.Button(self.downloadTab, text="select", command=self.selectfolder)
+        self.download_fileButton = ttk.Button(self.downloadTab, text="select", command=self.selectFolder)
         self.download_fileButton.pack()
 
         self.download_allowOverwrite = ttk.Checkbutton(self.downloadTab, text="allow overwrite", variable=self.download_allow_overwrite)
@@ -927,7 +188,7 @@ class Gui(tk.Frame):
         self.download_repoTypeLabel.pack()
         self.download_repoTypeListbox = ttk.Combobox(self.downloadTab, exportselection=0, textvariable=self.download_repo_type)
         self.download_repoTypeListbox.pack()
-        self.download_repoTypeListbox['values'] = repoTypeList
+        self.download_repoTypeListbox["values"] = repoTypeList
         self.download_repoTypeListbox.current()
 
         self.download_depIdLabel = ttk.Label(self.downloadTab, text="DEPOSIT ID")
@@ -939,13 +200,13 @@ class Gui(tk.Frame):
         self.download_contentTypeLabel.pack()
         self.download_contentTypeListbox = ttk.Combobox(self.downloadTab, exportselection=0, textvariable=self.download_content_type)
         self.download_contentTypeListbox.pack()
-        self.download_contentTypeListbox['values'] = [key for key in contentTypeInfoD.keys()]
+        self.download_contentTypeListbox["values"] = [key for key in contentTypeInfoD.keys()]
 
         self.download_milestoneLabel = ttk.Label(self.downloadTab, text="MILESTONE")
         self.download_milestoneLabel.pack()
         self.download_milestoneListbox = ttk.Combobox(self.downloadTab, exportselection=0, textvariable=self.download_mile_stone)
         self.download_milestoneListbox.pack()
-        self.download_milestoneListbox['values'] = milestoneList
+        self.download_milestoneListbox["values"] = milestoneList
         self.download_milestoneListbox.current()
 
         self.download_partLabel = ttk.Label(self.downloadTab, text="PART NUMBER")
@@ -958,7 +219,7 @@ class Gui(tk.Frame):
         self.download_contentFormatLabel.pack()
         self.download_contentFormatListbox = ttk.Combobox(self.downloadTab, exportselection=0, textvariable=self.download_file_format)
         self.download_contentFormatListbox.pack()
-        self.download_contentFormatListbox['values'] = [key for key in fileFormatExtensionD.keys()]
+        self.download_contentFormatListbox["values"] = [key for key in fileFormatExtensionD.keys()]
 
         self.download_versionLabel = ttk.Label(self.downloadTab, text="VERSION")
         self.download_versionLabel.pack()
@@ -966,13 +227,13 @@ class Gui(tk.Frame):
         self.download_versionEntry.insert(1, "1")
         self.download_versionEntry.pack()
 
-        self.downloadButton = ttk.Button(self.downloadTab, text='submit', command=self.download)
+        self.downloadButton = ttk.Button(self.downloadTab, text="submit", command=self.download)
         self.downloadButton.pack()
 
         self.download_statusLabel = ttk.Label(self.downloadTab, textvariable=self.download_status)
         self.download_statusLabel.pack()
 
-        self.download_resetButton = ttk.Button(self.downloadTab, text='reset', command=self.reset)
+        self.download_resetButton = ttk.Button(self.downloadTab, text="reset", command=self.reset)
         self.download_resetButton.pack()
 
         # LIST DIRECTORY
@@ -984,7 +245,7 @@ class Gui(tk.Frame):
         self.list_repoTypeLabel.pack()
         self.list_repoTypeListbox = ttk.Combobox(self.listTab, exportselection=0, textvariable=self.list_repo_type)
         self.list_repoTypeListbox.pack()
-        self.list_repoTypeListbox['values'] = repoTypeList
+        self.list_repoTypeListbox["values"] = repoTypeList
         self.list_repoTypeListbox.current()
 
         self.list_depIdLabel = ttk.Label(self.listTab, text="DEPOSIT ID")
@@ -992,22 +253,22 @@ class Gui(tk.Frame):
         self.list_depIdEntry = ttk.Entry(self.listTab, textvariable=self.list_dep_id)
         self.list_depIdEntry.pack()
 
-        self.listButton = ttk.Button(self.listTab, text='submit', command=self.listDir)
+        self.listButton = ttk.Button(self.listTab, text="submit", command=self.listDir)
         self.listButton.pack()
 
         self.list_Listbox = tk.Listbox(self.listTab, exportselection=0, width=50)
         self.list_Listbox.pack(pady=50)
 
-        self.list_resetButton = ttk.Button(self.listTab, text='reset', command=self.reset)
+        self.list_resetButton = ttk.Button(self.listTab, text="reset", command=self.reset)
         self.list_resetButton.pack()
 
-    def selectfile(self):
+    def selectFile(self):
         self.file_path = askopenfilename()
-        self.fileButton.config(text='\u2713')
+        self.fileButton.config(text="\u2713")
 
-    def selectfolder(self):
+    def selectFolder(self):
         self.file_path = askdirectory()
-        self.download_fileButton.config(text='\u2713')
+        self.download_fileButton.config(text="\u2713")
 
     def uploadFile(self):
         global headerD
@@ -1032,10 +293,10 @@ class Gui(tk.Frame):
         contentFormat = self.file_format.get()
         version = self.version_number.get()
         if not readFilePath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
-            print('error - missing values')
+            print("error - missing values")
             sys.exit()
         if not os.path.exists(readFilePath):
-            sys.exit(f'error - file does not exist: {readFilePath}')
+            sys.exit(f"error - file does not exist: {readFilePath}")
         if milestone.lower() == "none":
             milestone = ""
         # compress, then hash, then upload
@@ -1081,7 +342,7 @@ class Gui(tk.Frame):
                 headers=headerD,
                 timeout=None
             )
-            print(f'status code {response.status_code}')
+            print(f"status code {response.status_code}")
             if response.status_code == 200:
                 result = json.loads(response.text)
                 if result:
@@ -1089,9 +350,9 @@ class Gui(tk.Frame):
                     saveFilePath = result["filePath"]
                     chunkIndex = result["chunkIndex"]
                     uploadId = result["uploadId"]
-                # print(f'result = {result}')
+                # print(f"result = {result}")
         if not saveFilePath or not uploadId:
-            print('error - no file path or upload id were formed')
+            print("error - no file path or upload id were formed")
             sys.exit()
         mD = {
             # chunk parameters
@@ -1144,10 +405,10 @@ class Gui(tk.Frame):
                 responses.append(response)
                 mD["chunkIndex"] += 1
                 self.status = math.ceil((mD["chunkIndex"] / mD["expectedChunks"]) * 100)
-                self.upload_status.set(f'{self.status}%')
+                self.upload_status.set(f"{self.status}%")
                 self.master.update()
         print(responses)
-        print(f'time {time.perf_counter() - t1} s')
+        print(f"time {time.perf_counter() - t1} s")
         return
 
     def upload(self):
@@ -1173,10 +434,10 @@ class Gui(tk.Frame):
         contentFormat = self.file_format.get()
         version = self.version_number.get()
         if not readFilePath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
-            print('error - missing values')
+            print("error - missing values")
             sys.exit()
         if not os.path.exists(readFilePath):
-            sys.exit(f'error - file does not exist: {readFilePath}')
+            sys.exit(f"error - file does not exist: {readFilePath}")
         if milestone.lower() == "none":
             milestone = ""
         # compress, then hash, then upload
@@ -1189,23 +450,23 @@ class Gui(tk.Frame):
         # get upload parameters
         response = self.__cU.getUploadParameters(readFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, resumable)
         if not response:
-            print('error in get upload parameters')
+            print("error in get upload parameters")
             return
         saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash = response
         # upload chunks
         for index in range(chunkIndex, expectedChunks):
             response = self.__cU.uploadChunk(readFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, DECOMPRESS, allowOverwrite, resumable)
             if not response:
-                print('error in upload chunk')
+                print("error in upload chunk")
                 break
             self.status = math.ceil((index / expectedChunks) * 100)
-            self.upload_status.set(f'{self.status}%')
+            self.upload_status.set(f"{self.status}%")
             self.master.update()
         self.status = 100
-        self.upload_status.set(f'{self.status}%')
+        self.upload_status.set(f"{self.status}%")
         self.master.update()
         print(response)
-        print(f'time {time.perf_counter() - t1} s')
+        print(f"time {time.perf_counter() - t1} s")
         return
 
     def download(self):
@@ -1222,8 +483,8 @@ class Gui(tk.Frame):
         contentType = self.download_content_type.get()
         milestone = self.download_mile_stone.get()
         convertedMilestone = None
-        if milestone and milestone.lower() != 'none':
-            convertedMilestone = f'-{milestone}'
+        if milestone and milestone.lower() != "none":
+            convertedMilestone = f"-{milestone}"
         else:
             convertedMilestone = ""
         partNumber = self.download_part_number.get()
@@ -1231,17 +492,17 @@ class Gui(tk.Frame):
         version = self.download_version_number.get()
         folderPath = self.file_path
         if not folderPath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
-            print('error - missing values')
+            print("error - missing values")
             sys.exit()
         convertedContentFormat = fileFormatExtensionD[contentFormat]
-        fileName = f'{depId}_{contentType}{convertedMilestone}_P{partNumber}.{convertedContentFormat}.V{version}'
+        fileName = f"{depId}_{contentType}{convertedMilestone}_P{partNumber}.{convertedContentFormat}.V{version}"
         downloadFilePath = os.path.join(folderPath, fileName)
         if not os.path.exists(folderPath):
-            print(f'error - folder does not exist: {downloadFilePath}')
+            print(f"error - folder does not exist: {downloadFilePath}")
             sys.exit()
         if os.path.exists(downloadFilePath):
             if not allowOverwrite:
-                print(f'error - file already exists: {downloadFilePath}')
+                print(f"error - file already exists: {downloadFilePath}")
                 sys.exit()
             os.remove(downloadFilePath)
         if milestone.lower() == "none":
@@ -1259,12 +520,12 @@ class Gui(tk.Frame):
         url = os.path.join(base_url, "file-v1", "downloadSize")
         fileSize = requests.get(url, params=downloadDict, headers=headerD, timeout=None).text
         if not fileSize.isnumeric():
-            print(f'error - no response for {downloadFilePath}')
+            print(f"error - no response for {downloadFilePath}")
             return None
         fileSize = int(fileSize)
         chunks = math.ceil(fileSize / chunkSize)
         url = os.path.join(base_url, "file-v1", "download")
-        url = f'{url}?repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}&partNumber={partNumber}&contentFormat={contentFormat}&version={version}&hashType={hashType}'
+        url = f"{url}?repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}&partNumber={partNumber}&contentFormat={contentFormat}&version={version}&hashType={hashType}"
         responseCode = None
         count = 0
         with requests.get(url, headers=headerD, timeout=None, stream=True) as response:
@@ -1274,17 +535,17 @@ class Gui(tk.Frame):
                         ofh.write(chunk)
                     count += 1
                     self.status = math.ceil((count / chunks) * 100)
-                    self.download_status.set(f'{self.status}%')
+                    self.download_status.set(f"{self.status}%")
                     self.master.update()
             responseCode = response.status_code
             rspHashType = response.headers["rcsb_hash_type"]
             rspHashDigest = response.headers["rcsb_hexdigest"]
             thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
             if not thD["hashDigest"] == rspHashDigest:
-                print('error - hash comparison failed')
+                print("error - hash comparison failed")
                 sys.exit()
-        print(f'response {responseCode}')
-        print(f'time {time.perf_counter() - t1} s')
+        print(f"response {responseCode}")
+        print(f"time {time.perf_counter() - t1} s")
 
     def listDir(self):
         t1 = time.perf_counter()
@@ -1296,7 +557,7 @@ class Gui(tk.Frame):
             "depId": depId
         }
         if not depId or not repoType:
-            print('error - missing values')
+            print("error - missing values")
             sys.exit()
         url = os.path.join(base_url, "file-v1", "list-dir")
         responseCode = None
@@ -1309,21 +570,21 @@ class Gui(tk.Frame):
                     if not isinstance(resp, dict):
                         resp = json.loads(resp)
                     dirList = resp["dirList"]
-        print(f'response {responseCode}')
+        print(f"response {responseCode}")
         index = 1
         if responseCode == 200:
             for fi in sorted(dirList):
-                print(f'\t{fi}')
+                print(f"\t{fi}")
                 self.list_Listbox.insert(index, fi)
                 index += 1
-        print(f'time {time.perf_counter() - t1} s')
+        print(f"time {time.perf_counter() - t1} s")
 
     def reset(self):
-        self.fileButton.config(text='select')
-        self.download_fileButton.config(text='select')
+        self.fileButton.config(text="select")
+        self.download_fileButton.config(text="select")
         self.list_Listbox.delete(0, tk.END)
-        self.upload_status.set(f'0%')
-        self.download_status.set(f'0%')
+        self.upload_status.set(f"0%")
+        self.download_status.set(f"0%")
 
         self.repo_type.set("")
         self.dep_id.set("")
@@ -1351,7 +612,7 @@ class Gui(tk.Frame):
 
         self.master.update()
 
-if __name__=='__main__':
+if __name__=="__main__":
     root = tk.Tk()
     gui = Gui(root)
     gui.mainloop()

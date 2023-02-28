@@ -48,10 +48,10 @@ class FileDownloadTests(unittest.TestCase):
     def setUp(self):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(self.__configFilePath)
-        self.__chunkSize = cP.get('CHUNK_SIZE')
-        self.__hashType = cP.get('HASH_TYPE')
-        self.__dataPath = cP.get('REPOSITORY_DIR_PATH')  # os.path.join(HERE, "data")
-        self.__repositoryType = 'unit-test'
+        self.__chunkSize = cP.get("CHUNK_SIZE")
+        self.__hashType = cP.get("HASH_TYPE")
+        self.__dataPath = cP.get("REPOSITORY_DIR_PATH")  # os.path.join(HERE, "data")
+        self.__repositoryType = "unit-test"
         self.__unitTestFolder = os.path.join(self.__dataPath, self.__repositoryType)
         self.__repositoryFilePath = os.path.join(self.__unitTestFolder, "D_1000000001", "D_1000000001_model_P1.cif.V1")
         if not os.path.exists(self.__repositoryFilePath):

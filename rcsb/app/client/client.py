@@ -25,9 +25,9 @@ cP = ConfigProvider(configFilePath)
 cP.getConfig()
 """ modifiable variables
 """
-base_url = cP.get('SERVER_HOST_AND_PORT')
-maxChunkSize = cP.get('CHUNK_SIZE')
-hashType = cP.get('HASH_TYPE')
+base_url = cP.get("SERVER_HOST_AND_PORT")
+maxChunkSize = cP.get("CHUNK_SIZE")
+hashType = cP.get("HASH_TYPE")
 """ do not alter from here
 """
 subject = cP.get("JWT_SUBJECT")
@@ -68,10 +68,10 @@ def upload(mD):
     contentFormat = mD["contentFormat"]
     version = mD["version"]
     if not readFilePath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
-        print('error - missing values')
+        print("error - missing values")
         sys.exit()
     if not os.path.exists(readFilePath):
-        sys.exit(f'error - file does not exist: {readFilePath}')
+        sys.exit(f"error - file does not exist: {readFilePath}")
     if milestone.lower() == "none":
         milestone = ""
     # compress, then hash, then upload
@@ -84,14 +84,14 @@ def upload(mD):
     # get upload parameters
     response = cU.getUploadParameters(readFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, OVERWRITE, RESUMABLE)
     if not response:
-        print('error in get upload parameters')
+        print("error in get upload parameters")
         return
     saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash = response
     # upload chunks
     for index in tqdm(range(chunkIndex,expectedChunks), leave=False, total=expectedChunks - chunkIndex, desc=os.path.basename(readFilePath)):
         response = cU.uploadChunk(readFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, DECOMPRESS, OVERWRITE, RESUMABLE)
         if not response:
-            print('error in upload chunk')
+            print("error in upload chunk")
             break
     return response
 
@@ -118,7 +118,7 @@ def download(downloadFilePath, downloadDict):
         if downloadDict["allowOverwrite"].lower() == "true":
             os.remove(downloadFilePath)
         else:
-            print(f'error - file already exists')
+            print(f"error - file already exists")
             return None
     with requests.get(url, params=downloadDict, headers=headerD, timeout=None, stream=True) as response:
         with open(downloadFilePath, "ab") as ofh:

@@ -48,11 +48,11 @@ class PathRequestTests(unittest.TestCase):
     def setUp(self):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(self.__configFilePath)
-        self.__chunkSize = cP.get('CHUNK_SIZE')
-        self.__hashType = cP.get('HASH_TYPE')
-        self.__dataPath = cP.get('REPOSITORY_DIR_PATH')  # os.path.join(HERE, "data")
-        self.__repositoryType = 'unit-test'
-        self.__repositoryType2 = 'test'
+        self.__chunkSize = cP.get("CHUNK_SIZE")
+        self.__hashType = cP.get("HASH_TYPE")
+        self.__dataPath = cP.get("REPOSITORY_DIR_PATH")  # os.path.join(HERE, "data")
+        self.__repositoryType = "unit-test"
+        self.__repositoryType2 = "test"
         self.__unitTestFolder = os.path.join(self.__dataPath, self.__repositoryType)
         self.__testFolder = os.path.join(self.__dataPath, self.__repositoryType2)
         self.__repoTestPath = os.path.join(self.__dataPath, self.__repositoryType)

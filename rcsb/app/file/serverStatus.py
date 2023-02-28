@@ -49,8 +49,8 @@ def getUptime():
 def getRedisStatus():
     # create database if not exists
     # create table if not exists
-    cP = ConfigProvider(os.environ.get('CONFIG_FILE'))
-    redis_host = cP.get('REDIS_HOST')
+    cP = ConfigProvider(os.environ.get("CONFIG_FILE"))
+    redis_host = cP.get("REDIS_HOST")
     try:
         r = redis.Redis(host=redis_host, decode_responses=True)
     except Exception as exc:
@@ -66,8 +66,8 @@ def getRedisStatus():
 @router.get("/storage", tags=["status"])
 def getServerStorage():
     percent_ram_used = psutil.virtual_memory()[2]
-    cP = ConfigProvider(os.environ.get('CONFIG_FILE'))
-    repository_dir_path = cP.get('REPOSITORY_DIR_PATH')
+    cP = ConfigProvider(os.environ.get("CONFIG_FILE"))
+    repository_dir_path = cP.get("REPOSITORY_DIR_PATH")
     disk_usage = shutil.disk_usage(repository_dir_path)
     disk_total = disk_usage[0]
     disk_used = disk_usage[1]

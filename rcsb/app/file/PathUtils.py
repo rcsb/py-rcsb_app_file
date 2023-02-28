@@ -51,7 +51,7 @@ class PathUtils:
         if not repositoryType.lower() in self.__repoTypeList:
             return None
         repositoryType = repositoryType.lower()
-        repositoryType = repositoryType.replace('onedep-', '')
+        repositoryType = repositoryType.replace("onedep-", "")
         return os.path.join(self.__repositoryDirPath, repositoryType)
 
     def getFileLockPath(self, depId: str, contentType: str, milestone: str, partNumber: int, contentFormat: str) -> str:
@@ -188,7 +188,7 @@ class PathUtils:
 
         """
         if milestone and milestone in self.__milestoneList:
-            return '-' + milestone
+            return "-" + milestone
         return ""
 
     def getBaseFileName(

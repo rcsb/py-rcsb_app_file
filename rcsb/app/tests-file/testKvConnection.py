@@ -16,7 +16,7 @@ os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "
 
 class KvConnectionTest(unittest.TestCase):
 
-    def test_connection(self):
+    def testConnection(self):
         configFilePath = os.environ.get("CONFIG_FILE")
         cP = ConfigProvider(configFilePath)
         filePath = cP.get("KV_FILE_PATH")
