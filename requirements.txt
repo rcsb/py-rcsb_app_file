@@ -22,4 +22,4 @@ Pillow
 tqdm
 # required by tox
 httpx
-jwt
+PyJWT
