@@ -77,7 +77,6 @@ class ClientTests(unittest.TestCase):
             os.unlink(self.__testFileGzipPath)
         self.__fU.compress(self.__testFileDatPath, self.__testFileGzipPath)
 
-        cP = ConfigProvider(self.__configFilePath)
         self.__startTime = time.time()
 
         logger.debug("Running tests on version %s", __version__)
@@ -157,7 +156,7 @@ class ClientTests(unittest.TestCase):
                     # null test - should find nothing
                     response = self.__cU.getUploadParameters(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, resumable)
                     if not allowOverwrite:
-                        self.assertTrue(response == None, "error - did not detect pre-existing file")
+                        self.assertTrue(response is None, "error - did not detect pre-existing file")
                     if not response:
                         logger.info("error in get upload parameters")
                         break
@@ -175,7 +174,7 @@ class ClientTests(unittest.TestCase):
                     # get upload parameters - should find at least one chunk
                     response = self.__cU.getUploadParameters(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, resumable)
                     if not allowOverwrite:
-                        self.assertTrue(response == None, "error - did not detect pre-existing file")
+                        self.assertTrue(response is None, "error - did not detect pre-existing file")
                     if not response:
                         logger.info("error in get upload parameters")
                         break
@@ -194,7 +193,6 @@ class ClientTests(unittest.TestCase):
                 except Exception as e:
                     logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
                     self.fail()
-
 
     def testSimpleDownload(self):
         """Test - basic file download """
@@ -221,7 +219,6 @@ class ClientTests(unittest.TestCase):
                 except Exception as e:
                     logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
                     self.fail()
-
 
     def testListDir(self):
         """Test - list dir"""
