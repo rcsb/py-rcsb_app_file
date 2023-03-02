@@ -13,7 +13,7 @@ packages = []
 thisPackage = "rcsb.app.file"
 
 with open("rcsb/app/file/__init__.py", "r", encoding="utf-8") as fd:
-    version = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]', fd.read(), re.MULTILINE).group(1)
+    version = re.search(r'^__version__\s*=\s*[\'"]([\.0123456789]*)[\'"]', fd.read(), re.MULTILINE).group(1)
 
 # Load packages from requirements*.txt
 with open("requirements.txt", "r", encoding="utf-8") as ifh:

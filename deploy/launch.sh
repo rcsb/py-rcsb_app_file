@@ -13,6 +13,14 @@ export APP_MODULE="rcsb.app.${SERVICE_NAME}.main:app"
 export GUNICORN_CONF=${GUNICORN_CONF:-"/app/gunicorn_conf.py"}
 export WORKER_CLASS=${WORKER_CLASS:-"uvicorn.workers.UvicornWorker"}
 
+HERE="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+TOPDIR="$(dirname "$HERE")"
+echo "HERE=${HERE}"
+echo "TOPDIR=${TOPDIR}"
+UPTIME_START=`echo $(date +%s)`
+echo "UPTIME_START=${UPTIME_START}"
+echo $UPTIME_START > uptime.txt
+
 # Optional setup.sh
 SETUP_PATH=${SETUP_PATH:-/app/setup.sh}
 echo "Checking for setup script in $SETUP_PATH"

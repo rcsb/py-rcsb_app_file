@@ -37,7 +37,6 @@ from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.main import app
-from rcsb.utils.io.FileUtil import FileUtil
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -48,26 +47,32 @@ class PathRequestTests(unittest.TestCase):
 
     def setUp(self):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
-        self.__dataPath = os.path.join(HERE, "data")
-        self.__repoTestPath = os.path.join(self.__dataPath, "repository", "archive")
+        cP = ConfigProvider(self.__configFilePath)
+        self.__chunkSize = cP.get("CHUNK_SIZE")
+        self.__hashType = cP.get("HASH_TYPE")
+        self.__dataPath = cP.get("REPOSITORY_DIR_PATH")  # os.path.join(HERE, "data")
+        self.__repositoryType = "unit-test"
+        self.__repositoryType2 = "test"
+        self.__unitTestFolder = os.path.join(self.__dataPath, self.__repositoryType)
+        self.__testFolder = os.path.join(self.__dataPath, self.__repositoryType2)
+        self.__repoTestPath = os.path.join(self.__dataPath, self.__repositoryType)
         self.__repoTestFile1 = os.path.join(self.__repoTestPath, "D_1000000001", "D_1000000001_model_P1.cif.V1")
         if not os.path.exists(self.__repoTestFile1):
             os.makedirs(os.path.dirname(self.__repoTestFile1), mode=0o757, exist_ok=True)
-            nB = 1024 * 1024 * 8
+            nB = self.__chunkSize
             with open(self.__repoTestFile1, "wb") as out:
                 out.write(os.urandom(nB))
         self.__repoTestFile2 = os.path.join(self.__repoTestPath, "D_2000000001", "D_2000000001_model_P1.cif.V1")
         if not os.path.exists(self.__repoTestFile2):
             os.makedirs(os.path.dirname(self.__repoTestFile2), mode=0o757, exist_ok=True)
-            nB = 1024 * 1024 * 8
+            nB = self.__chunkSize
             with open(self.__repoTestFile2, "wb") as out:
                 out.write(os.urandom(nB))
-        self.__repoTestPath2 = os.path.join(self.__dataPath, "repository", "deposit")
+        self.__repoTestPath2 = os.path.join(self.__dataPath, self.__repositoryType2)
         self.__repoTestFile3 = os.path.join(self.__repoTestPath2, "D_1000000001", "D_1000000001_model_P1.cif.V1")
         self.__repoTestFile4 = os.path.join(self.__repoTestPath2, "D_2000000001", "D_2000000001_model_P1.cif.V1")
         self.__repoTestFile5 = os.path.join(self.__repoTestPath, "D_1000000002.tar.gz")
 
-        cP = ConfigProvider(self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
         logger.info("header %r", self.__headerD)
@@ -87,8 +92,11 @@ class PathRequestTests(unittest.TestCase):
             os.unlink(self.__repoTestFile4)
         if os.path.exists(self.__repoTestFile5):
             os.unlink(self.__repoTestFile5)
-        if os.path.exists(self.__dataPath):
-            shutil.rmtree(self.__dataPath)
+        # warning - do not delete the repository/data folder for production, just the unit-test or test folder within that
+        if os.path.exists(self.__unitTestFolder):
+            shutil.rmtree(self.__unitTestFolder)
+        if os.path.exists(self.__testFolder):
+            shutil.rmtree(self.__testFolder)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
@@ -102,7 +110,7 @@ class PathRequestTests(unittest.TestCase):
         try:
             mD = {
                 "depId": "D_2000000001",
-                "repositoryType": "onedep-archive",
+                "repositoryType": self.__repositoryType,
                 "contentType": "model",
                 "contentFormat": "pdbx",
                 "partNumber": 1,
@@ -119,7 +127,7 @@ class PathRequestTests(unittest.TestCase):
             # Next test for file that DOESN'T exists
             mD = {
                 "depId": "D_1234567890",
-                "repositoryType": "onedep-archive",
+                "repositoryType": self.__repositoryType,
                 "contentType": "model",
                 "contentFormat": "pdbx",
                 "partNumber": 1,
@@ -180,7 +188,7 @@ class PathRequestTests(unittest.TestCase):
             # Next test for dir that actually exists using standard params
             endPoint = "dir-exists"
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"depId": "D_2000000001", "repositoryType": "archive"}, headers=self.__headerD)
+                response = client.post("/file-v1/%s" % endPoint, params={"depId": "D_2000000001", "repositoryType": self.__repositoryType}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
                 # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 200)
@@ -189,7 +197,7 @@ class PathRequestTests(unittest.TestCase):
             # Next test for dir that DOESN'T exists using standard params
             endPoint = "dir-exists"
             with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"depId": "D_1234567890", "repositoryType": "archive"}, headers=self.__headerD)
+                response = client.post("/file-v1/%s" % endPoint, params={"depId": "D_1234567890", "repositoryType": self.__repositoryType}, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
                 # logger.info("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 404)
@@ -217,7 +225,7 @@ class PathRequestTests(unittest.TestCase):
             endPoint = "list-dir"
             mD = {
                 "depId": "D_2000000001",
-                "repositoryType": "onedep-archive",
+                "repositoryType": self.__repositoryType,
             }
             with TestClient(app) as client:
                 response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
@@ -248,7 +256,7 @@ class PathRequestTests(unittest.TestCase):
             # First test for file that actually exists (created in fixture above)
             mD = {
                 "depId": "D_1000000001",
-                "repositoryType": "onedep-archive",
+                "repositoryType": self.__repositoryType,
                 "contentType": "model",
                 "contentFormat": "pdbx",
                 "partNumber": 1,
@@ -273,13 +281,13 @@ class PathRequestTests(unittest.TestCase):
             # Copy file from one repositoryType to another
             mD = {
                 "depIdSource": "D_1000000001",
-                "repositoryTypeSource": "onedep-archive",
+                "repositoryTypeSource": self.__repositoryType,
                 "contentTypeSource": "model",
                 "contentFormatSource": "pdbx",
                 "partNumberSource": 1,
                 #
                 "depIdTarget": "D_1000000001",
-                "repositoryTypeTarget": "onedep-deposit",
+                "repositoryTypeTarget": self.__repositoryType2,
                 "contentTypeTarget": "model",
                 "contentFormatTarget": "pdbx",
                 "partNumberTarget": 1,
@@ -304,14 +312,14 @@ class PathRequestTests(unittest.TestCase):
             # Move file from one repositoryType to another
             mD = {
                 "depIdSource": "D_1000000001",
-                "repositoryTypeSource": "onedep-archive",
+                "repositoryTypeSource": self.__repositoryType,
                 "contentTypeSource": "model",
                 "contentFormatSource": "pdbx",
                 "partNumberSource": 1,
                 "versionSource": 1,
                 "milestoneSource": "",
                 "depIdTarget": "D_2000000001",
-                "repositoryTypeTarget": "onedep-deposit",
+                "repositoryTypeTarget": self.__repositoryType2,
                 "contentTypeTarget": "model",
                 "contentFormatTarget": "pdbx",
                 "partNumberTarget": 1,
@@ -338,13 +346,13 @@ class PathRequestTests(unittest.TestCase):
             # First create a copy of one archive directory
             mD = {
                 "depIdSource": "D_1000000001",
-                "repositoryTypeSource": "onedep-archive",
+                "repositoryTypeSource": self.__repositoryType,
                 "contentTypeSource": "model",
                 "contentFormatSource": "pdbx",
                 "partNumberSource": 1,
                 #
                 "depIdTarget": "D_1000000002",
-                "repositoryTypeTarget": "onedep-archive",
+                "repositoryTypeTarget": self.__repositoryType,
                 "contentTypeTarget": "model",
                 "contentFormatTarget": "pdbx",
                 "partNumberTarget": 1,
@@ -359,7 +367,7 @@ class PathRequestTests(unittest.TestCase):
             # Next compress the copied directory
             mD = {
                 "depId": "D_1000000002",
-                "repositoryType": "onedep-archive",
+                "repositoryType": self.__repositoryType,
             }
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)

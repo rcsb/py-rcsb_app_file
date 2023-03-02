@@ -1,6 +1,7 @@
 import redis
 import typing
 import logging
+from fastapi.exceptions import HTTPException
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
 
@@ -11,16 +12,17 @@ class KvRedis:
         self.duration = self.__cP.get("KV_MAX_SECONDS")
         self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
         self.logTable = self.__cP.get("KV_LOG_TABLE_NAME")
+        self.redis_host = self.__cP.get("REDIS_HOST")  # localhost, redis, or url
         # create database if not exists
         # create table if not exists
         try:
-            self.kV = redis.Redis(host="localhost", decode_responses=True)
+            self.kV = redis.Redis(host=self.redis_host, port=6379, decode_responses=True)
         except Exception as exc:
             # already exists
             logging.warning("exception in KvRedis: %s %s", type(exc), exc)
 
         if self.kV is None:
-            raise Exception("error in KvRedis - no database")
+            raise HTTPException(status_code=400, detail="error in KvRedis - no database")
 
     # hashvar = uid
     # if no key, sets to zero and returns, even if not a numeric variable
@@ -32,7 +34,7 @@ class KvRedis:
         if not self.kV.exists(hashvar) or not self.kV.hexists(hashvar, key):
             self.kV.hset(hashvar, key, 0)
             self.kV.expire(hashvar, self.duration)
-        return self.kV.hget(hashvar, key)
+        return str(self.kV.hget(hashvar, key))
 
     # hashvar = uid
     def setSession(self, hashvar, key, val):
@@ -87,13 +89,13 @@ class KvRedis:
         if table == self.sessionTable:
             return self.kV.hgetall(hashvar)
         elif table == self.logTable:
-            return self.kV.get(hashvar)
+            return str(self.kV.get(hashvar))
 
     def getLog(self, key):
         # validate args
         if not key:
             return None
-        return self.kV.get(key)
+        return str(self.kV.get(key))
 
     def setLog(self, key, val):
         # validate args

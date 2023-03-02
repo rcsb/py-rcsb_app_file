@@ -16,6 +16,10 @@ THISIP=${HOSTIP:="0.0.0.0"}
 THISPORT=${HOSTPORT:="8000"}
 ADDR=${THISIP}:${THISPORT}
 #
+UPTIME_START=`echo $(date +%s)`
+echo "UPTIME_START=${UPTIME_START}"
+echo $UPTIME_START > $TOPDIR/uptime.txt
+
 cd ${TOPDIR}
 gunicorn \
 rcsb.app.file.main:app \

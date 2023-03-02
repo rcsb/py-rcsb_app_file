@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+from fastapi.exceptions import HTTPException
 
 
 class KvConnection:
@@ -16,7 +17,7 @@ class KvConnection:
                     f"CREATE TABLE IF NOT EXISTS {self.logTable} (key,val)"
                 )
         except Exception as exc:
-            raise Exception(f"exception in KvConnection, {type(exc)} {exc}")
+            raise HTTPException(status_code=400, detail=f"exception in KvConnection, {type(exc)} {exc}")
 
     def getConnection(self):
         connection = sqlite3.connect(self.filePath)

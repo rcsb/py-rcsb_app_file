@@ -21,6 +21,7 @@ import os
 import typing
 
 from rcsb.app.file.ConfigProvider import ConfigProvider
+from rcsb.app.file.Definitions import Definitions
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -31,12 +32,14 @@ class PathUtils:
 
     def __init__(self, cP: typing.Type[ConfigProvider]):
         self.__cP = cP
+        self.__dP = Definitions()
         self.__repositoryDirPath = self.__cP.get("REPOSITORY_DIR_PATH")
         self.__sessionDirPath = self.__cP.get("SESSION_DIR_PATH")
         self.__sharedLockDirPath = self.__cP.get("SHARED_LOCK_PATH")
-        self.__contentTypeInfoD = self.__cP.get("CONTENT_TYPE")
-        self.__fileFormatExtensionD = self.__cP.get("FILE_FORMAT_EXTENSION")
-        self.__milestoneList = self.__cP.get("MILESTONE_LIST")
+        self.__milestoneList = self.__dP.milestoneList
+        self.__repoTypeList = self.__dP.repoTypeList
+        self.__contentTypeInfoD = self.__dP.contentTypeD
+        self.__fileFormatExtensionD = self.__dP.fileFormatExtD
 
     def getSessionDirPath(self) -> str:
         return self.__sessionDirPath
@@ -45,31 +48,27 @@ class PathUtils:
         return self.__sharedLockDirPath
 
     def getRepositoryDirPath(self, repositoryType: str) -> typing.Optional[str]:
-        if repositoryType.lower() in ["onedep-archive", "archive"]:
-            return os.path.join(self.__repositoryDirPath, "archive")
-        elif repositoryType.lower() in ["onedep-deposit", "deposit"]:
-            return os.path.join(self.__repositoryDirPath, "deposit")
-        elif repositoryType.lower() in ["onedep-session", "session"]:
-            return os.path.join(self.__repositoryDirPath, "session")
-        elif repositoryType.lower() in ["onedep-workflow", "workflow"]:
-            return os.path.join(self.__repositoryDirPath, "workflow")
-        return None
+        if not repositoryType.lower() in self.__repoTypeList:
+            return None
+        repositoryType = repositoryType.lower()
+        repositoryType = repositoryType.replace("onedep-", "")
+        return os.path.join(self.__repositoryDirPath, repositoryType)
 
     def getFileLockPath(self, depId: str, contentType: str, milestone: str, partNumber: int, contentFormat: str) -> str:
         lockPath = self.getSharedLockDirPath()
         fnBase = self.__getBaseFileName(depId, contentType, milestone, partNumber, contentFormat)
         return os.path.join(lockPath, fnBase + ".lock")
 
-
-    def getVersionedPath(self,
-                         repositoryType: str = "archive",
-                         depId: str = None,
-                         contentType: str = "model",
-                         milestone: str = None,
-                         partNumber: str = "1",
-                         contentFormat: str = "pdbx",
-                         version: str = "next"
-                         ) -> typing.Optional[str]:
+    def getVersionedPath(
+        self,
+        repositoryType: str = "archive",
+        depId: str = None,
+        contentType: str = "model",
+        milestone: str = None,
+        partNumber: str = "1",
+        contentFormat: str = "pdbx",
+        version: str = "next",
+    ) -> typing.Optional[str]:
         fTupL = []
         filePath = None
         filePattern = None
@@ -189,23 +188,25 @@ class PathUtils:
 
         """
         if milestone and milestone in self.__milestoneList:
-            return '-' + milestone
+            return "-" + milestone
         return ""
 
-    def getBaseFileName(self,
-                        depId: str = None,
-                        contentType: str = "model",
-                        milestone: typing.Optional[str] = None,
-                        partNumber: int = 1,
-                        contentFormat: str = "pdbx"
-                        ) -> str:
+    def getBaseFileName(
+        self,
+        depId: str = None,
+        contentType: str = "model",
+        milestone: typing.Optional[str] = None,
+        partNumber: int = 1,
+        contentFormat: str = "pdbx",
+    ) -> str:
         return self.__getBaseFileName(depId, contentType, milestone, partNumber, contentFormat)
 
-    def __getBaseFileName(self,
-                          depId: str = None,
-                          contentType: str = "model",
-                          milestone: str = None,
-                          partNumber: int = 1,
-                          contentFormat: str = "pdbx"
-                          ) -> str:
+    def __getBaseFileName(
+        self,
+        depId: str = None,
+        contentType: str = "model",
+        milestone: str = None,
+        partNumber: int = 1,
+        contentFormat: str = "pdbx",
+    ) -> str:
         return f"{depId}_{self.__contentTypeInfoD[contentType][1]}{self.__validateMilestone(milestone)}_P{partNumber}.{self.__fileFormatExtensionD[contentFormat]}"

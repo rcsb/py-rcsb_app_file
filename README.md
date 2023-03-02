@@ -38,31 +38,29 @@ pip3 install .
 
 # Configuration 
 
-Edit paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY).
+Edit variables in rcsb/app/config/config.yml.
 
-Do not leave those paths at their default settings.
+In particular, edit paths (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY).
 
-They are presently set to the same data folder as the unit tests, which means that all data will be deleted after running any one of the unit tests.
+Also edit SERVER_HOST_AND_PORT.
 
-Edit url variables to match server url in client.py, gui.py, example-upload.html, example-download.html, example-list.html, and ClientUtils.py.
+Other files may require configuration.
 
 Edit url in LAUNCH_GUNICORN.sh or port in Dockerfile.stage if necessary.
 
+Edit url variables to match server url in example-upload.html, example-download.html, and example-list.html.
+
 # Endpoints and forwarding
 
-The repository contains three upload endpoints, one download endpoint, and one list-directory endpoint, among others.
+The repository has one upload endpoint, one download endpoint, and one list-directory endpoint, among others.
 
-For uploading a complete file as a stream, use the 'file-v2/upload' endpoint.
+To upload a file in chunks, use the 'file-v2/upload' endpoint.
 
-To upload a file in chunks, use either the 'file-v2/sequentialUpload' or 'file-v2/resumableUpload' endpoint.
+To upload the entire file in one request, configure the parameters to treat the file as one chunk.
 
-The sequential endpoint has a minimal code footprint but requires some setup by invoking the 'file-v2/getNewUploadId' and 'file-v2/getSaveFilePath' endpoints first, then passing the results as parameters.
+Upload requires some setup by invoking the 'file-v2/getUploadParameters' endpoint first, then passing the results as parameters.
 
 To maintain sequential order, the client must wait for each response before sending the next chunk.
-
-The resumable endpoint has server-side resumability support, and also uses sequential chunks, with the same requirements.
-
-Resumability first requires a request to the 'file-v2/getUploadStatus' endpoint prior to the resumableUpload endpoint.
 
 The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in both uploadRequest and IoUtils.
 
@@ -70,13 +68,9 @@ The download endpoint is found at 'file-v1/download'.
 
 The list directory endpoint is found at 'file-v1/list-dir'.
 
+For streamlining, the upload function has been partly duplicated in uploadRequest and IoUtils, so changes to one should be performed in the other.
+
 To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in IoUtils.py.
-
-For streamlining, the upload, sequentialUpload, and getTempFilePath functions are duplicated in uploadRequests and IoUtils, so changes to one should be performed in the other.
-
-Examples of server-side forwarding are found in gui.py when FORWARDING = True, and have yet to be implemented in client.py.
-
-For client-side forwarding of an entire file, use rcsb/app/file/ClientUtils.py with an upload mode of 1 (stream), 2 (sequential chunks), or 3 (resumable chunks).
 
 # Uploads and downloads
 
@@ -206,7 +200,7 @@ exit
 
 ### Redis on same machine as files API and without Redis in Docker
 
-Change Redis host to 'localhost' in rcsb/app/file/KvRedis.py, then save.
+Change Redis host to 'localhost' in rcsb/app/config/config.yml, then save.
 ```
 
 self.kV = redis.Redis(host='localhost', decode_responses=True)
@@ -224,7 +218,7 @@ pip3 install .
 
 If Redis runs on a different machine than the files API, then the host must be set to a url
 
-Change Redis host to '#:#:#:#' and port 6379 in rcsb/app/file/KvRedis.py
+Change Redis host to '#:#:#:#' and port 6379 in rcsb/app/config/config.yml.
 
 For example
 ```
@@ -249,6 +243,10 @@ Then start Redis and add the config file as a parameter
 
 ### Redis in Docker
 
+If the file access API is running in Docker, then Redis must also run in Docker.
+
+Redis is run from a separate Docker container.
+
 Download Redis image and start container
 
 ```
@@ -257,14 +255,14 @@ or (if connecting remotely to Redis container on different server)
 docker run --name redis-container -p 6379:6379 -d redis
 ```
 
-If the Redis container runs on the same machine as the files API, change Redis host to 'redis' in rcsb/app/file/KvRedis.py
+If the Redis container runs on the same machine as the files API, change Redis host to 'redis' in rcsb/app/config/config.yml.
 ```
 
 self.kV = redis.Redis(host='redis', decode_responses=True)
 
 ```
 
-Or, if connecting remotely to Redis container on different server, change Redis host to '#:#:#:#' and port 6379 in rcsb/app/file/KvRedis.py
+Or, if connecting remotely to Redis container on different server, change Redis host to '#:#:#:#' and port 6379 in rcsb/app/config/config.yml.
 
 For example
 ```

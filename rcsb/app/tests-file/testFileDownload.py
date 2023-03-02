@@ -20,11 +20,8 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
-import sys
 import platform
-import random
 import resource
-import string
 import time
 import unittest
 import shutil
@@ -40,8 +37,6 @@ from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.main import app
-from rcsb.utils.io.CryptUtils import CryptUtils
-from rcsb.utils.io.FileUtil import FileUtil
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -52,11 +47,16 @@ class FileDownloadTests(unittest.TestCase):
 
     def setUp(self):
         self.__configFilePath = os.environ.get("CONFIG_FILE")
-        self.__dataPath = os.path.join(HERE, "data")
-        self.__repositoryFilePath = os.path.join(self.__dataPath, "repository", "archive", "D_1000000001", "D_1000000001_model_P1.cif.V1")
+        cP = ConfigProvider(self.__configFilePath)
+        self.__chunkSize = cP.get("CHUNK_SIZE")
+        self.__hashType = cP.get("HASH_TYPE")
+        self.__dataPath = cP.get("REPOSITORY_DIR_PATH")  # os.path.join(HERE, "data")
+        self.__repositoryType = "unit-test"
+        self.__unitTestFolder = os.path.join(self.__dataPath, self.__repositoryType)
+        self.__repositoryFilePath = os.path.join(self.__unitTestFolder, "D_1000000001", "D_1000000001_model_P1.cif.V1")
         if not os.path.exists(self.__repositoryFilePath):
             os.makedirs(os.path.dirname(self.__repositoryFilePath), mode=0o757, exist_ok=True)
-            nB = 1024 * 1024 * 8
+            nB = self.__chunkSize
             with open(self.__repositoryFilePath, "wb") as out:
                 out.write(os.urandom(nB))
         self.__testFilePath = os.path.join(self.__dataPath, "example-data.cif")
@@ -70,7 +70,6 @@ class FileDownloadTests(unittest.TestCase):
             os.makedirs(os.path.dirname(self.__downloadFilePath), mode=0o757, exist_ok=True)
         if os.path.exists(self.__downloadFilePath):
             os.unlink(self.__downloadFilePath)
-        cP = ConfigProvider(self.__configFilePath)
         subject = cP.get("JWT_SUBJECT")
         self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
         logger.info("header %r", self.__headerD)
@@ -86,8 +85,9 @@ class FileDownloadTests(unittest.TestCase):
             os.unlink(self.__testFilePath)
         if os.path.exists(self.__downloadFilePath):
             os.unlink(self.__downloadFilePath)
-        if os.path.exists(self.__dataPath):
-            shutil.rmtree(self.__dataPath)
+        # warning - do not delete the data/repository folder for production, just the unit-test folder within that folder
+        if os.path.exists(self.__unitTestFolder):
+            shutil.rmtree(self.__unitTestFolder)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
@@ -102,13 +102,13 @@ class FileDownloadTests(unittest.TestCase):
             startTime = time.time()
             try:
                 mD = {
-                    "repositoryType": "archive",
+                    "repositoryType": self.__repositoryType,
                     "depId": "D_1000000001",
                     "contentType": "model",
                     "contentFormat": "pdbx",
                     "partNumber": 1,
                     "version": 1,
-                    "hashType": "MD5",
+                    "hashType": self.__hashType,
                     "milestone": None
                 }
                 #
