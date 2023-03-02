@@ -11,6 +11,10 @@ configuration:
   JWT_DURATION: 300
   JWT_DISABLE: jwtDisable
   #
+  SESSION_DIR_PATH: rcsb/app/tests-file/data/sessions
+  REPOSITORY_DIR_PATH: rcsb/app/tests-file/data/repository
+  SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks
+  PDBX_REPOSITORY: rcsb/app/tests-file/data/mmcif
   # client-to-server specific settings
   SERVER_HOST_AND_PORT: http://0.0.0.0:8000
   CHUNK_SIZE: 8388608  # 8 MB (1024 * 1024 * 8)

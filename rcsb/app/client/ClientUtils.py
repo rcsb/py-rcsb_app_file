@@ -1,5 +1,5 @@
 ##
-# File:    PathUtils.py
+# File:    ClientUtils.py
 # Author:  js
 # Date:    22-Feb-2023
 # Version: 0.001
@@ -15,13 +15,16 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
+import hashlib
 import os
 import io
 import logging
+import tempfile
 from copy import deepcopy
 import math
 import json
 import requests
+import typing
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -297,31 +300,30 @@ class ClientUtils(object):
         partNumber: int,
         contentFormat: str,
         version: str,
-        hashType: str,
-        downloadFolder: str,
-        allowOverwrite: bool
+        hashType: str = "MD5",
+        downloadFolder: typing.Optional[str] = None,
+        allowOverwrite: bool = False,
+        contextManager: bool = False
     ):
-        if not os.path.exists(downloadFolder):
-            logger.error("Download folder does not exist")
-            return None
         convertedMilestone = None
+        if not milestone or milestone.lower() == "none":
+            milestone = ""
         if milestone and milestone.lower() != "none":
             convertedMilestone = f"-{milestone}"
         else:
             convertedMilestone = ""
         convertedContentFormat = self.fileFormatExtensionD[contentFormat]
-        fileName = f"{depId}_{contentType}{convertedMilestone}_P{partNumber}.{convertedContentFormat}.V{version}"
-        downloadFilePath = os.path.join(downloadFolder, "download" + "_" + fileName)
-        if not os.path.exists(downloadFolder):
-            logger.error("Folder does not exist: %r", downloadFolder)
-            return None
-        if os.path.exists(downloadFilePath):
-            if not allowOverwrite:
-                logger.error("File already exists: %r", downloadFilePath)
+        if not contextManager:
+            if not os.path.exists(downloadFolder):
+                logger.error("Download folder does not exist")
                 return None
-            os.remove(downloadFilePath)
-        if milestone.lower() == "none":
-            milestone = ""
+            fileName = f"{depId}_{contentType}{convertedMilestone}_P{partNumber}.{convertedContentFormat}.V{version}"
+            downloadFilePath = os.path.join(downloadFolder, "download" + "_" + fileName)
+            if os.path.exists(downloadFilePath):
+                if not allowOverwrite:
+                    logger.error("File already exists: %r", downloadFilePath)
+                    return None
+                os.remove(downloadFilePath)
         downloadDict = {
             "repositoryType": repositoryType,
             "depId": depId,
@@ -344,6 +346,7 @@ class ClientUtils(object):
             return None
         fileSize = int(fileSize)
         # chunks = math.ceil(fileSize / self.chunkSize)
+
         downloadUrlPrefix = os.path.join(self.baseUrl, "file-v1", "download")
         downloadUrl = (
             f"{downloadUrlPrefix}?repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}"
@@ -352,34 +355,64 @@ class ClientUtils(object):
         resp = None
 
         if not self.__unit_test:
-            with requests.get(downloadUrl, headers=self.headerD, timeout=None, stream=True) as response:
-                with open(downloadFilePath, "ab") as ofh:
+            if not contextManager:
+                with requests.get(downloadUrl, headers=self.headerD, timeout=None, stream=True) as response:
+                    with open(downloadFilePath, "ab") as ofh:
+                        for chunk in response.iter_content(chunk_size=self.chunkSize):
+                            if chunk:
+                                ofh.write(chunk)
+                    # responseCode = response.status_code
+                    rspHashType = response.headers["rcsb_hash_type"]
+                    rspHashDigest = response.headers["rcsb_hexdigest"]
+                    thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
+                    if not thD["hashDigest"] == rspHashDigest:
+                        logger.error("Hash comparison failed")
+                        return None
+                    resp = response
+            else:
+                with requests.get(downloadUrl, headers=self.headerD, timeout=None, stream=True) as response:
+                    ofh = tempfile.NamedTemporaryFile()
                     for chunk in response.iter_content(chunk_size=self.chunkSize):
                         if chunk:
                             ofh.write(chunk)
-                # responseCode = response.status_code
-                rspHashType = response.headers["rcsb_hash_type"]
-                rspHashDigest = response.headers["rcsb_hexdigest"]
-                thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
-                if not thD["hashDigest"] == rspHashDigest:
-                    logger.error("Hash comparison failed")
-                    return None
-                resp = response
+                    responseCode = response.status_code
+                    rspHashType = response.headers["rcsb_hash_type"]
+                    rspHashDigest = response.headers["rcsb_hexdigest"]
+                    thD = CryptUtils().getFileHash(ofh.name, hashType=rspHashType)
+                    if not thD["hashDigest"] == rspHashDigest:
+                        logger.error("Hash comparison failed")
+                        return None
+                    resp = ofh
         else:
             resp = None
-            with TestClient(app) as client:
-                response = client.get(downloadUrl, headers=self.headerD, timeout=None)
-                with open(downloadFilePath, "ab") as ofh:
-                    ofh.write(response.content)
-                responseCode = response.status_code
-                rspHashType = response.headers["rcsb_hash_type"]
-                rspHashDigest = response.headers["rcsb_hexdigest"]
-                thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
-                if not thD["hashDigest"] == rspHashDigest:
-                    logger.error("Hash comparison failed")
-                    return None
-                resp = responseCode
-
+            if not contextManager:
+                with TestClient(app) as client:
+                    response = client.get(downloadUrl, headers=self.headerD, timeout=None)
+                    with open(downloadFilePath, "ab") as ofh:
+                        ofh.write(response.content)
+                    responseCode = response.status_code
+                    rspHashType = response.headers["rcsb_hash_type"]
+                    rspHashDigest = response.headers["rcsb_hexdigest"]
+                    thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
+                    if not thD["hashDigest"] == rspHashDigest:
+                        logger.error("Hash comparison failed")
+                        return None
+                    resp = responseCode
+            else:
+                with TestClient(app) as client:
+                    response = client.get(downloadUrl, headers=self.headerD, timeout=None)
+                    ofh = tempfile.NamedTemporaryFile()
+                    for chunk in response.iter_content(chunk_size=self.chunkSize):
+                        if chunk:
+                            ofh.write(chunk)
+                    responseCode = response.status_code
+                    rspHashType = response.headers["rcsb_hash_type"]
+                    rspHashDigest = response.headers["rcsb_hexdigest"]
+                    thD = CryptUtils().getFileHash(ofh.name, hashType=rspHashType)
+                    if not thD["hashDigest"] == rspHashDigest:
+                        logger.error("Hash comparison failed")
+                        return None
+                    resp = ofh
         return resp
 
     def listDir(self, repoType: str, depId: str) -> list:
