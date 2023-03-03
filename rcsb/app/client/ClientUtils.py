@@ -15,7 +15,6 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
-import hashlib
 import os
 import io
 import logging
@@ -303,7 +302,7 @@ class ClientUtils(object):
         hashType: str = "MD5",
         downloadFolder: typing.Optional[str] = None,
         allowOverwrite: bool = False,
-        contextManager: bool = False
+        returnTempFile: bool = False
     ):
         convertedMilestone = None
         if not milestone or milestone.lower() == "none":
@@ -313,7 +312,7 @@ class ClientUtils(object):
         else:
             convertedMilestone = ""
         convertedContentFormat = self.fileFormatExtensionD[contentFormat]
-        if not contextManager:
+        if not returnTempFile:
             if not os.path.exists(downloadFolder):
                 logger.error("Download folder does not exist")
                 return None
@@ -355,7 +354,7 @@ class ClientUtils(object):
         resp = None
 
         if not self.__unit_test:
-            if not contextManager:
+            if not returnTempFile:
                 with requests.get(downloadUrl, headers=self.headerD, timeout=None, stream=True) as response:
                     with open(downloadFilePath, "ab") as ofh:
                         for chunk in response.iter_content(chunk_size=self.chunkSize):
@@ -385,7 +384,7 @@ class ClientUtils(object):
                     resp = ofh
         else:
             resp = None
-            if not contextManager:
+            if not returnTempFile:
                 with TestClient(app) as client:
                     response = client.get(downloadUrl, headers=self.headerD, timeout=None)
                     with open(downloadFilePath, "ab") as ofh:
@@ -402,9 +401,7 @@ class ClientUtils(object):
                 with TestClient(app) as client:
                     response = client.get(downloadUrl, headers=self.headerD, timeout=None)
                     ofh = tempfile.NamedTemporaryFile()
-                    for chunk in response.iter_content(chunk_size=self.chunkSize):
-                        if chunk:
-                            ofh.write(chunk)
+                    ofh.write(response.content)
                     responseCode = response.status_code
                     rspHashType = response.headers["rcsb_hash_type"]
                     rspHashDigest = response.headers["rcsb_hexdigest"]
