@@ -24,15 +24,68 @@ import math
 import json
 import requests
 import typing
+from fastapi.testclient import TestClient
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.Definitions import Definitions
-from fastapi.testclient import TestClient
 from rcsb.app.file.main import app
+from rcsb.app.file.PathUtils import PathUtils
+from rcsb.utils.io.FileUtil import FileUtil
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+
+# require classes in same file to prevent circular reference
+class FileAppObject(object):
+
+    def __init__(self, repositoryType, depositId, contentType, milestone, partNumber, contentFormat, version, hashType='MD5', unit_test=False):
+        self.repositoryType = repositoryType
+        self.depositId = depositId
+        self.contentType = contentType
+        self.milestone = milestone
+        self.partNumber = partNumber
+        self.contentFormat = contentFormat
+        self.version = version
+        self.hashType = hashType
+        self.unit_test = unit_test
+        self.clientContext = ClientContext(repositoryType,depositId,contentType,milestone,partNumber,contentFormat,version,hashType,unit_test)
+
+
+# dodge circular reference to client utils by including class in same file
+class ClientContext(object):
+    def __init__(self, repositoryType, depositId, contentType, milestone, partNumber, contentFormat, version, hashType='MD5', unit_test=False):
+        self.repositoryType = repositoryType
+        self.depositId = depositId
+        self.contentType = contentType
+        self.milestone = milestone
+        self.partNumber = partNumber
+        self.contentFormat = contentFormat
+        self.version = version
+        self.hashType = hashType
+        self.unit_test = unit_test
+
+    def __enter__(self):
+        # download repository file
+        # returns a local named temporary file
+        downloadFolder = None
+        allowOverwrite = True
+        returnTempFile = True
+        self.cU = ClientUtils(self.unit_test)
+        self.file = self.cU.download(self.repositoryType, self.depositId, self.contentType, self.milestone, self.partNumber, self.contentFormat, self.version, self.hashType, downloadFolder, allowOverwrite, returnTempFile)
+        self.tempFilePath = self.file.name
+        return self.file
+
+    def __exit__(self, type, value, traceback):
+        decompress = False
+        allowOverwrite = True
+        resumable = False
+        # update repository file
+        self.cU.upload(self.tempFilePath, self.repositoryType, self.depositId, self.contentType, self.milestone, self.partNumber, self.contentFormat, self.version, decompress, allowOverwrite, resumable)
+        # delete local file
+        self.file.close()
 
 
 class ClientUtils(object):
@@ -302,7 +355,8 @@ class ClientUtils(object):
         hashType: str = "MD5",
         downloadFolder: typing.Optional[str] = None,
         allowOverwrite: bool = False,
-        returnTempFile: bool = False
+        returnTempFile: bool = False,
+        deleteTempFile: bool = True
     ):
         convertedMilestone = None
         if not milestone or milestone.lower() == "none":
@@ -370,7 +424,7 @@ class ClientUtils(object):
                     resp = response
             else:
                 with requests.get(downloadUrl, headers=self.headerD, timeout=None, stream=True) as response:
-                    ofh = tempfile.NamedTemporaryFile()
+                    ofh = tempfile.NamedTemporaryFile(delete=deleteTempFile)
                     for chunk in response.iter_content(chunk_size=self.chunkSize):
                         if chunk:
                             ofh.write(chunk)
@@ -400,8 +454,9 @@ class ClientUtils(object):
             else:
                 with TestClient(app) as client:
                     response = client.get(downloadUrl, headers=self.headerD, timeout=None)
-                    ofh = tempfile.NamedTemporaryFile()
+                    ofh = tempfile.NamedTemporaryFile(delete=deleteTempFile)
                     ofh.write(response.content)
+                    ofh.seek(0)
                     responseCode = response.status_code
                     rspHashType = response.headers["rcsb_hash_type"]
                     rspHashDigest = response.headers["rcsb_hexdigest"]
@@ -447,3 +502,62 @@ class ClientUtils(object):
             for fi in sorted(dirList):
                 results.append(fi)
         return results
+
+    def getFileObject(self,
+                      repoType:str = None,
+                      depId:str = None,
+                      contentType:str = None,
+                      milestone:str = None,
+                      partNumber:int = None,
+                      contentFormat:str = None,
+                      version:str = None,
+                      hashType:str = 'MD5',
+                      unit_test:bool = False,
+                      wfInstanceId: str = None,
+                      sessionDir:str = None
+                      ):
+        fao = FileAppObject(repoType,depId,contentType,milestone,partNumber,contentFormat,version,hashType,unit_test)
+        return fao
+
+    def getFilePathRemote(self,
+                        repoType: str = None,
+                        depId: str = None,
+                        contentType: str = None,
+                        milestone: str = None,
+                        partNumber: int = None,
+                        contentFormat: str = None,
+                        version: str = None,
+                        hashType: str = 'MD5',
+                        unit_test: bool = False,
+                        wfInstanceId: str = None,
+                        sessionDir: str = None
+                        ):
+        pathU = PathUtils(self.cP)
+        return pathU.getVersionedPath(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
+
+    def getFilePathLocal(self,
+                      repoType:str = None,
+                      depId:str = None,
+                      contentType:str = None,
+                      milestone:str = None,
+                      partNumber:int = None,
+                      contentFormat:str = None,
+                      version:str = None,
+                      hashType:str = 'MD5',
+                      unit_test:bool = False,
+                      wfInstanceId: str = None,
+                      sessionDir:str = None
+                      ):
+            downloadFolder = None
+            allowOverwrite = True
+            returnTempFile = True
+            deleteTempFile = False
+            file = self.download(repoType, depId, contentType, milestone, partNumber, contentFormat, version, hashType, downloadFolder, allowOverwrite, returnTempFile, deleteTempFile)
+            return file.name
+
+    def dir_exist(self, repositoryType, depId):
+        pathU = PathUtils(self.cP)
+        dirPath = pathU.getDirPath(repositoryType, depId)
+        fU = FileUtil()
+        return fU.exists(dirPath)
+

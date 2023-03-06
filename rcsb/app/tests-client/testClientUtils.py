@@ -30,7 +30,7 @@ from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.utils.io.LogUtil import StructFormatter
-from rcsb.app.client.ClientUtils import ClientUtils
+from rcsb.app.client.python.ClientUtils import ClientUtils
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -241,6 +241,44 @@ class ClientTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
+    def testFilePathRemote(self):
+        repoType = self.__repositoryType
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = None
+        partNumber = 1
+        contentFormat = "pdbx"
+        version = 1
+        filePathResponse = self.__cU.getFilePathRemote(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
+        self.assertTrue(filePathResponse == self.__repositoryFile1, f'error {filePathResponse} {self.__repositoryFile1}')
+
+    def testFilePathLocal(self):
+        if not os.path.exists(self.__repositoryFile1):
+            os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
+            nB = 64
+            with open(self.__repositoryFile1, "wb") as out:
+                out.write(os.urandom(nB))
+        repoType = self.__repositoryType
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = None
+        partNumber = 1
+        contentFormat = "pdbx"
+        version = 1
+        filename = self.__cU.getFilePathLocal(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
+        print(f'temp file path {filename}')
+        self.assertTrue(os.path.exists(filename), f'error - {filename} does not exist')
+        with open(filename, "rb") as r:
+            bytes = r.read()
+            print(bytes)
+        os.unlink(filename)  # if had not made temp file with delete=false, would need file.close()
+        self.assertFalse(os.path.exists(filename), f'error - {filename} exists')
+
+    def testDirExists(self):
+        repoType = self.__repositoryType
+        depId = "D_1000000001"
+        response = self.__cU.dir_exist(repoType, depId)
+        self.assertTrue(response)
 
 def client_tests():
     suite = unittest.TestSuite()
@@ -248,6 +286,9 @@ def client_tests():
     suite.addTest(ClientTests("testResumableUpload"))
     suite.addTest(ClientTests("testSimpleDownload"))
     suite.addTest(ClientTests("testListDir"))
+    suite.addTest(ClientTests("testFilePathRemote"))
+    suite.addTest(ClientTests("testFilePathLocal"))
+    suite.addTest(ClientTests("testDirExists"))
     return suite
 
 

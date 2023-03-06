@@ -15,7 +15,7 @@ import time
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
-from rcsb.app.client.ClientUtils import ClientUtils
+from rcsb.app.client.python.ClientUtils import ClientUtils
 from rcsb.app.file.Definitions import Definitions
 
 """

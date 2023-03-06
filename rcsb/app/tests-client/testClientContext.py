@@ -3,8 +3,8 @@ import unittest
 import os
 import hashlib
 import logging
-from rcsb.app.client.ClientContext import ClientContext
 from rcsb.app.file.ConfigProvider import ConfigProvider
+from rcsb.app.client.python.ClientUtils import ClientUtils
 from rcsb.utils.io.LogUtil import StructFormatter
 
 # pylint: disable=wrong-import-position
@@ -20,9 +20,11 @@ root_handler = logger.handlers[0]
 root_handler.setFormatter(StructFormatter(fmt=None, mask=None))
 logger.setLevel(logging.INFO)
 
+
 class TestClientContext(unittest.TestCase):
 
     def setUp(self):
+        self.__cU = ClientUtils(unit_test=True)
         self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__cP = ConfigProvider(self.__configFilePath)
         self.__chunkSize = self.__cP.get("CHUNK_SIZE")
@@ -53,7 +55,6 @@ class TestClientContext(unittest.TestCase):
 
     def testContext(self):
         hashType = 'MD5'
-        returnContext = True
         unit_test = True
         client_hash = None
         server_hash1 = None
@@ -63,7 +64,8 @@ class TestClientContext(unittest.TestCase):
             h1 = hashlib.md5()
             h1.update(r.read())
             server_hash1 = h1.hexdigest()
-        with ClientContext(self.__repoType, self.__depId, self.__contentType, self.__milestone, self.__partNumber, self.__contentFormat, self.__version, hashType, returnContext, unit_test) as cc:
+        fao = self.__cU.getFileObject(self.__repoType, self.__depId, self.__contentType, self.__milestone, self.__partNumber, self.__contentFormat, self.__version, hashType, unit_test)
+        with fao.clientContext as cc:
             tempFilePath = cc.name
             h2 = hashlib.md5()
             cc.seek(0)  # required before reading
@@ -71,7 +73,7 @@ class TestClientContext(unittest.TestCase):
             client_hash = h2.hexdigest()
             cc.seek(0)
             bytes = cc.read(64)
-            logger.info(bytes)
+            # logger.info(bytes)
             cc.seek(0)
             cc.write(os.urandom(self.__chunkSize))
             self.assertTrue(os.path.exists(tempFilePath), 'error - file path does not exist')
@@ -88,12 +90,12 @@ class TestClientContext(unittest.TestCase):
 
     def testNonContext(self):
         hashType = 'MD5'
-        returnContext = False
         unit_test = True
-        cc = ClientContext(self.__repoType, self.__depId, self.__contentType, self.__milestone, self.__partNumber, self.__contentFormat, self.__version, hashType, returnContext, unit_test)
-        logging.info("%s %s %s %s %s %s %s" % (cc.repositoryType,cc.depositId,cc.contentType,cc.milestone,cc.partNumber,cc.contentFormat,cc.version))
+        fao = self.__cU.getFileObject(self.__repoType, self.__depId, self.__contentType, self.__milestone, self.__partNumber, self.__contentFormat, self.__version, hashType, unit_test)
+        vals = "%s %s %s %s %s %s %s" % (fao.repositoryType,fao.depositId,fao.contentType,fao.milestone,fao.partNumber,fao.contentFormat,fao.version)
+        self.assertTrue(vals == "unit-test D_000 model upload 1 pdbx 1")
 
-def suites():
+def tests():
     suite = unittest.TestSuite()
     suite.addTest(TestClientContext('testContext'))
     suite.addTest(TestClientContext('testNonContext'))
@@ -101,5 +103,5 @@ def suites():
 
 
 if __name__ == '__main__':
-    runner = unittest.TextTestRunner(failfast=True)
-    runner.run(suites())
+    runner = unittest.TextTestRunner()  # verbosity=0 for printing
+    runner.run(tests())
