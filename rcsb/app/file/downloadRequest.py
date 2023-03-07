@@ -15,6 +15,7 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import Query
 from fastapi.responses import FileResponse
+import rcsb.app.config.setConfig
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.utils.io.CryptUtils import CryptUtils
@@ -22,6 +23,7 @@ from rcsb.utils.io.FileUtil import FileUtil
 
 logger = logging.getLogger(__name__)
 
+# not possible to secure an HTML form with a JWT, so no dependencies
 router = APIRouter(tags=["download"])
 
 

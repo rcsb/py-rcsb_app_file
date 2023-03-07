@@ -38,12 +38,11 @@
             if(!repositoryType || ! depId){
               return;
             }
-            let url = `http://0.0.0.0:8000/file-v1/list-dir?repositoryType=${repositoryType}&depId=${depId}`
+            let url = `http://0.0.0.0:8000/file-v1/list-dir?repositoryType=${repositoryType}&depId=${depId}`;
+			let jwt_token = '';
             fetch(url, {
               method: 'GET',
-				headers: {
-				  'Authorization': 'Bearer jwtDisable'
-				}
+			  headers: {'Authorization': `Bearer ${jwt_token}`}
             }).then(response => response.json()).then(json => populate(json.dirList)).catch(err => console.log(err));
           }
           populate = (dirlist) => {

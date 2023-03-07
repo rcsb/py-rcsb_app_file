@@ -11,6 +11,7 @@
               let base_url = "http://0.0.0.0:8000";
               let upload_parameters_url = `${base_url}/file-v2/getUploadParameters/`;
               let sequential_chunk_url = `${base_url}/file-v2/upload/`;
+              let jwt_token = '';
               let file = document.getElementsByName('uploadFile')[0].files[0];
               let fileName = file.name;
               console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
@@ -51,8 +52,8 @@
                 let query = `?repositoryType=${repositoryType}&depId=${depId}&contentType=${contentType}&milestone=${milestone}&partNumber=${partNumber}&contentFormat=${contentFormat}&version=${version}&allowOverwrite=${allowOverwrite}`
                 let url = upload_parameters_url + query
                 await fetch(url, {
-                  method: "GET",
-                    headers: {"Authorization": "Bearer jwtDisable"},
+                    method: "GET",
+                    headers: {"Authorization": `Bearer ${jwt_token}`}
                 }).then(data => data.json()).then(json => {filePath = json.filePath;chunkIndex = json.chunkIndex;uploadId = json.uploadId}).catch(err => console.log(err));
               }
 
@@ -99,7 +100,7 @@
                   formdata.append("allowOverwrite", allowOverwrite);
                   fetch(sequential_chunk_url, {
                     method: "POST",
-                      headers: {"Authorization": "Bearer jwtDisable"},
+                    headers: {"Authorization": `Bearer ${jwt_token}`},
                     body: formdata
                   }).then(() => {
                     chunkOffset += chunkSize;

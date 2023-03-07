@@ -3,15 +3,16 @@ import unittest
 import os
 import hashlib
 import logging
+import rcsb.app.config.setConfig
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.client.python.ClientUtils import ClientUtils
 from rcsb.utils.io.LogUtil import StructFormatter
 
 # pylint: disable=wrong-import-position
 # This environment must be set before main.app is imported
-HERE = os.path.abspath(os.path.dirname(__file__))
-TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
+# HERE = os.path.abspath(os.path.dirname(__file__))
+# TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
+# os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")

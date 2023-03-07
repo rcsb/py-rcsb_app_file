@@ -10,9 +10,8 @@ from fastapi import HTTPException
 from fastapi import Request
 from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.security import HTTPBearer
-
+import rcsb.app.config.setConfig
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
-from rcsb.app.file.ConfigProvider import ConfigProvider
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +33,6 @@ class JWTAuthBearer(HTTPBearer):
             raise HTTPException(status_code=403, detail="Invalid authorization ")
 
     def validateToken(self, token: str) -> bool:
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
-        if token == cP.get("JWT_DISABLE"):
-            return True
         try:
             payload = self.__au.decodeToken(token)
         except Exception:

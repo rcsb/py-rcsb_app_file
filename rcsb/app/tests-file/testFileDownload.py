@@ -28,11 +28,12 @@ import shutil
 
 # pylint: disable=wrong-import-position
 # This environment must be set before main.app is imported
-HERE = os.path.abspath(os.path.dirname(__file__))
-TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
+# HERE = os.path.abspath(os.path.dirname(__file__))
+# TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
+# os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 from fastapi.testclient import TestClient
+import rcsb.app.config.setConfig
 from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken

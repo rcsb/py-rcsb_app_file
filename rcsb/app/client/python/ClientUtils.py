@@ -25,6 +25,7 @@ import json
 import requests
 import typing
 from fastapi.testclient import TestClient
+import rcsb.app.config.setConfig
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -90,7 +91,7 @@ class ClientContext(object):
 
 class ClientUtils(object):
     def __init__(self, unit_test=False):
-        configFilePath = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
+        configFilePath = os.environ.get("CONFIG_FILE")
         self.cP = ConfigProvider(configFilePath)
         self.cP.getConfig()
         self.baseUrl = self.cP.get("SERVER_HOST_AND_PORT")

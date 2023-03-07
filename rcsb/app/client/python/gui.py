@@ -12,6 +12,7 @@ import math
 import requests
 import json
 import time
+import rcsb.app.config.setConfig
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -26,8 +27,13 @@ author James Smith 2023
 contentTypeInfoD = None
 fileFormatExtensionD = None
 headerD = None
-os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
+# HERE = os.path.abspath(os.path.dirname(__file__))
+# TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
+# CONFIG_FILE = os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml")
+# os.environ["CONFIG_FILE"] = CONFIG_FILE
 configFilePath = os.environ.get("CONFIG_FILE")
+print(configFilePath)
+
 cP = ConfigProvider(configFilePath)
 cP.getConfig()
 """ modifiable global variables

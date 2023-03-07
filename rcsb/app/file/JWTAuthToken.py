@@ -45,3 +45,4 @@ class JWTAuthToken:
         jwtToken = jwt.encode(payload, self.__jwtSecret, algorithm=self.__jwtAlgorithm)
 
         return jwtToken
+

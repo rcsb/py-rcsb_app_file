@@ -13,9 +13,10 @@
                     let base_url = "http://0.0.0.0:8000";
                     let upload_parameters_url = `${base_url}/file-v2/getUploadParameters/`;
                     let sequential_chunk_url = `${base_url}/file-v2/upload/`;
+                    let jwt_token = '';
                     let file = document.getElementsByName('uploadFile')[0].files[0];
                     let fileName = file.name;
-                    console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
+                    console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`)
                     // hash file
                     // if file is a zip file, file has been compressed before hashing/upload
                     let hashDigest = null;
@@ -57,7 +58,7 @@
                             url: url,
                             type: 'GET',
                             dataType: 'html',
-                            headers: {"Authorization": "Bearer jwtDisable"},
+                            headers: {"Authorization": `Bearer ${jwt_token}`},
                             complete: function(data, status){
                                 json = JSON.parse(data.responseText);
                                 filePath = json.filePath;
@@ -117,7 +118,7 @@
                                 url: sequential_chunk_url,
                                 type: 'POST',
                                 data: formdata,
-                                headers: {"Authorization": "Bearer jwtDisable"},
+                                headers: {"Authorization": `Bearer ${jwt_token}`},
                                 processData: false,
                                 contentType: false,
                                 success: function(xhr){

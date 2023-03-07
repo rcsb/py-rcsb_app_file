@@ -24,14 +24,14 @@ import platform
 import resource
 import time
 import unittest
-
+import rcsb.app.config.setConfig
 from rcsb.app.file import __version__
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
-HERE = os.path.abspath(os.path.dirname(__file__))
-TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
+# HERE = os.path.abspath(os.path.dirname(__file__))
+# TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
+# os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()

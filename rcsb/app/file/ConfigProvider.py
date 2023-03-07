@@ -19,7 +19,7 @@ import datetime
 import logging
 import os
 import typing
-
+import rcsb.app.config.setConfig
 from rcsb.utils.config.ConfigUtil import ConfigUtil
 from rcsb.utils.io.SingletonClass import SingletonClass
 
