@@ -22,7 +22,7 @@ import aiofiles
 from fastapi import APIRouter, Query, File, Form, HTTPException, UploadFile, Depends
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
-import rcsb.app.config.setConfig  # noqa: F401
+import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.PathUtils import PathUtils
@@ -32,8 +32,8 @@ logger = logging.getLogger(__name__)
 
 # CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "config.yml"))
 # os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", CONFIG_FILE)
-cP = ConfigProvider(os.environ.get("CONFIG_FILE"))
-jwtDisable = bool(cP.get('JWT_DISABLE'))
+provider = ConfigProvider(os.environ.get("CONFIG_FILE"))
+jwtDisable = bool(provider.get('JWT_DISABLE'))
 if not jwtDisable:
     router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
 else:

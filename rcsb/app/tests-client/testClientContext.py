@@ -3,7 +3,7 @@ import unittest
 import os
 import hashlib
 import logging
-import rcsb.app.config.setConfig  # noqa: F401
+import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.client.python.ClientUtils import ClientUtils
 from rcsb.utils.io.LogUtil import StructFormatter

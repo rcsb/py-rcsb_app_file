@@ -12,7 +12,7 @@ import math
 import requests
 import json
 import time
-import rcsb.app.config.setConfig  # noqa: F401
+import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider

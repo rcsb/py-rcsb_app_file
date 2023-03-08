@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from fastapi import Request
 from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.security import HTTPBearer
-import rcsb.app.config.setConfig  # noqa: F401
+import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 
 logger = logging.getLogger(__name__)

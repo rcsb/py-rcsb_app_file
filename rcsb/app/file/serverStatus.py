@@ -16,7 +16,7 @@ import redis
 import psutil
 import shutil
 from fastapi import APIRouter
-import rcsb.app.config.setConfig  # noqa: F401
+import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.ProcessStatusUtil import ProcessStatusUtil
 

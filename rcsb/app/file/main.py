@@ -14,7 +14,7 @@ import logging
 import os
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
-import rcsb.app.config.setConfig  # noqa: F401
+import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 
 # pylint: disable=wrong-import-position
 # This environment must be set before JWTAuthBearer is imported
