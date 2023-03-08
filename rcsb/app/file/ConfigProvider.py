@@ -19,7 +19,7 @@ import datetime
 import logging
 import os
 import typing
-import rcsb.app.config.setConfig
+import rcsb.app.config.setConfig  # noqa: F401
 from rcsb.utils.config.ConfigUtil import ConfigUtil
 from rcsb.utils.io.SingletonClass import SingletonClass
 

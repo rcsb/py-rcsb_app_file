@@ -32,7 +32,7 @@ import shutil
 # TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 # os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
-import rcsb.app.config.setConfig
+import rcsb.app.config.setConfig  # noqa: F401
 from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken

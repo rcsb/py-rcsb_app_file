@@ -24,7 +24,7 @@ import platform
 import resource
 import time
 import unittest
-import rcsb.app.config.setConfig
+import rcsb.app.config.setConfig  # noqa: F401
 from rcsb.app.file import __version__
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.app.file.ConfigProvider import ConfigProvider

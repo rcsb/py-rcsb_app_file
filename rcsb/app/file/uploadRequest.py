@@ -22,7 +22,7 @@ import aiofiles
 from fastapi import APIRouter, Query, File, Form, HTTPException, UploadFile, Depends
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
-import rcsb.app.config.setConfig
+import rcsb.app.config.setConfig  # noqa: F401
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.PathUtils import PathUtils

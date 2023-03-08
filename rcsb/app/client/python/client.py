@@ -9,7 +9,7 @@ from tqdm.auto import tqdm
 import time
 import math
 import argparse
-import rcsb.app.config.setConfig
+import rcsb.app.config.setConfig  # noqa: F401
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
