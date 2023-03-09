@@ -5,7 +5,7 @@ import hashlib
 import logging
 import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
-from rcsb.app.client.python.ClientUtils import ClientUtils
+from rcsb.app.client.ClientUtils import ClientUtils
 from rcsb.utils.io.LogUtil import StructFormatter
 
 # pylint: disable=wrong-import-position

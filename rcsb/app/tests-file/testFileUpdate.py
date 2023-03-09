@@ -36,7 +36,7 @@ import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
-from rcsb.app.client.python.ClientUtils import ClientUtils
+from rcsb.app.client.ClientUtils import ClientUtils
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()

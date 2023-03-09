@@ -30,7 +30,7 @@ from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.utils.io.LogUtil import StructFormatter
-from rcsb.app.client.python.ClientUtils import ClientUtils
+from rcsb.app.client.ClientUtils import ClientUtils
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -268,9 +268,6 @@ class ClientTests(unittest.TestCase):
         filename = self.__cU.getFilePathLocal(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
         print(f'temp file path {filename}')
         self.assertTrue(os.path.exists(filename), f'error - {filename} does not exist')
-        with open(filename, "rb") as r:
-            bytes = r.read()
-            print(bytes)
         os.unlink(filename)  # if had not made temp file with delete=false, would need file.close()
         self.assertFalse(os.path.exists(filename), f'error - {filename} exists')
 

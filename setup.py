@@ -42,8 +42,6 @@ setup(
         "Intended Audience :: Developers",
         "Natural Language :: English",
         "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: py",
-        "Programming Language :: py :: 3",
         "Programming Language :: py :: 3.9",
     ),
     entry_points={"console_scripts": []},
