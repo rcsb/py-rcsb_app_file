@@ -29,9 +29,6 @@ import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file import __version__
 
-# HERE = os.path.abspath(os.path.dirname(__file__))
-# TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-# os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()

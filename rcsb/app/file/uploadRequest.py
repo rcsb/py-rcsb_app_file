@@ -30,8 +30,7 @@ from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 
 logger = logging.getLogger(__name__)
 
-# CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "config", "config.yml"))
-# os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", CONFIG_FILE)
+
 provider = ConfigProvider(os.environ.get("CONFIG_FILE"))
 jwtDisable = bool(provider.get('JWT_DISABLE'))
 if not jwtDisable:

@@ -25,11 +25,6 @@ import resource
 import time
 import unittest
 
-# pylint: disable=wrong-import-position
-# This environment must be set before main.app is imported
-# HERE = os.path.abspath(os.path.dirname(__file__))
-# TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-# os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
 
 import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from fastapi.testclient import TestClient
