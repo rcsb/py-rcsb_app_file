@@ -20,13 +20,11 @@ from rcsb.app.client.ClientUtils import ClientUtils
 author James Smith 2023
 """
 
-# HERE = os.path.abspath(os.path.dirname(__file__))
-# TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
-# CONFIG_FILE = os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml")
-# os.environ["CONFIG_FILE"] = CONFIG_FILE
+
 configFilePath = os.environ.get("CONFIG_FILE")
 cP = ConfigProvider(configFilePath)
 cP.getConfig()
+
 """ modifiable variables
 """
 base_url = cP.get("SERVER_HOST_AND_PORT")
@@ -109,7 +107,7 @@ def download(downloadFilePath, downloadDict):
     global OVERWRITE
     url = os.path.join(base_url, "file-v1", "downloadSize")
     fileSize = requests.get(url, params=downloadDict, headers=headerD, timeout=None).text
-    if not fileSize.isnumeric():
+    if not fileSize or not fileSize.isnumeric():
         print(f"error - no response for {downloadDict}")
         return None
     fileSize = int(fileSize)
@@ -118,11 +116,14 @@ def download(downloadFilePath, downloadDict):
     url = os.path.join(base_url, "file-v1", "download")
     responseCode = None
     count = 0
+    if os.path.isdir(downloadFilePath):
+        print(f'error - path is a directory {downloadFilePath}')
+        return None
     if os.path.exists(downloadFilePath):
-        if downloadDict["allowOverwrite"].lower() == "true":
+        if OVERWRITE:
             os.remove(downloadFilePath)
         else:
-            print(f"error - file already exists")
+            print(f"error - file already exists {downloadFilePath}")
             return None
     with requests.get(url, params=downloadDict, headers=headerD, timeout=None, stream=True) as response:
         with open(downloadFilePath, "ab") as ofh:

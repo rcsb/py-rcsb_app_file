@@ -18,6 +18,7 @@ __author__ = "John Westbrook"
 __email__ = "jwest@rcsb.rutgers.edu"
 __license__ = "Apache 2.0"
 
+
 import logging
 import os
 import platform
@@ -93,9 +94,9 @@ class FileDownloadTests(unittest.TestCase):
     def testSimpleDownload(self):
         """Test - simple file download"""
         testFilePath = self.__testFilePath
-
-        for endPoint in ["download"]:
-            startTime = time.time()
+        startTime = time.time()
+        endPoint = "download"
+        for version, responseCode in [(1, 200), (2, 404)]:
             try:
                 mD = {
                     "repositoryType": self.__repositoryType,
@@ -103,7 +104,7 @@ class FileDownloadTests(unittest.TestCase):
                     "contentType": "model",
                     "contentFormat": "pdbx",
                     "partNumber": 1,
-                    "version": 1,
+                    "version": version,
                     "hashType": self.__hashType,
                     "milestone": None
                 }
@@ -111,7 +112,7 @@ class FileDownloadTests(unittest.TestCase):
                 with TestClient(app) as client:
                     response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                     logger.info("download response status code %r", response.status_code)
-                    self.assertTrue(response.status_code == 200)
+                    self.assertTrue(response.status_code == responseCode)
                     logger.info("Content length (%d)", len(response.content))
                     with open(self.__downloadFilePath, "wb") as ofh:
                         ofh.write(response.content)
@@ -121,10 +122,44 @@ class FileDownloadTests(unittest.TestCase):
                 logger.exception("Failing with %s", str(e))
                 self.fail()
 
+    def testChunkDownload(self):
+        """Test - chunk download"""
+        testFilePath = self.__testFilePath
+        startTime = time.time()
+        endPoint = "download"
+        for version, responseCode in [(1, 200), (2, 404)]:
+            try:
+                mD = {
+                    "repositoryType": self.__repositoryType,
+                    "depId": "D_1000000001",
+                    "contentType": "model",
+                    "milestone": None,
+                    "partNumber": 1,
+                    "contentFormat": "pdbx",
+                    "version": version,
+                    "hashType": self.__hashType,
+                    "chunkSize": self.__chunkSize,
+                    "chunkIndex": 0
+                }
+                with TestClient(app) as client:
+                    response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
+                    logger.info("download response status code %r", response.status_code)
+                    self.assertTrue(response and response.status_code == responseCode)
+                    if response and responseCode == 200:
+                        logger.info("Content length (%d)", len(response.content))
+                        with open(self.__downloadFilePath, "wb") as ofh:
+                            ofh.write(response.content)
+                        fileSize = os.path.getsize(self.__downloadFilePath)
+                        self.assertTrue(fileSize == self.__chunkSize)
+                logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+            except Exception as exc:
+                logger.exception("Failing with %s", str(exc))
+                self.fail()
 
 def downloadSimpleTests():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(FileDownloadTests("testSimpleDownload"))
+    suiteSelect.addTest(FileDownloadTests("testChunkDownload"))
     return suiteSelect
 
 

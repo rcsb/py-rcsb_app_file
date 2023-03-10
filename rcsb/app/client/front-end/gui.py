@@ -27,13 +27,7 @@ author James Smith 2023
 contentTypeInfoD = None
 fileFormatExtensionD = None
 headerD = None
-# HERE = os.path.abspath(os.path.dirname(__file__))
-# TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
-# CONFIG_FILE = os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml")
-# os.environ["CONFIG_FILE"] = CONFIG_FILE
 configFilePath = os.environ.get("CONFIG_FILE")
-print(configFilePath)
-
 cP = ConfigProvider(configFilePath)
 cP.getConfig()
 """ modifiable global variables
@@ -53,6 +47,7 @@ HERE = os.path.abspath(os.path.dirname(__file__))
 dF = Definitions()
 repoTypeList = dF.getRepoTypeList()
 milestoneList = dF.getMilestoneList()
+milestoneList.append("none")
 fileFormatExtensionD = dF.getFileFormatExtD()
 contentTypeInfoD = dF.getContentTypeD()
 
@@ -525,7 +520,7 @@ class Gui(tk.Frame):
         }
         url = os.path.join(base_url, "file-v1", "downloadSize")
         fileSize = requests.get(url, params=downloadDict, headers=headerD, timeout=None).text
-        if not fileSize.isnumeric():
+        if not fileSize or not fileSize.isnumeric():
             print(f"error - no response for {downloadFilePath}")
             return None
         fileSize = int(fileSize)

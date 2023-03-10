@@ -8,13 +8,19 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
+import asyncio
+import io
+import json
 import logging
 import os
+import tempfile
+import typing
 from enum import Enum
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
+from fastapi import BackgroundTasks
 import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
@@ -33,15 +39,6 @@ class HashType(str, Enum):
     SHA256 = "SHA256"
 
 
-@router.get("/downloadSize")
-async def downloadSize(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version):  # hashType=None):
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(configFilePath)
-    pathU = PathUtils(cP)
-    filePath = pathU.getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)
-    return os.path.getsize(filePath)
-
-
 @router.get("/download")
 async def download(
     repositoryType: str = Query(None, title="Repository Type", description="Repository type (onedep-archive,onedep-deposit)", example="onedep-archive, onedep-deposit"),
@@ -51,21 +48,24 @@ async def download(
     partNumber: int = Query(1, title="Content part", description="Content part", example="1,2,3"),
     contentFormat: str = Query(None, title="Content format", description="Content format", example="pdb, pdbx, mtz, pdf"),
     version: str = Query("1", title="Version string", description="Version number or description", example="1,2,3, latest, previous"),
-    hashType: HashType = Query(None, title="Hash type", description="Hash type", example="SHA256")
+    hashType: HashType = Query(None, title="Hash type", description="Hash type", example="SHA256"),
+    chunkSize: typing.Optional[int] = None,
+    chunkIndex: typing.Optional[int] = None
 ):
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(configFilePath)
     pathU = PathUtils(cP)
     filePath = fileName = mimeType = hashDigest = None
-    success = False
     tD = {}
     try:
         filePath = pathU.getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)
-        success = FileUtil().exists(filePath)
+        if not filePath:
+            raise HTTPException(status_code=404, detail="Bad or incomplete path metadata")
+        if not FileUtil().exists(filePath):
+            raise HTTPException(status_code=404, detail="Request file path does not exist %s" % filePath)
         mimeType = pathU.getMimeType(contentFormat)
         logger.info(
-            "success %r repositoryType %r depId %r contentType %r format %r version %r fileName %r (%r)",
-            success,
+            "repositoryType %r depId %r contentType %r format %r version %r fileName %r (%r)",
             repositoryType,
             depId,
             contentType,
@@ -74,23 +74,35 @@ async def download(
             fileName,
             mimeType,
         )
-        if hashType and success:
+        if hashType:
             hD = CryptUtils().getFileHash(filePath, hashType.name)
             hashDigest = hD["hashDigest"]
             tD = {"rcsb_hash_type": hashType.name, "rcsb_hexdigest": hashDigest}
-    except Exception as e:
-        logger.exception("Failing with %s", str(e))
-        success = False
-    if not success:
-        if filePath:
-            raise HTTPException(status_code=403, detail="Request file path does not exist %s" % filePath)
-        else:
-            raise HTTPException(status_code=403, detail="Bad or incomplete path metadata")
-    return FileResponse(path=filePath, media_type=mimeType, filename=os.path.basename(filePath), headers=tD)
+    except HTTPException as exc:
+        logger.exception("Failing with %s", str(exc.detail))
+        raise HTTPException(status_code=404, detail=exc.detail)
+    if chunkSize is not None and chunkIndex is not None:
+        data = None
+        try:
+            with open(filePath, "rb") as r:
+                r.seek(chunkIndex * chunkSize)
+                data = r.read(chunkSize)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail='error returning chunk')
+        return Response(content=data, media_type="application/octet-stream")
+    else:
+        return FileResponse(path=filePath, media_type=mimeType, filename=os.path.basename(filePath), headers=tD)
 
 
-def isPositiveInteger(tS):
-    try:
-        return int(tS) >= 0
-    except Exception:
-        return False
+@router.get("/downloadSize")
+async def downloadSize(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version):
+    configFilePath = os.environ.get("CONFIG_FILE")
+    cP = ConfigProvider(configFilePath)
+    pathU = PathUtils(cP)
+    filePath = pathU.getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)
+    if not filePath or not os.path.exists(filePath):
+        raise HTTPException(status_code=404, detail="error - file path does not exist}")
+    return os.path.getsize(filePath)
+
+
+

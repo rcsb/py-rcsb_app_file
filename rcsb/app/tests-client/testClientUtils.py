@@ -196,7 +196,8 @@ class ClientTests(unittest.TestCase):
             with open(self.__repositoryFile1, "wb") as out:
                 out.write(os.urandom(nB))
         for downloadFolderPath, partNumber, allowOverwrite, responseCode in [
-            (self.__dataPath, 1, True, 200)
+            (self.__dataPath, 1, True, 200),
+            (self.__dataPath, 2, True, 404)
         ]:
             logging.warning(f"{partNumber} {allowOverwrite} {responseCode}")
             repositoryType = self.__repositoryType
@@ -208,11 +209,43 @@ class ClientTests(unittest.TestCase):
                 startTime = time.time()
                 try:
                     response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, self.__hashType, downloadFolderPath, allowOverwrite)
-                    self.assertTrue(response == responseCode or response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
+                    self.assertTrue(response == responseCode or (response==None and responseCode==404) or response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
                 except Exception as e:
                     logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
                     self.fail()
+
+    def testChunkDownload(self):
+        """Test - chunk download """
+        if not os.path.exists(self.__repositoryFile1):
+            os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
+            nB = self.__chunkSize
+            with open(self.__repositoryFile1, "wb") as out:
+                out.write(os.urandom(nB))
+        for downloadFolderPath, partNumber, allowOverwrite, responseCode in [
+            (self.__dataPath, 1, True, 200),
+            (self.__dataPath, 2, True, 404)
+        ]:
+            logging.warning(f"{partNumber} {allowOverwrite} {responseCode}")
+            repositoryType = self.__repositoryType
+            depId = "D_1000000001"
+            contentType = "model"
+            milestone = ""
+            contentFormat = "pdbx"
+            chunkSize = self.__chunkSize
+            chunkIndex = 0
+            for version in range(1, 2):
+                startTime = time.time()
+                try:
+                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, self.__hashType, downloadFolderPath, allowOverwrite, chunkSize=chunkSize, chunkIndex=chunkIndex)
+                    self.assertTrue(response == responseCode or (response==None and responseCode==404) or response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
+                    fileSize = os.path.getsize(self.__downloadFile)
+                    self.assertTrue(fileSize == self.__chunkSize)
+                    logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
+                except Exception as e:
+                    logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
+                    self.fail()
+
 
     def testListDir(self):
         """Test - list dir"""
@@ -268,7 +301,7 @@ class ClientTests(unittest.TestCase):
     def testDirExists(self):
         repoType = self.__repositoryType
         depId = "D_1000000001"
-        response = self.__cU.dir_exist(repoType, depId)
+        response = self.__cU.dirExist(repoType, depId)
         self.assertTrue(response)
 
 def client_tests():
@@ -276,6 +309,7 @@ def client_tests():
     suite.addTest(ClientTests("testSimpleUpload"))
     suite.addTest(ClientTests("testResumableUpload"))
     suite.addTest(ClientTests("testSimpleDownload"))
+    suite.addTest(ClientTests("testChunkDownload"))
     suite.addTest(ClientTests("testListDir"))
     suite.addTest(ClientTests("testFilePathRemote"))
     suite.addTest(ClientTests("testFilePathLocal"))
