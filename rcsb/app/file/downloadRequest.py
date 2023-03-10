@@ -8,19 +8,15 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
-import asyncio
-import io
-import json
+
 import logging
 import os
-import tempfile
 import typing
 from enum import Enum
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import Query
 from fastapi.responses import FileResponse, Response
-from fastapi import BackgroundTasks
 import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
@@ -87,7 +83,7 @@ async def download(
             with open(filePath, "rb") as r:
                 r.seek(chunkIndex * chunkSize)
                 data = r.read(chunkSize)
-        except Exception as exc:
+        except Exception:
             raise HTTPException(status_code=500, detail='error returning chunk')
         return Response(content=data, media_type="application/octet-stream")
     else:
@@ -103,6 +99,3 @@ async def downloadSize(repositoryType, depId, contentType, milestone, partNumber
     if not filePath or not os.path.exists(filePath):
         raise HTTPException(status_code=404, detail="error - file path does not exist}")
     return os.path.getsize(filePath)
-
-
-
