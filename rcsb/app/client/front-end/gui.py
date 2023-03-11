@@ -12,6 +12,7 @@ import math
 import requests
 import json
 import time
+import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -26,7 +27,6 @@ author James Smith 2023
 contentTypeInfoD = None
 fileFormatExtensionD = None
 headerD = None
-os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
 configFilePath = os.environ.get("CONFIG_FILE")
 cP = ConfigProvider(configFilePath)
 cP.getConfig()
@@ -47,6 +47,7 @@ HERE = os.path.abspath(os.path.dirname(__file__))
 dF = Definitions()
 repoTypeList = dF.getRepoTypeList()
 milestoneList = dF.getMilestoneList()
+milestoneList.append("none")
 fileFormatExtensionD = dF.getFileFormatExtD()
 contentTypeInfoD = dF.getContentTypeD()
 
@@ -519,7 +520,7 @@ class Gui(tk.Frame):
         }
         url = os.path.join(base_url, "file-v1", "downloadSize")
         fileSize = requests.get(url, params=downloadDict, headers=headerD, timeout=None).text
-        if not fileSize.isnumeric():
+        if not fileSize or not fileSize.isnumeric():
             print(f"error - no response for {downloadFilePath}")
             return None
         fileSize = int(fileSize)

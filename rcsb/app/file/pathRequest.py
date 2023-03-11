@@ -24,6 +24,7 @@ from fastapi import Query
 from fastapi import HTTPException
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
+import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 from rcsb.app.file.PathUtils import PathUtils
@@ -31,7 +32,13 @@ from rcsb.utils.io.FileUtil import FileUtil
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["status"])
+
+provider = ConfigProvider(os.environ.get("CONFIG_FILE"))
+jwtDisable = bool(provider.get('JWT_DISABLE'))
+if not jwtDisable:
+    router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["status"])
+else:
+    router = APIRouter(tags=["status"])
 
 
 class HashType(str, Enum):

@@ -76,7 +76,7 @@ class PathUtils:
             repoPath = self.getRepositoryDirPath(repositoryType)
             fnBase = self.__getBaseFileName(depId, contentType, milestone, partNumber, contentFormat) + ".V"
             filePattern = os.path.join(repoPath, depId, fnBase)
-            if version.isdigit():
+            if str(version).isdigit():
                 filePath = filePattern + str(version)
             else:
                 for pth in glob.iglob(filePattern + "*"):

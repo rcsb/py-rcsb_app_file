@@ -19,13 +19,7 @@ import shutil
 
 # requires server
 
-# pylint: disable=wrong-import-position
-# This environment must be set before main.app is imported
-HERE = os.path.abspath(os.path.dirname(__file__))
-TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join(TOPDIR, "rcsb", "app", "config", "config.yml"))
-
-
+import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.FileUtil import FileUtil
@@ -202,7 +196,8 @@ class ClientTests(unittest.TestCase):
             with open(self.__repositoryFile1, "wb") as out:
                 out.write(os.urandom(nB))
         for downloadFolderPath, partNumber, allowOverwrite, responseCode in [
-            (self.__dataPath, 1, True, 200)
+            (self.__dataPath, 1, True, 200),
+            (self.__dataPath, 2, True, 404)
         ]:
             logging.warning(f"{partNumber} {allowOverwrite} {responseCode}")
             repositoryType = self.__repositoryType
@@ -214,11 +209,43 @@ class ClientTests(unittest.TestCase):
                 startTime = time.time()
                 try:
                     response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, self.__hashType, downloadFolderPath, allowOverwrite)
-                    self.assertTrue(response == responseCode or response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
+                    self.assertTrue(response == responseCode or (response==None and responseCode==404) or response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
                 except Exception as e:
                     logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
                     self.fail()
+
+    def testChunkDownload(self):
+        """Test - chunk download """
+        if not os.path.exists(self.__repositoryFile1):
+            os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
+            nB = self.__chunkSize
+            with open(self.__repositoryFile1, "wb") as out:
+                out.write(os.urandom(nB))
+        for downloadFolderPath, partNumber, allowOverwrite, responseCode in [
+            (self.__dataPath, 1, True, 200),
+            (self.__dataPath, 2, True, 404)
+        ]:
+            logging.warning(f"{partNumber} {allowOverwrite} {responseCode}")
+            repositoryType = self.__repositoryType
+            depId = "D_1000000001"
+            contentType = "model"
+            milestone = ""
+            contentFormat = "pdbx"
+            chunkSize = self.__chunkSize
+            chunkIndex = 0
+            for version in range(1, 2):
+                startTime = time.time()
+                try:
+                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, self.__hashType, downloadFolderPath, allowOverwrite, chunkSize=chunkSize, chunkIndex=chunkIndex)
+                    self.assertTrue(response == responseCode or (response==None and responseCode==404) or response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
+                    fileSize = os.path.getsize(self.__downloadFile)
+                    self.assertTrue(fileSize == self.__chunkSize)
+                    logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
+                except Exception as e:
+                    logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
+                    self.fail()
+
 
     def testListDir(self):
         """Test - list dir"""
@@ -241,13 +268,52 @@ class ClientTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
+    def testFilePathRemote(self):
+        repoType = self.__repositoryType
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = None
+        partNumber = 1
+        contentFormat = "pdbx"
+        version = 1
+        filePathResponse = self.__cU.getFilePathRemote(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
+        self.assertTrue(filePathResponse == self.__repositoryFile1, f'error {filePathResponse} {self.__repositoryFile1}')
+
+    def testFilePathLocal(self):
+        if not os.path.exists(self.__repositoryFile1):
+            os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
+            nB = 64
+            with open(self.__repositoryFile1, "wb") as out:
+                out.write(os.urandom(nB))
+        repoType = self.__repositoryType
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = None
+        partNumber = 1
+        contentFormat = "pdbx"
+        version = 1
+        filename = self.__cU.getFilePathLocal(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
+        print(f'temp file path {filename}')
+        self.assertTrue(os.path.exists(filename), f'error - {filename} does not exist')
+        os.unlink(filename)  # if had not made temp file with delete=false, would need file.close()
+        self.assertFalse(os.path.exists(filename), f'error - {filename} exists')
+
+    def testDirExists(self):
+        repoType = self.__repositoryType
+        depId = "D_1000000001"
+        response = self.__cU.dirExist(repoType, depId)
+        self.assertTrue(response)
 
 def client_tests():
     suite = unittest.TestSuite()
     suite.addTest(ClientTests("testSimpleUpload"))
     suite.addTest(ClientTests("testResumableUpload"))
     suite.addTest(ClientTests("testSimpleDownload"))
+    suite.addTest(ClientTests("testChunkDownload"))
     suite.addTest(ClientTests("testListDir"))
+    suite.addTest(ClientTests("testFilePathRemote"))
+    suite.addTest(ClientTests("testFilePathLocal"))
+    suite.addTest(ClientTests("testDirExists"))
     return suite
 
 

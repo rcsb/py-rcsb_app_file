@@ -14,12 +14,8 @@ import logging
 import os
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
+import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 
-# pylint: disable=wrong-import-position
-# This environment must be set before JWTAuthBearer is imported
-HERE = os.path.abspath(os.path.dirname(__file__))
-TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
-os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", os.path.join("rcsb", "app", "config", "config.yml"))
 
 from . import ConfigProvider
 from . import LogFilterUtils

@@ -9,6 +9,7 @@ from tqdm.auto import tqdm
 import time
 import math
 import argparse
+import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -19,10 +20,11 @@ from rcsb.app.client.ClientUtils import ClientUtils
 author James Smith 2023
 """
 
-os.environ["CONFIG_FILE"] = os.path.join(".", "rcsb", "app", "config", "config.yml")
+
 configFilePath = os.environ.get("CONFIG_FILE")
 cP = ConfigProvider(configFilePath)
 cP.getConfig()
+
 """ modifiable variables
 """
 base_url = cP.get("SERVER_HOST_AND_PORT")
@@ -105,7 +107,7 @@ def download(downloadFilePath, downloadDict):
     global OVERWRITE
     url = os.path.join(base_url, "file-v1", "downloadSize")
     fileSize = requests.get(url, params=downloadDict, headers=headerD, timeout=None).text
-    if not fileSize.isnumeric():
+    if not fileSize or not fileSize.isnumeric():
         print(f"error - no response for {downloadDict}")
         return None
     fileSize = int(fileSize)
@@ -114,11 +116,14 @@ def download(downloadFilePath, downloadDict):
     url = os.path.join(base_url, "file-v1", "download")
     responseCode = None
     count = 0
+    if os.path.isdir(downloadFilePath):
+        print(f'error - path is a directory {downloadFilePath}')
+        return None
     if os.path.exists(downloadFilePath):
-        if downloadDict["allowOverwrite"].lower() == "true":
+        if OVERWRITE:
             os.remove(downloadFilePath)
         else:
-            print(f"error - file already exists")
+            print(f"error - file already exists {downloadFilePath}")
             return None
     with requests.get(url, params=downloadDict, headers=headerD, timeout=None, stream=True) as response:
         with open(downloadFilePath, "ab") as ofh:
