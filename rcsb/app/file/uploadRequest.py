@@ -69,36 +69,14 @@ async def upload(
     uploadId: str = Form(None),
     hashType: str = Form(None),
     hashDigest: str = Form(None),
-    resumable: bool = Form(False),
     # save file parameters
     filePath: str = Form(...),
     decompress: bool = Form(False),
     allowOverwrite: bool = Form(False),
 ):
-    if resumable:
-        # IoUtils has database functions
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
-        ioU = IoUtils(cP)
-        ret = await ioU.upload(
-            # chunk parameters
-            chunk=chunk.file,
-            chunkSize=chunkSize,
-            chunkIndex=chunkIndex,
-            expectedChunks=expectedChunks,
-            # upload file parameters
-            uploadId=uploadId,
-            hashType=hashType,
-            hashDigest=hashDigest,
-            resumable=resumable,
-            # save file parameters
-            filePath=filePath,
-            decompress=decompress,
-            allowOverwrite=allowOverwrite,
-        )
-        return ret
-    # expedite upload rather than instantiating ConfigProvider, IoUtils for each chunk, then passing file parameter
     chunkOffset = chunkIndex * chunkSize
+    # remove comment for testing
+    # logger.info(f"chunk {chunkIndex} of {expectedChunks} for {uploadId}")
     ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
     dirPath, _ = os.path.split(filePath)
     tempPath = getTempFilePath(uploadId, dirPath)
@@ -179,8 +157,13 @@ def getTempFilePath(uploadId, dirPath):
     return os.path.join(dirPath, "._" + uploadId)
 
 
-@router.get("/getUploadParameters")
-async def getUploadParameters(
+@router.get("/getNewUploadId")
+def getNewUploadId():
+    return {"uploadId": uuid.uuid4().hex}
+
+
+@router.get("/getSaveFilePath")
+async def getSaveFilePath(
         repositoryType: str = Query(...),
         depId: str = Query(...),
         contentType: str = Query(...),
@@ -188,82 +171,14 @@ async def getUploadParameters(
         partNumber: int = Query(...),
         contentFormat: str = Query(...),
         version: str = Query(default="next"),
-        hashDigest: str = Query(default=None),
         allowOverwrite: bool = Query(default=True),
-        resumable: bool = Query(default=False)
 ):
-    chunkIndex, uploadId = await getUploadStatus(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, hashDigest, resumable)
-    filePath = await getSaveFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite)
-    if not filePath:
-        raise HTTPException(status_code=400, detail="Error - could not make file path from parameters")
-    return {"filePath": filePath, "chunkIndex": chunkIndex, "uploadId": uploadId}
-
-
-# return kv entry from file parameters, if have resumed upload, or None if don't
-# if have resumed upload, kv response has chunk count
-async def getUploadStatus(repositoryType: str,
-                          depId: str,
-                          contentType: str,
-                          milestone: str,
-                          partNumber: int,
-                          contentFormat: str,
-                          version: str,
-                          hashDigest: str,
-                          resumable: bool
-                          ):
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(configFilePath)
-    ioU = IoUtils(cP)
-    if version is None or not re.match(r"\d+", version):
-        version = await ioU.findVersion(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version
-        )
-    uploadCount = 0
-    uploadId = None
-    if resumable:
-        uploadId = await ioU.getResumedUpload(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version,
-            hashDigest=hashDigest
-        )
-    if uploadId:
-        status = await ioU.getSession(uploadId)
-        if status:
-            status = str(status)
-            status = status.replace("'", '"')
-            status = json.loads(status)
-            uploadCount = status["uploadCount"]
-    else:
-        uploadId = getNewUploadId()
-    return int(uploadCount), uploadId
-
-
-async def getSaveFilePath(repositoryType: str,
-                          depId: str,
-                          contentType: str,
-                          milestone: str,
-                          partNumber: int,
-                          contentFormat: str,
-                          version: str,
-                          allowOverwrite: bool):
     configFilePath = os.environ.get("CONFIG_FILE")
     cP = ConfigProvider(configFilePath)
     pathU = PathUtils(cP)
     if not pathU.checkContentTypeFormat(contentType, contentFormat):
-        logging.warning("Bad content type and/or format - upload rejected")
-        return None
-    outPath = None
+        logging.warning("Bad content type and/or format")
+        raise HTTPException(status_code=400, detail="Error - bad content type and/or format")
     outPath = pathU.getVersionedPath(
         repositoryType=repositoryType,
         depId=depId,
@@ -274,18 +189,14 @@ async def getSaveFilePath(repositoryType: str,
         version=version
     )
     if not outPath:
-        logging.warning("Bad content type metadata - cannot build a valid path")
-        return None
+        logging.warning("Error - could not make file path from parameters")
+        raise HTTPException(status_code=400, detail="Error - could not make file path from parameters")
     if os.path.exists(outPath) and not allowOverwrite:
         logging.warning("Encountered existing file - overwrite prohibited")
-        return None
+        raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
     dirPath, _ = os.path.split(outPath)
     os.makedirs(dirPath, mode=0o777, exist_ok=True)
-    return outPath
-
-
-def getNewUploadId():
-    return uuid.uuid4().hex
+    return {"filePath": outPath}
 
 
 # clear kv entries from one user

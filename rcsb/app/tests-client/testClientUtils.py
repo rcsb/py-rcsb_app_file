@@ -116,7 +116,7 @@ class ClientTests(unittest.TestCase):
             for version in range(1, 2):
                 startTime = time.time()
                 try:
-                    response = self.__cU.upload(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable)
+                    response = self.__cU.upload(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite)
                     if not allowOverwrite:
                         self.assertTrue(response is None, "error - did not detect pre-existing file")
                     if not response:
@@ -148,7 +148,7 @@ class ClientTests(unittest.TestCase):
                 try:
                     # get upload parameters
                     # null test - should find nothing
-                    response = self.__cU.getUploadParameters(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, resumable)
+                    response = self.__cU.getUploadParameters(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite)
                     if not allowOverwrite:
                         self.assertTrue(response is None, "error - did not detect pre-existing file")
                     if not response:
@@ -159,14 +159,14 @@ class ClientTests(unittest.TestCase):
                     self.assertTrue(chunkIndex == 0, f"error - chunk index {chunkIndex}")
                     # upload first chunk, not last chunk
                     for index in range(chunkIndex, expectedChunks - 1):
-                        response = self.__cU.uploadChunk(testFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, decompress, allowOverwrite, resumable)
+                        response = self.__cU.uploadChunk(testFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, decompress, allowOverwrite)
                         if not response:
                             logger.info("error in upload chunk")
                             break
                     logger.info(response)
                     self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     # get upload parameters - should find at least one chunk
-                    response = self.__cU.getUploadParameters(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, resumable)
+                    response = self.__cU.getUploadParameters(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite)
                     if not allowOverwrite:
                         self.assertTrue(response is None, "error - did not detect pre-existing file")
                     if not response:
@@ -177,7 +177,7 @@ class ClientTests(unittest.TestCase):
                     self.assertTrue(chunkIndex > 0, f"error - chunk index {chunkIndex}")
                     # upload remaining chunks
                     for index in range(chunkIndex, expectedChunks):
-                        response = self.__cU.uploadChunk(testFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, decompress, allowOverwrite, resumable)
+                        response = self.__cU.uploadChunk(testFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, decompress, allowOverwrite)
                         if not response:
                             logger.info("error in upload chunk")
                             break

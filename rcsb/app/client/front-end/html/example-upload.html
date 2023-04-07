@@ -3,13 +3,14 @@
 	<head>
         <meta charset="UTF-8">
         <title>HTML UPLOAD EXAMPLE</title>
-        <!-- author James Smith -->
+        <!-- author James Smith j-s-135 -->
         <script src = "http://www.myersdaily.org/joseph/javascript/md5.js"></script>
 		<script type="text/javascript">
 			handleform = async () => {
               window.event.preventDefault();
               let base_url = "http://0.0.0.0:8000";
-              let upload_parameters_url = `${base_url}/file-v2/getUploadParameters/`;
+              let upload_parameters_url = `${base_url}/file-v2/getSaveFilePath/`;
+              let upload_id_url = `${base_url}/file-v2/getNewUploadId/`;
               let sequential_chunk_url = `${base_url}/file-v2/upload/`;
               let jwt_token = '';
               let file = document.getElementsByName('uploadFile')[0].files[0];
@@ -19,14 +20,23 @@
               // if file is a zip file, file has been compressed before hashing/upload
               let hashDigest = null;
               await getHashDigest(file);
-              // get upload parameters
-              let uploadId = null;
+              // get server-side parameters
               let filePath = null;
-              let chunkIndex = 0;
-              await getUploadParameters();
-              if(! uploadId || ! filePath){
+              await getSaveFilePath();
+              if(! filePath){
                   console.log('error - could not read file path, or target file may already exist');
                   return;
+              }
+              // get client-side parameters
+              let chunkIndex = 0;
+              let uploadId = null;
+              await getUploadStatus();
+              if(! uploadId){
+                  await getNewUploadId();
+                  if (! uploadId){
+                      console.log('error - no upload id');
+                      return;
+                  }
               }
               // start upload
               upload(file);
@@ -40,7 +50,7 @@
                 }
               }
 
-              async function getUploadParameters() {
+              async function getSaveFilePath() {
                 let repositoryType = document.getElementsByName('repositoryType')[0].value;
                 let depId = document.getElementsByName('depId')[0].value;
                 let contentType = document.getElementsByName('contentType')[0].value;
@@ -54,7 +64,34 @@
                 await fetch(url, {
                     method: "GET",
                     headers: {"Authorization": `Bearer ${jwt_token}`}
-                }).then(data => data.json()).then(json => {filePath = json.filePath;chunkIndex = json.chunkIndex;uploadId = json.uploadId}).catch(err => console.log(err));
+                }).then(data => data.json()).then(json => {filePath = json.filePath;}).catch(err => console.log(err));
+              }
+
+              async function getUploadStatus(){
+                  let resumable = document.getElementsByName('resumable')[0].checked;
+                  if(! resumable){
+                      console.log('not a resumable upload');
+                      return;
+                  }
+                  if(typeof(Storage) !== 'undefined') {
+                      if(localStorage.uploadId && localStorage.uploadCount){
+                          uploadId = localStorage.getItem('uploadId');
+                          chunkIndex = Number(localStorage.getItem('uploadCount'));
+                          console.log(`detected previous upload having ${chunkIndex} chunks with id ${uploadId}`);
+                      } else {
+                          console.log('no previous upload was detected');
+                      }
+                  } else {
+                      console.log('error - browser does not have local storage');
+                  }
+              }
+
+              async function getNewUploadId(){
+                  let url = upload_id_url;
+                  await fetch(url, {
+                      method: "GET",
+                      headers: {"Authorization": `Bearer ${jwt_token}`}
+                  }).then(data => data.json()).then(json => {uploadId = json.uploadId}).catch(err => console.log(err));
               }
 
               async function upload(file){
@@ -66,13 +103,26 @@
                 let decompress = document.getElementsByName('decompress')[0].checked;
                 let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
                 let resumable = document.getElementsByName('resumable')[0].checked;
-                console.log(`${fileName} ${uploadId} ${filePath}`)
+                console.log(`chunk index ${chunkIndex} expected ${expectedChunks} for ${fileName} ${uploadId} ${filePath}`)
                 readChunks(chunkIndex, chunkOffset);
 
                 function readChunks(chunkIndex, chunkOffset) {
                   if (chunkIndex >= expectedChunks) {
-                    return;
+                      // cleanup
+                      console.log('clearing database');
+                      localStorage.removeItem('uploadId');
+                      localStorage.removeItem('uploadCount');
+                      return;
                   }
+                  if(resumable) {
+                      localStorage.setItem('uploadId', uploadId);
+                      localStorage.setItem('uploadCount', chunkIndex);
+                  }
+                    // remove comments (then re-comment) to test resumable upload
+                    // if(chunkIndex >= 3){
+                    //     return;
+                    // }
+                  console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
                   var blob = file.slice(chunkOffset, chunkOffset + chunkSize);
                   postChunk(blob);
                 }
@@ -93,7 +143,7 @@
                   formdata.append("uploadId", uploadId);
                   formdata.append("hashType", hashType);
                   formdata.append("hashDigest", hashDigest);
-                  formdata.append("resumable", resumable);
+                  // formdata.append("resumable", resumable);
                   // save file parameters
                   formdata.append("filePath", filePath);
                   formdata.append("decompress", decompress);
