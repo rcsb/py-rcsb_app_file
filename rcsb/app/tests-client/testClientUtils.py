@@ -112,10 +112,11 @@ class ClientTests(unittest.TestCase):
             contentType = "model"
             milestone = ""
             contentFormat = "pdbx"
+            resumable = False
             for version in range(1, 2):
                 startTime = time.time()
                 try:
-                    response = self.__cU.upload(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite)
+                    response = self.__cU.upload(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable)
                     if not allowOverwrite:
                         self.assertTrue(response is None, "error - did not detect pre-existing file")
                     if not response:

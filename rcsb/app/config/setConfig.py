@@ -6,5 +6,5 @@ os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", CONFIG_FILE)
 
 def getConfig():
     here = os.path.abspath(os.path.dirname(__file__))
-    config_file = os.path.join(HERE, "config.yml")
+    config_file = os.path.join(here, "config.yml")
     return config_file

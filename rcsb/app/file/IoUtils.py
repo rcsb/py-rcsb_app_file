@@ -112,15 +112,34 @@ class IoUtils:
             # save file parameters
             filePath: str,
             decompress: bool,
-            allowOverwrite: bool
+            allowOverwrite: bool,
+            # other
+            resumable: bool
     ):
-        # chunkOffset = chunkIndex * chunkSize
+        if resumable:
+            repositoryType = os.path.basename(os.path.dirname(os.path.dirname(filePath)))
+            logKey = self.getPremadeLogKey(repositoryType, filePath)
+            key = uploadId
+            val = "uploadCount"
+            # initializes to zero
+            # currentCount = int(self.__kV.getSession(key, val))  # for sequential chunks, current index = current count
+            # on first chunk upload, set expected count, record uid in log table
+            if chunkIndex == 0:
+                self.__kV.setSession(key, "chunkSize", chunkSize)
+                self.__kV.setLog(logKey, uploadId)
+                # self.__kV.setSession(key, "expectedCount", expectedChunks)
+                self.__kV.setSession(key, "timestamp", int(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))))
+                # self.__kV.setSession(key, "hashDigest", hashDigest)  # if user uploads new file with same parameters before saving previoius file, delete previous file
+                # self.__kV.setSession(key, "uploadId", key)  # redundant, however returns id from get upload status
+            # self.__kV.inc(key, val)
+
+        chunkOffset = chunkIndex * chunkSize
         # remove comment for testing
         # logger.info(f"chunk {chunkIndex} of {expectedChunks} for {uploadId}")
         ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
         dirPath, _ = os.path.split(filePath)
         tempPath = self.getTempFilePath(uploadId, dirPath)
-        contents = await chunk.read()
+        contents = chunk.read()
         # empty chunk beyond loop index from client side, don't erase tempPath so keep out of try block
         if contents and len(contents) <= 0:
             raise HTTPException(status_code=400, detail="error - empty file")
@@ -177,15 +196,22 @@ class IoUtils:
                         os.replace(tempPath, filePath)
                 else:
                     raise HTTPException(status_code=500, detail="Error - missing hash")
+                # clear database
+                if resumable:
+                    self.clearSession(key, logKey)
         except HTTPException as exc:
             if os.path.exists(tempPath):
                 os.unlink(tempPath)
+            if resumable:
+                self.clearSession(key, logKey)
             ret = {"success": False, "statusCode": exc.status_code,
                    "statusMessage": f"error in sequential upload {exc.detail}"}
             raise HTTPException(status_code=exc.status_code, detail=exc.detail)
         except Exception as exc:
             if os.path.exists(tempPath):
                 os.unlink(tempPath)
+            if resumable:
+                self.clearSession(key, logKey)
             ret = {"success": False, "statusCode": 400, "statusMessage": f"error in sequential upload {str(exc)}"}
             raise HTTPException(status_code=400, detail=f"error in sequential upload {str(exc)}")
         finally:
@@ -287,13 +313,13 @@ class IoUtils:
             await self.removeExpiredEntry(uploadId=uploadId, fileName=filename, depId=depId, repositoryType=repositoryType)
             return None
         # test if user resumes with same file as previously
-        if hashDigest is not None:
-            hashvar = self.__kV.getSession(uploadId, "hashDigest")
-            if hashvar != hashDigest:
-                await self.removeExpiredEntry(uploadId=uploadId, fileName=filename, depId=depId, repositoryType=repositoryType)
-                return None
-        else:
-            logging.warning("error - no hash")
+        # if hashDigest is not None:
+        #     hashvar = self.__kV.getSession(uploadId, "hashDigest")
+        #     if hashvar != hashDigest:
+        #         await self.removeExpiredEntry(uploadId=uploadId, fileName=filename, depId=depId, repositoryType=repositoryType)
+        #         return None
+        # else:
+        #     logging.warning("error - no hash")
         return uploadId  # returns uploadId or None
 
     # remove an entry from session table and log table, remove corresponding hidden files

@@ -13,7 +13,7 @@ then
   echo "error in launch_gunicorn.sh - \$0 does not produce correct result on this system"
   exit 1
 fi
-HERE=`cd $(dirname $0); pwd`
+HERE=`cd $(dirname $0) && pwd`
 TOPDIR=`dirname $HERE`
 echo "HERE=$HERE"
 echo "TOPDIR=$TOPDIR"

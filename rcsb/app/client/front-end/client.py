@@ -79,7 +79,7 @@ def upload(mD):
                 w.write(r.read())
         readFilePath = tempPath
     # upload
-    response = cU.upload(readFilePath, respositoryType, depId, contentType, milestone, partNumber, contentFormat, version, DECOMPRESS, OVERWRITE)
+    response = cU.upload(readFilePath, respositoryType, depId, contentType, milestone, partNumber, contentFormat, version, DECOMPRESS, OVERWRITE, RESUMABLE)
     if not response:
         print("error in upload")
         return None

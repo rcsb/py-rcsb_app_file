@@ -310,7 +310,7 @@ class Gui(tk.Frame):
         try:
             self.upload_status.set(f"uploading...")
             response = self.__cU.upload(readFilePath, repositoryType, depId, contentType, milestone, partNumber,
-                                        contentFormat, version, DECOMPRESS, allowOverwrite)
+                                        contentFormat, version, DECOMPRESS, allowOverwrite, resumable)
             if not response:
                 print(f"error in upload, no response")
                 return

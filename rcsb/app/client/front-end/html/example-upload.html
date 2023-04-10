@@ -9,8 +9,7 @@
 			async function handleform() {
               window.event.preventDefault();
               let base_url = "http://0.0.0.0:8000";
-              let upload_parameters_url = `${base_url}/file-v2/getSaveFilePath/`;
-              let upload_id_url = `${base_url}/file-v2/getNewUploadId/`;
+              let upload_parameters_url = `${base_url}/file-v2/getUploadParameters/`;
               let sequential_chunk_url = `${base_url}/file-v2/upload/`;
               let jwt_token = '';
               let file = document.getElementsByName('uploadFile')[0].files[0];
@@ -28,12 +27,12 @@
                 var reader = new FileReader();
                 reader.addEventListener("load", async () => {
                     hashDigest = md5(reader.result);
-                    await getSaveFilePath().then(() => getUploadStatus()).then(() => getNewUploadId()).then(() => upload(file));
+                    await getUploadParameters().then(() => upload(file));
                 });
                 reader.readAsBinaryString(file);
               }
 
-              async function getSaveFilePath() {
+              async function getUploadParameters() {
                   // get server-side parameters
                 let repositoryType = document.getElementsByName('repositoryType')[0].value;
                 let depId = document.getElementsByName('depId')[0].value;
@@ -48,39 +47,7 @@
                 await fetch(url, {
                     method: "GET",
                     headers: {"Authorization": `Bearer ${jwt_token}`}
-                }).then(data => data.json()).then(json => {filePath = json.filePath;}).catch(err => console.log(err));
-              }
-
-              async function getUploadStatus(){
-                  // get client-side parameters
-                  let resumable = document.getElementsByName('resumable')[0].checked;
-                  if(! resumable){
-                      console.log('not a resumable upload');
-                      return;
-                  }
-                  if(typeof(Storage) !== 'undefined') {
-                      if(localStorage.getItem(hashDigest) !== null){  //(localStorage.uploadId && localStorage.uploadCount){
-                          ls = JSON.parse(localStorage.getItem(hashDigest));
-                          console.log(`detected previous upload ${hashDigest} having ${ls.uploadCount} chunks with id ${ls.uploadId}`);
-                          uploadId = ls.uploadId;
-                          chunkIndex = Number(ls.uploadCount) + 1;
-                      } else {
-                          console.log(`no previous upload was detected for ${hashDigest}`);
-                      }
-                  } else {
-                      console.log('error - browser does not have local storage');
-                  }
-              }
-
-              async function getNewUploadId(){
-                  if(uploadId){
-                      return;
-                  }
-                  let url = upload_id_url;
-                  await fetch(url, {
-                      method: "GET",
-                      headers: {"Authorization": `Bearer ${jwt_token}`}
-                  }).then(data => data.json()).then(json => {uploadId = json.uploadId}).catch(err => console.log(err));
+                }).then(data => data.json()).then(json => {filePath = json.filePath;chunkIndex = json.chunkIndex;uploadId = json.uploadId;if(chunkIndex > 0){console.log(`detected upload with ${chunkIndex} chunks`)}}).catch(err => console.log(err));
               }
 
               async function upload(file){
@@ -99,11 +66,8 @@
                 console.log(`chunk index ${chunkIndex} expected ${expectedChunks} for ${fileName} ${uploadId} ${filePath}`)
                 readChunks(chunkIndex, chunkOffset, resumable);
 
-                function readChunks(chunkIndex, chunkOffset, resumable) {
+                function readChunks(chunkIndex, chunkOffset) {
                   if (chunkIndex >= expectedChunks) {
-                      // cleanup
-                      console.log('clearing database');
-                      localStorage.removeItem(hashDigest);
                       return;
                   }
                     // remove comments (then re-comment) to test resumable upload
@@ -112,10 +76,10 @@
                     // }
                   console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
                   var blob = file.slice(chunkOffset, chunkOffset + chunkSize);
-                  postChunk(blob, resumable);
+                  postChunk(blob);
                 }
 
-                async function postChunk(blob, resumable) {
+                async function postChunk(blob) {
                   var chunk = blob;
                   var chunksize = blob.size;
                   if (chunksize <= 0) {
@@ -131,15 +95,11 @@
                   formdata.append("uploadId", uploadId);
                   formdata.append("hashType", hashType);
                   formdata.append("hashDigest", hashDigest);
-                  // formdata.append("resumable", resumable);
                   // save file parameters
                   formdata.append("filePath", filePath);
                   formdata.append("decompress", decompress);
                   formdata.append("allowOverwrite", allowOverwrite);
-                  if (resumable) {
-                          params = JSON.stringify({'uploadId': uploadId, 'uploadCount': `${chunkIndex}`})
-                          localStorage.setItem(hashDigest, params);
-                  }
+                  formdata.append("resumable", resumable);
                   fetch(sequential_chunk_url, {
                     method: "POST",
                     headers: {"Authorization": `Bearer ${jwt_token}`},
@@ -148,7 +108,7 @@
                       if(response) {
                           chunkOffset += chunkSize;
                           chunkIndex = chunkIndex + 1;
-                          readChunks(chunkIndex, chunkOffset, resumable);
+                          readChunks(chunkIndex, chunkOffset);
                       }
                   }).catch(err => console.log(`response returned error ${err}`));
                 }
