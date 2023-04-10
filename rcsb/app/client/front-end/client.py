@@ -5,11 +5,9 @@ import gzip
 from concurrent.futures import ThreadPoolExecutor
 import requests
 import json
-from tqdm.auto import tqdm
 import time
 import math
 import argparse
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -20,9 +18,7 @@ from rcsb.app.client.ClientUtils import ClientUtils
 author James Smith 2023
 """
 
-
-configFilePath = os.environ.get("CONFIG_FILE")
-cP = ConfigProvider(configFilePath)
+cP = ConfigProvider()
 cP.getConfig()
 
 """ modifiable variables
@@ -37,7 +33,7 @@ ioU = IoUtils(cP)
 cU = ClientUtils()
 headerD = {
     "Authorization": "Bearer "
-    + JWTAuthToken(configFilePath).createToken({}, subject)
+    + JWTAuthToken().createToken({}, subject)
 }
 RESUMABLE = False
 COMPRESS = False
@@ -60,7 +56,6 @@ def upload(mD):
     global RESUMABLE
     global OVERWRITE
     global cU
-    t1 = time.perf_counter()
     readFilePath = mD["filePath"]
     respositoryType = mD["repositoryType"]
     depId = mD["depId"]
@@ -83,18 +78,11 @@ def upload(mD):
             with gzip.open(tempPath, "wb") as w:
                 w.write(r.read())
         readFilePath = tempPath
-    # get upload parameters
-    response = cU.getUploadParameters(readFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, OVERWRITE, RESUMABLE)
+    # upload
+    response = cU.upload(readFilePath, respositoryType, depId, contentType, milestone, partNumber, contentFormat, version, DECOMPRESS, OVERWRITE)
     if not response:
-        print("error in get upload parameters")
-        return
-    saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash = response
-    # upload chunks
-    for index in tqdm(range(chunkIndex,expectedChunks), leave=False, total=expectedChunks - chunkIndex, desc=os.path.basename(readFilePath)):
-        response = cU.uploadChunk(readFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, DECOMPRESS, OVERWRITE, RESUMABLE)
-        if not response:
-            print("error in upload chunk")
-            break
+        print("error in upload")
+        return None
     return response
 
 
@@ -114,8 +102,6 @@ def download(downloadFilePath, downloadDict):
     chunkSize = maxChunkSize
     chunks = math.ceil(fileSize / maxChunkSize)
     url = os.path.join(base_url, "file-v1", "download")
-    responseCode = None
-    count = 0
     if os.path.isdir(downloadFilePath):
         print(f'error - path is a directory {downloadFilePath}')
         return None
@@ -127,10 +113,9 @@ def download(downloadFilePath, downloadDict):
             return None
     with requests.get(url, params=downloadDict, headers=headerD, timeout=None, stream=True) as response:
         with open(downloadFilePath, "ab") as ofh:
-            for chunk in tqdm(response.iter_content(chunk_size=chunkSize), leave=False, total=chunks, desc=os.path.basename(downloadFilePath)):
+            for chunk in response.iter_content(chunk_size=chunkSize):
                 if chunk:
                     ofh.write(chunk)
-                count += 1
         responseCode = response.status_code
         rspHashType = response.headers["rcsb_hash_type"]
         rspHashDigest = response.headers["rcsb_hexdigest"]

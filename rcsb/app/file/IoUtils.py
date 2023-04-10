@@ -27,7 +27,6 @@ import re
 import json
 from filelock import Timeout, FileLock
 from fastapi import HTTPException
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.app.file.KvSqlite import KvSqlite
@@ -115,7 +114,7 @@ class IoUtils:
             decompress: bool,
             allowOverwrite: bool
     ):
-        chunkOffset = chunkIndex * chunkSize
+        # chunkOffset = chunkIndex * chunkSize
         # remove comment for testing
         # logger.info(f"chunk {chunkIndex} of {expectedChunks} for {uploadId}")
         ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
@@ -129,10 +128,7 @@ class IoUtils:
             # save, then hash, then decompress
             # should lock, however client must wait for each response before sending next chunk, precluding race conditions (unless multifile upload problem)
             async with aiofiles.open(tempPath, "ab") as ofh:
-                await ofh.seek(chunkOffset)
                 await ofh.write(contents)
-                await ofh.flush()
-                os.fsync(ofh.fileno())
             # if last chunk
             if chunkIndex + 1 == expectedChunks:
                 if hashDigest and hashType:
@@ -435,8 +431,7 @@ class IoUtils:
         version: str,
         allowOverwrite: bool,
     ):
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
+        cP = ConfigProvider()
         pathU = PathUtils(cP)
         if not pathU.checkContentTypeFormat(contentType, contentFormat):
             logging.warning("Bad content type and/or format - upload rejected")

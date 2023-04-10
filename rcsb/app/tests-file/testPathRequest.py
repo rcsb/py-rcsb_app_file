@@ -27,7 +27,6 @@ import unittest
 import shutil
 
 
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -42,11 +41,11 @@ logger.setLevel(logging.INFO)
 class PathRequestTests(unittest.TestCase):
 
     def setUp(self):
-        self.__configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(self.__configFilePath)
+        cP = ConfigProvider()
+        self.__configFilePath = cP.getConfigFilePath()
         self.__chunkSize = cP.get("CHUNK_SIZE")
         self.__hashType = cP.get("HASH_TYPE")
-        self.__dataPath = cP.get("REPOSITORY_DIR_PATH")  # os.path.join(HERE, "data")
+        self.__dataPath = cP.get("REPOSITORY_DIR_PATH")
         self.__repositoryType = "unit-test"
         self.__repositoryType2 = "test"
         self.__unitTestFolder = os.path.join(self.__dataPath, self.__repositoryType)
@@ -70,7 +69,7 @@ class PathRequestTests(unittest.TestCase):
         self.__repoTestFile5 = os.path.join(self.__repoTestPath, "D_1000000002.tar.gz")
 
         subject = cP.get("JWT_SUBJECT")
-        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
+        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken().createToken({}, subject)}
         logger.info("header %r", self.__headerD)
         self.__startTime = time.time()
         #

@@ -11,11 +11,8 @@ __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
 import logging
-import os
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
-
 
 from . import ConfigProvider
 from . import LogFilterUtils
@@ -55,10 +52,8 @@ app.add_middleware(
 async def startupEvent():
     # Note that this will run every time a test is performed via, "with TestClient(app) as...",
     # but in production will only run once at startup
-    configFilePath = os.environ.get("CONFIG_FILE")
     logger.debug("Startup - running application startup placeholder method")
-    logger.debug("Using configFilePath %r", configFilePath)
-    cp = ConfigProvider.ConfigProvider(configFilePath)
+    cp = ConfigProvider.ConfigProvider()
     _ = cp.getConfig()
 
 

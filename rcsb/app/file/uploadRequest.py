@@ -12,9 +12,7 @@ import gzip
 import hashlib
 import logging
 import os
-import re
 import uuid
-import json
 from enum import Enum
 from typing import Optional
 from filelock import Timeout, FileLock
@@ -22,7 +20,6 @@ import aiofiles
 from fastapi import APIRouter, Query, File, Form, HTTPException, UploadFile, Depends
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
 from rcsb.app.file.PathUtils import PathUtils
@@ -31,7 +28,7 @@ from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 logger = logging.getLogger(__name__)
 
 
-provider = ConfigProvider(os.environ.get("CONFIG_FILE"))
+provider = ConfigProvider()
 jwtDisable = bool(provider.get('JWT_DISABLE'))
 if not jwtDisable:
     router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
@@ -74,7 +71,7 @@ async def upload(
     decompress: bool = Form(False),
     allowOverwrite: bool = Form(False),
 ):
-    chunkOffset = chunkIndex * chunkSize
+    # chunkOffset = chunkIndex * chunkSize
     # remove comment for testing
     # logger.info(f"chunk {chunkIndex} of {expectedChunks} for {uploadId}")
     ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
@@ -88,10 +85,7 @@ async def upload(
         # save, then hash, then decompress
         # should lock, however client must wait for each response before sending next chunk, precluding race conditions (unless multifile upload problem)
         async with aiofiles.open(tempPath, "ab") as ofh:
-            await ofh.seek(chunkOffset)
             await ofh.write(contents)
-            await ofh.flush()
-            os.fsync(ofh.fileno())
         # if last chunk
         if chunkIndex + 1 == expectedChunks:
             if hashDigest and hashType:
@@ -173,8 +167,7 @@ async def getSaveFilePath(
         version: str = Query(default="next"),
         allowOverwrite: bool = Query(default=True),
 ):
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(configFilePath)
+    cP = ConfigProvider()
     pathU = PathUtils(cP)
     if not pathU.checkContentTypeFormat(contentType, contentFormat):
         logging.warning("Bad content type and/or format")
@@ -202,8 +195,7 @@ async def getSaveFilePath(
 # clear kv entries from one user
 @router.post("/clearSession")
 async def clearSession(uploadIds: list = Form(...)):
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(configFilePath)
+    cP = ConfigProvider()
     ioU = IoUtils(cP)
     return await ioU.clearSession(uploadIds, None)
 
@@ -211,7 +203,6 @@ async def clearSession(uploadIds: list = Form(...)):
 # purge kv before testing
 @router.post("/clearKv")
 async def clearKv():
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(configFilePath)
+    cP = ConfigProvider()
     ioU = IoUtils(cP)
     return await ioU.clearKv()

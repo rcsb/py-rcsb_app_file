@@ -4,13 +4,11 @@
 #
 ##
 import logging
-import os
 
 from fastapi import HTTPException
 from fastapi import Request
 from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.security import HTTPBearer
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 
 logger = logging.getLogger(__name__)
@@ -19,7 +17,7 @@ logger = logging.getLogger(__name__)
 class JWTAuthBearer(HTTPBearer):
     def __init__(self, auto_error: bool = True):
         super(JWTAuthBearer, self).__init__(auto_error=auto_error)
-        self.__au = JWTAuthToken(os.environ["CONFIG_FILE"])
+        self.__au = JWTAuthToken()
 
     async def __call__(self, request: Request):
         credentials: HTTPAuthorizationCredentials = await super(JWTAuthBearer, self).__call__(request)

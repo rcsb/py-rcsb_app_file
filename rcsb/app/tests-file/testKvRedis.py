@@ -6,8 +6,6 @@
 #
 
 import unittest
-import os
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.KvRedis import KvRedis
 
@@ -15,8 +13,7 @@ from rcsb.app.file.KvRedis import KvRedis
 class KvRedisTest(unittest.TestCase):
 
     def testKv(self):
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
+        cP = ConfigProvider()
         kV = KvRedis(cP)
         self.assertTrue(kV is not None)
 

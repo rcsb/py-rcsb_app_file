@@ -16,7 +16,6 @@ import redis
 import psutil
 import shutil
 from fastapi import APIRouter
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.ProcessStatusUtil import ProcessStatusUtil
 
@@ -46,7 +45,7 @@ def getUptime():
 def getRedisStatus():
     # create database if not exists
     # create table if not exists
-    cP = ConfigProvider(os.environ.get("CONFIG_FILE"))
+    cP = ConfigProvider()
     redis_host = cP.get("REDIS_HOST")
     try:
         r = redis.Redis(host=redis_host, decode_responses=True)
@@ -63,7 +62,7 @@ def getRedisStatus():
 @router.get("/storage", tags=["status"])
 def getServerStorage():
     percent_ram_used = psutil.virtual_memory()[2]
-    cP = ConfigProvider(os.environ.get("CONFIG_FILE"))
+    cP = ConfigProvider()
     repository_dir_path = cP.get("REPOSITORY_DIR_PATH")
     disk_usage = shutil.disk_usage(repository_dir_path)
     disk_total = disk_usage[0]

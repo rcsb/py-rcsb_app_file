@@ -6,7 +6,7 @@
         <!-- author James Smith j-s-135 -->
         <script src = "http://www.myersdaily.org/joseph/javascript/md5.js"></script>
 		<script type="text/javascript">
-			handleform = async () => {
+			async function handleform() {
               window.event.preventDefault();
               let base_url = "http://0.0.0.0:8000";
               let upload_parameters_url = `${base_url}/file-v2/getSaveFilePath/`;
@@ -19,38 +19,22 @@
               // hash file
               // if file is a zip file, file has been compressed before hashing/upload
               let hashDigest = null;
-              await getHashDigest(file);
-              // get server-side parameters
               let filePath = null;
-              await getSaveFilePath();
-              if(! filePath){
-                  console.log('error - could not read file path, or target file may already exist');
-                  return;
-              }
-              // get client-side parameters
               let chunkIndex = 0;
               let uploadId = null;
-              await getUploadStatus();
-              if(! uploadId){
-                  await getNewUploadId();
-                  if (! uploadId){
-                      console.log('error - no upload id');
-                      return;
-                  }
-              }
-              // start upload
-              upload(file);
+              await getHashDigest(file);
 
               async function getHashDigest(file){
                 var reader = new FileReader();
-                reader.readAsBinaryString(file);
-                reader.onloadend = await function () {
+                reader.addEventListener("load", async () => {
                     hashDigest = md5(reader.result);
-                    console.log('md5 hash = ' + hashDigest);
-                }
+                    await getSaveFilePath().then(() => getUploadStatus()).then(() => getNewUploadId()).then(() => upload(file));
+                });
+                reader.readAsBinaryString(file);
               }
 
               async function getSaveFilePath() {
+                  // get server-side parameters
                 let repositoryType = document.getElementsByName('repositoryType')[0].value;
                 let depId = document.getElementsByName('depId')[0].value;
                 let contentType = document.getElementsByName('contentType')[0].value;
@@ -68,18 +52,20 @@
               }
 
               async function getUploadStatus(){
+                  // get client-side parameters
                   let resumable = document.getElementsByName('resumable')[0].checked;
                   if(! resumable){
                       console.log('not a resumable upload');
                       return;
                   }
                   if(typeof(Storage) !== 'undefined') {
-                      if(localStorage.uploadId && localStorage.uploadCount){
-                          uploadId = localStorage.getItem('uploadId');
-                          chunkIndex = Number(localStorage.getItem('uploadCount'));
-                          console.log(`detected previous upload having ${chunkIndex} chunks with id ${uploadId}`);
+                      if(localStorage.getItem(hashDigest) !== null){  //(localStorage.uploadId && localStorage.uploadCount){
+                          ls = JSON.parse(localStorage.getItem(hashDigest));
+                          console.log(`detected previous upload ${hashDigest} having ${ls.uploadCount} chunks with id ${ls.uploadId}`);
+                          uploadId = ls.uploadId;
+                          chunkIndex = Number(ls.uploadCount) + 1;
                       } else {
-                          console.log('no previous upload was detected');
+                          console.log(`no previous upload was detected for ${hashDigest}`);
                       }
                   } else {
                       console.log('error - browser does not have local storage');
@@ -87,6 +73,9 @@
               }
 
               async function getNewUploadId(){
+                  if(uploadId){
+                      return;
+                  }
                   let url = upload_id_url;
                   await fetch(url, {
                       method: "GET",
@@ -95,6 +84,10 @@
               }
 
               async function upload(file){
+                  if(! filePath){
+                    console.log('error - could not read file path, or target file may already exist');
+                    return;
+                  }
                 var fileSize = file.size;
                 var chunkSize = 1024 * 1024 * 8; // bytes
                 var expectedChunks = Math.ceil((fileSize) / chunkSize);
@@ -104,19 +97,14 @@
                 let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
                 let resumable = document.getElementsByName('resumable')[0].checked;
                 console.log(`chunk index ${chunkIndex} expected ${expectedChunks} for ${fileName} ${uploadId} ${filePath}`)
-                readChunks(chunkIndex, chunkOffset);
+                readChunks(chunkIndex, chunkOffset, resumable);
 
-                function readChunks(chunkIndex, chunkOffset) {
+                function readChunks(chunkIndex, chunkOffset, resumable) {
                   if (chunkIndex >= expectedChunks) {
                       // cleanup
                       console.log('clearing database');
-                      localStorage.removeItem('uploadId');
-                      localStorage.removeItem('uploadCount');
+                      localStorage.removeItem(hashDigest);
                       return;
-                  }
-                  if(resumable) {
-                      localStorage.setItem('uploadId', uploadId);
-                      localStorage.setItem('uploadCount', chunkIndex);
                   }
                     // remove comments (then re-comment) to test resumable upload
                     // if(chunkIndex >= 3){
@@ -124,13 +112,13 @@
                     // }
                   console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
                   var blob = file.slice(chunkOffset, chunkOffset + chunkSize);
-                  postChunk(blob);
+                  postChunk(blob, resumable);
                 }
 
-                async function postChunk(blob) {
+                async function postChunk(blob, resumable) {
                   var chunk = blob;
-                  console.log(`size of upload file = ${blob.size}`)
-                  if (blob.size <= 0) {
+                  var chunksize = blob.size;
+                  if (chunksize <= 0) {
                     return;
                   }
                   formdata = new FormData();
@@ -148,18 +136,23 @@
                   formdata.append("filePath", filePath);
                   formdata.append("decompress", decompress);
                   formdata.append("allowOverwrite", allowOverwrite);
+                  if (resumable) {
+                          params = JSON.stringify({'uploadId': uploadId, 'uploadCount': `${chunkIndex}`})
+                          localStorage.setItem(hashDigest, params);
+                  }
                   fetch(sequential_chunk_url, {
                     method: "POST",
                     headers: {"Authorization": `Bearer ${jwt_token}`},
                     body: formdata
-                  }).then(() => {
-                    chunkOffset += chunkSize;
-                    chunkIndex = chunkIndex + 1;
-                    readChunks(chunkIndex, chunkOffset);
-                  })
+                  }).then(response => {
+                      if(response) {
+                          chunkOffset += chunkSize;
+                          chunkIndex = chunkIndex + 1;
+                          readChunks(chunkIndex, chunkOffset, resumable);
+                      }
+                  }).catch(err => console.log(`response returned error ${err}`));
                 }
               }
-
             }
         </script>
 		<style>

@@ -16,10 +16,8 @@ __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
 import os
-import io
 import logging
 import tempfile
-import time
 import uuid
 from copy import deepcopy
 import math
@@ -28,7 +26,6 @@ import requests
 import typing
 import pickle
 from fastapi.testclient import TestClient
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -78,7 +75,7 @@ class FileAppObject(object):
         )
 
 
-# dodge circular reference to client utils by including class in same file
+# dodge circular reference error from client utils by including class in same file
 class ClientContext(object):
     def __init__(
         self,
@@ -140,8 +137,7 @@ class ClientContext(object):
             self.contentFormat,
             self.version,
             decompress,
-            allowOverwrite,
-            resumable,
+            allowOverwrite
         )
         # delete local file
         self.file.close()
@@ -149,8 +145,7 @@ class ClientContext(object):
 
 class ClientUtils(object):
     def __init__(self, unit_test=False):
-        configFilePath = os.environ.get("CONFIG_FILE")
-        self.cP = ConfigProvider(configFilePath)
+        self.cP = ConfigProvider()
         self.cP.getConfig()
         self.baseUrl = self.cP.get("SERVER_HOST_AND_PORT")
         self.chunkSize = self.cP.get("CHUNK_SIZE")
@@ -158,17 +153,15 @@ class ClientUtils(object):
         subject = self.cP.get("JWT_SUBJECT")
         self.headerD = {
             "Authorization": "Bearer "
-            + JWTAuthToken(configFilePath).createToken({}, subject)
+            + JWTAuthToken().createToken({}, subject)
         }
         self.pickleFile = self.cP.get("PICKLE_FILE_PATH")
         if not os.path.exists(self.pickleFile):
             try:
-                params = {"uploadId": None, "uploadCount": 0}
+                pklparams = {}
                 with open(self.pickleFile, "wb"):
-                    os.utime(self.pickleFile, (time.time(), time.time()))
-                if os.access(self.pickleFile, os.F_OK):
                     pklfile = open(self.pickleFile, "wb")
-                    pickle.dump(params, pklfile)
+                    pickle.dump(pklparams, pklfile)
                     pklfile.close()
             except Exception:
                 logger.warning("error - could not make pickle file")
@@ -192,7 +185,7 @@ class ClientUtils(object):
         contentFormat,
         version,
         decompress,
-        allowOverwrite,
+        allowOverwrite
     ):
         if not os.path.exists(sourceFilePath):
             logger.error("File does not exist: %r", sourceFilePath)
@@ -201,11 +194,6 @@ class ClientUtils(object):
         # hash
         hD = CryptUtils().getFileHash(sourceFilePath, hashType=self.hashType)
         fullTestHash = hD["hashDigest"]
-        # compute expected chunks
-        fileSize = os.path.getsize(sourceFilePath)
-        expectedChunks = 1
-        if self.chunkSize < fileSize:
-            expectedChunks = math.ceil(fileSize / self.chunkSize)
         # get server-side parameters
         saveFilePath = None
         parameters = {
@@ -239,24 +227,30 @@ class ClientUtils(object):
         # get client-side parameters
         uploadId = None
         chunkIndex = 0
-        params = {}
+        pklparams = {}
+        pklFile = None
         if os.access(self.pickleFile, os.F_OK):
             pklfile = open(self.pickleFile, "rb")
-            params = pickle.load(pklfile)
-            if params is not None and isinstance(params, dict) and "uploadId" in params and "uploadCount" in params:
-                uploadId = params["uploadId"]
-                chunkIndex = params["uploadCount"]
+            pklparams = pickle.load(pklfile)
+            if pklparams is not None and isinstance(pklparams, dict) and fullTestHash in pklparams:
+                uploadId = pklparams[fullTestHash]["uploadId"]
+                chunkIndex = pklparams[fullTestHash]["uploadCount"]
+                logger.info(f"detected previous upload {uploadId} with {chunkIndex} chunks")
             else:
-                params = {}
+                pklparams[fullTestHash] = {}
+                logger.info("no previous upload found")
         else:
             logger.warning("error - could not read pickle file")
         if uploadId is None:
             uploadId = uuid.uuid4().hex
-            params["uploadId"] = uploadId
-            if os.access(self.pickleFile, os.F_OK):
-                pklfile = open(self.pickleFile, "wb")
-                pickle.dump(params, pklfile)
-                pklfile.close()
+            if pklFile is not None:
+                pklparams[fullTestHash]["uploadId"] = uploadId
+                pickle.dump(pklparams, pklfile)
+        # compute expected chunks
+        fileSize = os.path.getsize(sourceFilePath)
+        expectedChunks = 1
+        if self.chunkSize < fileSize:
+            expectedChunks = math.ceil(fileSize / self.chunkSize)
         # chunk file and upload
         mD = {
             # chunk parameters
@@ -274,7 +268,6 @@ class ClientUtils(object):
         }
         offset = chunkIndex * self.chunkSize
         response = None
-        tmp = io.BytesIO()
         with open(sourceFilePath, "rb") as fUpload:
             fUpload.seek(offset)
             url = os.path.join(self.baseUrl, "file-v2", "upload")
@@ -283,17 +276,13 @@ class ClientUtils(object):
                     int(fileSize) - (int(mD["chunkIndex"]) * int(self.chunkSize)),
                     int(self.chunkSize),
                 )
-                tmp.truncate(packetSize)
-                tmp.seek(0)
-                tmp.write(fUpload.read(packetSize))
-                tmp.seek(0)
-
+                logger.info(f"packet size {packetSize} chunk {chunkIndex} expected {expectedChunks}")
                 if not self.__unit_test:
                     response = requests.post(
                         url,
                         data=deepcopy(mD),
                         headers=self.headerD,
-                        files={"chunk": tmp},
+                        files={"chunk": fUpload.read(packetSize)},
                         stream=True,
                         timeout=None,
                     )
@@ -303,7 +292,7 @@ class ClientUtils(object):
                             url,
                             data=deepcopy(mD),
                             headers=self.headerD,
-                            files={"chunk": tmp},
+                            files={"chunk": fUpload.read(packetSize)},
                             timeout=None,
                         )
 
@@ -314,192 +303,16 @@ class ClientUtils(object):
                         response.text,
                     )
                     break
-                mD["chunkIndex"] += 1
-                params["uploadCount"] = chunkIndex
-                if os.access(self.pickleFile, os.F_OK):
-                    pklfile = open(self.pickleFile, "wb")
-                    pickle.dump(params, pklfile)
-                    pklfile.close()
+                chunkIndex += 1
+                mD["chunkIndex"] = chunkIndex
+                if pklFile is not None:
+                    pklparams[fullTestHash]["uploadCount"] = chunkIndex
+                    pickle.dump(pklparams, pklfile)
         # cleanup
-        params = {"uploadId": None, "uploadCount": 0}
-        if os.access(self.pickleFile, os.F_OK):
-            pklfile = open(self.pickleFile, "wb")
-            pickle.dump(params, pklfile)
+        if pklFile is not None:
+            del pklparams[fullTestHash]
+            pickle.dump(pklparams, pklfile)
             pklfile.close()
-
-        return response
-
-    # file parameter is one chunk
-
-    def getUploadParameters(
-        self,
-        sourceFilePath,
-        repositoryType,
-        depId,
-        contentType,
-        milestone,
-        partNumber,
-        contentFormat,
-        version,
-        allowOverwrite
-    ):
-        if not os.path.exists(sourceFilePath):
-            logger.error("File does not exist: %r", sourceFilePath)
-            return None
-        # compress (externally), then hash, then upload
-        # hash
-        hD = CryptUtils().getFileHash(sourceFilePath, hashType=self.hashType)
-        fullTestHash = hD["hashDigest"]
-        # get server-side parameters
-        saveFilePath = None
-        parameters = {
-            "repositoryType": repositoryType,
-            "depId": depId,
-            "contentType": contentType,
-            "milestone": milestone,
-            "partNumber": partNumber,
-            "contentFormat": contentFormat,
-            "version": version,
-            "allowOverwrite": allowOverwrite,
-        }
-        url = os.path.join(self.baseUrl, "file-v2", "getSaveFilePath")
-
-        if not self.__unit_test:
-            response = requests.get(
-                url, params=parameters, headers=self.headerD, timeout=None
-            )
-        else:
-            with TestClient(app) as client:
-                response = client.get(
-                    url, params=parameters, headers=self.headerD, timeout=None
-                )
-
-        if response.status_code == 200:
-            result = json.loads(response.text)
-            if result:
-                saveFilePath = result["filePath"]
-        if not saveFilePath:
-            logger.error("error - no file path was formed")
-            return None
-
-        # get client-side parameters
-        uploadId = None
-        chunkIndex = 0
-        params = {}
-        if os.access(self.pickleFile, os.F_OK):
-            pklfile = open(self.pickleFile, "rb")
-            params = pickle.load(pklfile)
-            if params is not None and isinstance(params, dict) and "uploadId" in params and "uploadCount" in params:
-                uploadId = params["uploadId"]
-                chunkIndex = params["uploadCount"]
-            else:
-                params = {}
-        else:
-            logger.warning("error - could not read pickle file")
-        if uploadId is None:
-            uploadId = uuid.uuid4().hex
-            params["uploadId"] = uploadId
-            if os.access(self.pickleFile, os.F_OK):
-                pklfile = open(self.pickleFile, "wb")
-                pickle.dump(params, pklfile)
-                pklfile.close()
-
-        # compute expected chunks
-        fileSize = os.path.getsize(sourceFilePath)
-        expectedChunks = 1
-        if self.chunkSize < fileSize:
-            expectedChunks = math.ceil(fileSize / self.chunkSize)
-        return saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash
-
-    # file parameter is one chunk
-
-    def uploadChunk(
-        self,
-        sourceFilePath,
-        saveFilePath,
-        chunkIndex,
-        expectedChunks,
-        uploadId,
-        fullTestHash,
-        decompress,
-        allowOverwrite
-    ):
-        logger.info(f"chunk index {chunkIndex} of {expectedChunks} upload id {uploadId}")
-        if not os.path.exists(sourceFilePath):
-            logger.error("File does not exist: %r", sourceFilePath)
-            return None
-        # chunk file and upload
-        mD = {
-            # chunk parameters
-            "chunkSize": self.chunkSize,
-            "chunkIndex": chunkIndex,
-            "expectedChunks": expectedChunks,
-            # upload file parameters
-            "uploadId": uploadId,
-            "hashType": self.hashType,
-            "hashDigest": fullTestHash,
-            # save file parameters
-            "filePath": saveFilePath,
-            "decompress": decompress,
-            "allowOverwrite": allowOverwrite,
-        }
-        fileSize = os.path.getsize(sourceFilePath)
-        offset = chunkIndex * self.chunkSize
-        response = None
-        tmp = io.BytesIO()
-        with open(sourceFilePath, "rb") as toUpload:
-            toUpload.seek(offset)
-            packetSize = min(
-                int(fileSize) - int(offset),
-                int(self.chunkSize),
-            )
-            tmp.truncate(packetSize)
-            tmp.seek(0)
-            tmp.write(toUpload.read(packetSize))
-            tmp.seek(0)
-            url = os.path.join(self.baseUrl, "file-v2", "upload")
-
-            if not self.__unit_test:
-                response = requests.post(
-                    url,
-                    data=deepcopy(mD),
-                    headers=self.headerD,
-                    files={"chunk": tmp},
-                    stream=True,
-                    timeout=None,
-                )
-            else:
-                with TestClient(app) as client:
-                    response = client.post(
-                        url,
-                        data=deepcopy(mD),
-                        headers=self.headerD,
-                        files={"chunk": tmp},
-                        timeout=None,
-                    )
-
-            if response.status_code != 200:
-                logger.error(
-                    "Terminating with status code %r and response text: %r",
-                    response.status_code,
-                    response.text,
-                )
-
-        # update pickle file
-        chunkIndex += 1
-        params = {"uploadId": uploadId, "uploadCount": chunkIndex}
-        if os.access(self.pickleFile, os.F_OK):
-            pklfile = open(self.pickleFile, "wb")
-            pickle.dump(params, pklfile)
-            pklfile.close()
-
-        # cleanup
-        if chunkIndex >= expectedChunks:
-            params = {"uploadId": None, "uploadCount": 0}
-            if os.access(self.pickleFile, os.F_OK):
-                pklfile = open(self.pickleFile, "wb")
-                pickle.dump(params, pklfile)
-                pklfile.close()
 
         return response
 

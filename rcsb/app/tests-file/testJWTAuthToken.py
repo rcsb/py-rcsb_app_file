@@ -20,12 +20,10 @@ __license__ = "Apache 2.0"
 
 import datetime
 import logging
-import os
 import platform
 import resource
 import time
 import unittest
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file import __version__
 
@@ -38,7 +36,6 @@ logger.setLevel(logging.INFO)
 class JTWAuthTokenTests(unittest.TestCase):
     def setUp(self):
         self.__startTime = time.time()
-        self.__configFilePath = os.environ.get("CONFIG_FILE")
         self.__subject = "aTestSubject"
         logger.debug("Running tests on version %s", __version__)
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
@@ -55,7 +52,7 @@ class JTWAuthTokenTests(unittest.TestCase):
         extraD = {"one": "onevalue", "two": 3, "four": 4.0}
         deltaSeconds = 3600
 
-        au = JWTAuthToken(self.__configFilePath)
+        au = JWTAuthToken()
         delta = datetime.timedelta(seconds=deltaSeconds)
         token = au.createToken(extraD, self.__subject, expiresDelta=delta)
         logger.info("Token %r", token)

@@ -17,7 +17,6 @@ from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import Query
 from fastapi.responses import FileResponse, Response
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.utils.io.CryptUtils import CryptUtils
@@ -48,8 +47,7 @@ async def download(
     chunkSize: typing.Optional[int] = None,
     chunkIndex: typing.Optional[int] = None
 ):
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(configFilePath)
+    cP = ConfigProvider()
     pathU = PathUtils(cP)
     filePath = fileName = mimeType = hashDigest = None
     tD = {}
@@ -92,8 +90,7 @@ async def download(
 
 @router.get("/downloadSize")
 async def downloadSize(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version):
-    configFilePath = os.environ.get("CONFIG_FILE")
-    cP = ConfigProvider(configFilePath)
+    cP = ConfigProvider()
     pathU = PathUtils(cP)
     filePath = pathU.getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)
     if not filePath or not os.path.exists(filePath):

@@ -1,18 +1,14 @@
-import asyncio
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename, askdirectory
 import sys
 import os
-import io
 import gzip
-from copy import deepcopy
 from PIL import ImageTk, Image
 import math
 import requests
 import json
 import time
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -23,24 +19,25 @@ from rcsb.app.file.Definitions import Definitions
 author James Smith 2023
 """
 
-# other global variables
+# global variables
 contentTypeInfoD = None
 fileFormatExtensionD = None
 headerD = None
-configFilePath = os.environ.get("CONFIG_FILE")
-cP = ConfigProvider(configFilePath)
+cP = ConfigProvider()
 cP.getConfig()
+
 """ modifiable global variables
 """
 base_url = cP.get("SERVER_HOST_AND_PORT")
 chunkSize = cP.get("CHUNK_SIZE")
 hashType = cP.get("HASH_TYPE")
+
 """ do not alter from here
 """
 subject = cP.get("JWT_SUBJECT")
 headerD = {
     "Authorization": "Bearer "
-    + JWTAuthToken(configFilePath).createToken({}, subject)
+    + JWTAuthToken().createToken({}, subject)
 }
 HERE = os.path.abspath(os.path.dirname(__file__))
 
@@ -57,7 +54,6 @@ class Gui(tk.Frame):
         super().__init__(master)
         # master.geometry("500x500")
         master.title("FILE ACCESS AND DEPOSITION APPLICATION")
-
         self.__cU = ClientUtils()
 
         self.tabs = ttk.Notebook(master)
@@ -271,7 +267,7 @@ class Gui(tk.Frame):
         self.file_path = askdirectory()
         self.download_fileButton.config(text="\u2713")
 
-    def uploadFile(self):
+    def upload(self):
         global headerD
         global hashType
         global chunkSize
@@ -310,159 +306,20 @@ class Gui(tk.Frame):
         # hash
         hD = CryptUtils().getFileHash(readFilePath, hashType=hashType)
         fullTestHash = hD["hashDigest"]
-        fileSize = os.path.getsize(readFilePath)
-        chunkIndex = 0
-        expectedChunks = 0
-        if chunkSize < fileSize:
-            expectedChunks = fileSize // chunkSize
-            if fileSize % chunkSize:
-                expectedChunks = expectedChunks + 1
-        else:
-            expectedChunks = 1
         # upload chunks sequentially
-        saveFilePath = None
-        uploadId = None
-        parameters = {"repositoryType": repositoryType,
-                      "depId": depId,
-                      "contentType": contentType,
-                      "milestone": milestone,
-                      "partNumber": partNumber,
-                      "contentFormat": contentFormat,
-                      "version": version,
-                      "hashDigest": fullTestHash,
-                      "allowOverwrite": allowOverwrite,
-                      "resumable": resumable
-                      }
-        if FORWARDING:
-            saveFilePath, chunkIndex, uploadId = asyncio.run(iou.getUploadParameters(**parameters))
-        else:
-            url = os.path.join(base_url, "file-v2", "getUploadParameters")
-            response = requests.get(
-                url,
-                params=parameters,
-                headers=headerD,
-                timeout=None
-            )
-            print(f"status code {response.status_code}")
-            if response.status_code == 200:
-                result = json.loads(response.text)
-                if result:
-                    # result = eval(result)
-                    saveFilePath = result["filePath"]
-                    chunkIndex = result["chunkIndex"]
-                    uploadId = result["uploadId"]
-                # print(f"result = {result}")
-        if not saveFilePath or not uploadId:
-            print("error - no file path or upload id were formed")
-            sys.exit()
-        mD = {
-            # chunk parameters
-            "chunkSize": chunkSize,
-            "chunkIndex": chunkIndex,
-            "expectedChunks": expectedChunks,
-            # upload file parameters
-            "uploadId": uploadId,
-            "hashType": hashType,
-            "hashDigest": fullTestHash,
-            "resumable": resumable,
-            # save file parameters
-            "filePath": saveFilePath,
-            "resumable": resumable,
-            "allowOverwrite": allowOverwrite
-        }
-        # chunk file and upload
-        offset = chunkIndex * chunkSize
-        responses = []
-        tmp = io.BytesIO()
-        with open(readFilePath, "rb") as to_upload:
-            to_upload.seek(offset)
-            url = os.path.join(base_url, "file-v2", "upload")
-            for x in range(chunkIndex, mD["expectedChunks"]):
-                packet_size = min(
-                    int(fileSize) - (int(mD["chunkIndex"]) * int(chunkSize)),
-                    int(chunkSize),
-                )
-                tmp.truncate(packet_size)
-                tmp.seek(0)
-                tmp.write(to_upload.read(packet_size))
-                tmp.seek(0)
-                if FORWARDING:
-                    mD["chunk"] = tmp
-                    response = asyncio.run(iou.upload(**(deepcopy(mD))))
-                else:
-                    response = requests.post(
-                        url,
-                        data=deepcopy(mD),
-                        headers=headerD,
-                        files={"chunk": tmp},
-                        stream=True,
-                        timeout=None,
-                    )
-                    if response.status_code != 200:
-                        print(
-                            f"error - status code {response.status_code} {response.text}...terminating"
-                        )
-                        break
-                responses.append(response)
-                mD["chunkIndex"] += 1
-                self.status = math.ceil((mD["chunkIndex"] / mD["expectedChunks"]) * 100)
-                self.upload_status.set(f"{self.status}%")
-                self.master.update()
-        print(responses)
-        print(f"time {time.perf_counter() - t1} s")
-        return
-
-    def upload(self):
-        global headerD
-        global hashType
-        global chunkSize
-        global base_url
-        global contentTypeInfoD
-        global fileFormatExtensionD
-        global cP
-        global iou
-        t1 = time.perf_counter()
-        readFilePath = self.file_path
-        resumable = self.resumable.get() == 1
-        allowOverwrite = self.allow_overwrite.get() == 1
-        COMPRESS = self.compress.get() == 1
-        DECOMPRESS = self.decompress.get() == 1
-        repositoryType = self.repo_type.get()
-        depId = self.dep_id.get()
-        contentType = self.content_type.get()
-        milestone = self.mile_stone.get()
-        partNumber = self.part_number.get()
-        contentFormat = self.file_format.get()
-        version = self.version_number.get()
-        if not readFilePath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
-            print("error - missing values")
-            sys.exit()
-        if not os.path.exists(readFilePath):
-            sys.exit(f"error - file does not exist: {readFilePath}")
-        if milestone.lower() == "none":
-            milestone = ""
-        # compress, then hash, then upload
-        if COMPRESS:
-            tempPath = readFilePath + ".gz"
-            with open(readFilePath, "rb") as r:
-                with gzip.open(tempPath, "wb") as w:
-                    w.write(r.read())
-            readFilePath = tempPath
-        # get upload parameters
-        response = self.__cU.getUploadParameters(readFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, resumable)
-        if not response:
-            print("error in get upload parameters")
-            return
-        saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash = response
-        # upload chunks
-        for index in range(chunkIndex, expectedChunks):
-            response = self.__cU.uploadChunk(readFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, DECOMPRESS, allowOverwrite, resumable)
+        try:
+            self.upload_status.set(f"uploading...")
+            response = self.__cU.upload(readFilePath, repositoryType, depId, contentType, milestone, partNumber,
+                                        contentFormat, version, DECOMPRESS, allowOverwrite)
             if not response:
-                print("error in upload chunk")
-                break
-            self.status = math.ceil((index / expectedChunks) * 100)
-            self.upload_status.set(f"{self.status}%")
-            self.master.update()
+                print(f"error in upload, no response")
+                return
+            elif response.status_code != 200:
+                print(f"error in upload, status code {response.status_code} ")
+                return
+        except Exception as e:
+            print(f"error in upload, {e}")
+            return
         self.status = 100
         self.upload_status.set(f"{self.status}%")
         self.master.update()
@@ -597,7 +454,6 @@ class Gui(tk.Frame):
         self.allow_overwrite.set(0)
         self.compress.set(0)
         self.decompress.set(0)
-        self.upload_radio.set(1)
 
         self.download_repo_type.set("")
         self.download_dep_id.set("")
