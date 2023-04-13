@@ -3,7 +3,7 @@
 	<head>
         <meta charset="UTF-8">
         <title>HTML UPLOAD EXAMPLE</title>
-        <!-- author James Smith j-s-135 -->
+        <!-- author James Smith -->
         <script src = "http://www.myersdaily.org/joseph/javascript/md5.js"></script>
 		<script type="text/javascript">
 			async function handleform() {
@@ -19,6 +19,7 @@
               // if file is a zip file, file has been compressed before hashing/upload
               let hashDigest = null;
               let filePath = null;
+              let resumable = document.getElementsByName('resumable')[0].checked;
               let chunkIndex = 0;
               let uploadId = null;
               await getHashDigest(file);
@@ -42,12 +43,27 @@
                 let contentFormat = document.getElementsByName('contentFormat')[0].value;
                 let version = document.getElementsByName('version')[0].value;
                 let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
-                let query = `?repositoryType=${repositoryType}&depId=${depId}&contentType=${contentType}&milestone=${milestone}&partNumber=${partNumber}&contentFormat=${contentFormat}&version=${version}&allowOverwrite=${allowOverwrite}`
-                let url = upload_parameters_url + query
+                let query = `?repositoryType=${repositoryType}&depId=${depId}&contentType=${contentType}&milestone=${milestone}&partNumber=${partNumber}&contentFormat=${contentFormat}&version=${version}&allowOverwrite=${allowOverwrite}&hashDigest=${hashDigest}&resumable=${resumable}`;
+                let url = upload_parameters_url + query;
                 await fetch(url, {
                     method: "GET",
                     headers: {"Authorization": `Bearer ${jwt_token}`}
-                }).then(data => data.json()).then(json => {filePath = json.filePath;chunkIndex = json.chunkIndex;uploadId = json.uploadId;if(chunkIndex > 0){console.log(`detected upload with ${chunkIndex} chunks`)}}).catch(err => console.log(err));
+                }).then(response => {
+                    if(response && response.status && response.status < 400) {
+                        return response.json()
+                    } else if(response.status){
+                        throw new Error(`status code ${response.status}`);
+                    } else {
+                        throw new Error('unknown error');
+                    }
+                }).then(json => {
+                    filePath = json.filePath;
+                    chunkIndex = json.chunkIndex;
+                    uploadId = json.uploadId;
+                    if(chunkIndex > 0){
+                        console.log(`detected upload with ${chunkIndex} chunks`);
+                    }
+                }).catch(err => console.log(err));
               }
 
               async function upload(file){
@@ -62,19 +78,19 @@
                 var hashType = "MD5";
                 let decompress = document.getElementsByName('decompress')[0].checked;
                 let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
-                let resumable = document.getElementsByName('resumable')[0].checked;
-                console.log(`chunk index ${chunkIndex} expected ${expectedChunks} for ${fileName} ${uploadId} ${filePath}`)
+                // console.log(`chunk index ${chunkIndex} expected ${expectedChunks} for ${fileName} ${uploadId} ${filePath}`)
                 readChunks(chunkIndex, chunkOffset, resumable);
 
                 function readChunks(chunkIndex, chunkOffset) {
                   if (chunkIndex >= expectedChunks) {
+                      console.log('upload complete');
                       return;
                   }
                     // remove comments (then re-comment) to test resumable upload
                     // if(chunkIndex >= 3){
                     //     return;
                     // }
-                  console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
+                  // console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
                   var blob = file.slice(chunkOffset, chunkOffset + chunkSize);
                   postChunk(blob);
                 }
@@ -106,9 +122,14 @@
                     body: formdata
                   }).then(response => {
                       if(response) {
-                          chunkOffset += chunkSize;
-                          chunkIndex = chunkIndex + 1;
-                          readChunks(chunkIndex, chunkOffset);
+                          if(response.status && response.status < 400)
+                          {
+                              chunkOffset += chunkSize;
+                              chunkIndex = chunkIndex + 1;
+                              readChunks(chunkIndex, chunkOffset);
+                          } else if(response.status) {
+                              throw new Error(`status code ${response.status}`);
+                          }
                       }
                   }).catch(err => console.log(`response returned error ${err}`));
                 }

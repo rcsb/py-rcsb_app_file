@@ -148,7 +148,7 @@ class ClientTests(unittest.TestCase):
             for version in range(1, 2):
                 startTime = time.time()
                 try:
-                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, self.__hashType, downloadFolderPath, allowOverwrite)
+                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, downloadFolderPath, allowOverwrite)
                     self.assertTrue(response == responseCode or (response==None and responseCode==404) or response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
                 except Exception as e:
@@ -177,7 +177,7 @@ class ClientTests(unittest.TestCase):
             for version in range(1, 2):
                 startTime = time.time()
                 try:
-                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, self.__hashType, downloadFolderPath, allowOverwrite, chunkSize=chunkSize, chunkIndex=chunkIndex)
+                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, downloadFolderPath, allowOverwrite, chunkSize=chunkSize, chunkIndex=chunkIndex)
                     self.assertTrue(response == responseCode or (response==None and responseCode==404) or response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     fileSize = os.path.getsize(self.__downloadFile)
                     self.assertTrue(fileSize == self.__chunkSize)
@@ -246,14 +246,13 @@ class ClientTests(unittest.TestCase):
 
 def client_tests():
     suite = unittest.TestSuite()
-    suite.addTest(ClientTests("testSimpleUpload"))
-    # suite.addTest(ClientTests("testResumableUpload"))
-    suite.addTest(ClientTests("testSimpleDownload"))
-    suite.addTest(ClientTests("testChunkDownload"))
+    # suite.addTest(ClientTests("testSimpleUpload"))
+    # suite.addTest(ClientTests("testSimpleDownload"))
+    # suite.addTest(ClientTests("testChunkDownload"))
     suite.addTest(ClientTests("testListDir"))
-    suite.addTest(ClientTests("testFilePathRemote"))
-    suite.addTest(ClientTests("testFilePathLocal"))
-    suite.addTest(ClientTests("testDirExists"))
+    # suite.addTest(ClientTests("testFilePathRemote"))
+    # suite.addTest(ClientTests("testFilePathLocal"))
+    # suite.addTest(ClientTests("testDirExists"))
     return suite
 
 

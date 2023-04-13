@@ -114,7 +114,6 @@ class ClientContext(object):
             self.partNumber,
             self.contentFormat,
             self.version,
-            self.hashType,
             downloadFolder,
             allowOverwrite,
             returnTempFile,
@@ -299,7 +298,6 @@ class ClientUtils(object):
         partNumber: int,
         contentFormat: str,
         version: str,
-        hashType: str = "MD5",
         downloadFolder: typing.Optional[str] = None,
         allowOverwrite: bool = False,
         returnTempFile: bool = False,
@@ -326,7 +324,7 @@ class ClientUtils(object):
                     logger.error("File already exists: %r", downloadFilePath)
                     return None
                 os.remove(downloadFilePath)
-
+        hashType = self.hashType
         downloadUrlPrefix = os.path.join(self.baseUrl, "file-v1", "download")
         suffix = ""
         if chunkSize and chunkIndex:
@@ -339,6 +337,7 @@ class ClientUtils(object):
 
         if not self.__unit_test:
             if not returnTempFile:
+                # download file to folder, return http response
                 with requests.get(
                     downloadUrl, headers=self.headerD, timeout=None, stream=True
                 ) as response:
@@ -359,6 +358,7 @@ class ClientUtils(object):
                             return None
                         resp = response
             else:
+                # client context, return open file handle
                 with requests.get(
                     downloadUrl, headers=self.headerD, timeout=None, stream=True
                 ) as response:
@@ -377,6 +377,7 @@ class ClientUtils(object):
         else:
             resp = None
             if not returnTempFile:
+                # test download file, return http response
                 with TestClient(app) as client:
                     response = client.get(
                         downloadUrl, headers=self.headerD, timeout=None
@@ -394,6 +395,7 @@ class ClientUtils(object):
                             return None
                         resp = response.status_code
             else:
+                # test client context
                 with TestClient(app) as client:
                     response = client.get(
                         downloadUrl, headers=self.headerD, timeout=None
@@ -520,7 +522,6 @@ class ClientUtils(object):
             partNumber,
             contentFormat,
             version,
-            hashType,
             downloadFolder,
             allowOverwrite,
             returnTempFile,

@@ -352,90 +352,41 @@ class Gui(tk.Frame):
         if not folderPath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
             print("error - missing values")
             sys.exit()
-        convertedContentFormat = fileFormatExtensionD[contentFormat]
-        fileName = f"{depId}_{contentType}{convertedMilestone}_P{partNumber}.{convertedContentFormat}.V{version}"
-        downloadFilePath = os.path.join(folderPath, fileName)
         if not os.path.exists(folderPath):
-            print(f"error - folder does not exist: {downloadFilePath}")
+            print(f"error - folder does not exist: {folderPath}")
             sys.exit()
-        if os.path.exists(downloadFilePath):
-            if not allowOverwrite:
-                print(f"error - file already exists: {downloadFilePath}")
-                sys.exit()
-            os.remove(downloadFilePath)
+        if not os.path.isdir(folderPath):
+            print(f"error - download folder is a file")
+            sys.exit()
         if milestone.lower() == "none":
             milestone = ""
-        downloadDict = {
-            "depId": depId,
-            "repositoryType": repositoryType,
-            "contentType": contentType,
-            "contentFormat": contentFormat,
-            "partNumber": partNumber,
-            "version": str(version),
-            "hashType": hashType,
-            "milestone": milestone
-        }
-        url = os.path.join(base_url, "file-v1", "downloadSize")
-        fileSize = requests.get(url, params=downloadDict, headers=headerD, timeout=None).text
-        if not fileSize or not fileSize.isnumeric():
-            print(f"error - no response for {downloadFilePath}")
-            return None
-        fileSize = int(fileSize)
-        chunks = math.ceil(fileSize / chunkSize)
-        url = os.path.join(base_url, "file-v1", "download")
-        url = f"{url}?repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}&partNumber={partNumber}&contentFormat={contentFormat}&version={version}&hashType={hashType}"
-        responseCode = None
-        count = 0
-        with requests.get(url, headers=headerD, timeout=None, stream=True) as response:
-            with open(downloadFilePath, "ab") as ofh:
-                for chunk in response.iter_content(chunk_size=chunkSize):
-                    if chunk:
-                        ofh.write(chunk)
-                    count += 1
-                    self.status = math.ceil((count / chunks) * 100)
-                    self.download_status.set(f"{self.status}%")
-                    self.master.update()
-            responseCode = response.status_code
-            rspHashType = response.headers["rcsb_hash_type"]
-            rspHashDigest = response.headers["rcsb_hexdigest"]
-            thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
-            if not thD["hashDigest"] == rspHashDigest:
-                print("error - hash comparison failed")
-                sys.exit()
-        print(f"response {responseCode}")
+
+        response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, folderPath, allowOverwrite)
+        self.status = math.ceil(100)
+        self.download_status.set(f"{self.status}%")
+        self.master.update()
         print(f"time {time.perf_counter() - t1} s")
+        if response and response.status_code:
+            print(f"response {response.status_code}")
+
 
     def listDir(self):
         t1 = time.perf_counter()
         self.list_Listbox.delete(0, tk.END)
         depId = self.list_dep_id.get()
         repoType = self.list_repo_type.get()
-        parameters = {
-            "repositoryType": repoType,
-            "depId": depId
-        }
-        if not depId or not repoType:
-            print("error - missing values")
-            sys.exit()
-        url = os.path.join(base_url, "file-v1", "list-dir")
-        responseCode = None
-        dirList = None
-        with requests.get(url, params=parameters, headers=headerD, timeout=None) as response:
-            responseCode = response.status_code
-            if responseCode == 200:
-                resp = response.text
-                if resp:
-                    if not isinstance(resp, dict):
-                        resp = json.loads(resp)
-                    dirList = resp["dirList"]
-        print(f"response {responseCode}")
+        dirList = self.__cU.listDir(repoType, depId)
         index = 1
-        if responseCode == 200:
+        if dirList and len(dirList) > 0:
+            print(f"{repoType} {depId}")
             for fi in sorted(dirList):
                 print(f"\t{fi}")
                 self.list_Listbox.insert(index, fi)
                 index += 1
+        else:
+            print("\nerror - not found\n")
         print(f"time {time.perf_counter() - t1} s")
+
 
     def reset(self):
         self.fileButton.config(text="select")

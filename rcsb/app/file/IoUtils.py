@@ -120,22 +120,15 @@ class IoUtils:
             repositoryType = os.path.basename(os.path.dirname(os.path.dirname(filePath)))
             logKey = self.getPremadeLogKey(repositoryType, filePath)
             key = uploadId
-            val = "uploadCount"
-            # initializes to zero
-            # currentCount = int(self.__kV.getSession(key, val))  # for sequential chunks, current index = current count
-            # on first chunk upload, set expected count, record uid in log table
+            # on first chunk upload, set chunk size, record uid in log table
             if chunkIndex == 0:
                 self.__kV.setSession(key, "chunkSize", chunkSize)
                 self.__kV.setLog(logKey, uploadId)
-                # self.__kV.setSession(key, "expectedCount", expectedChunks)
                 self.__kV.setSession(key, "timestamp", int(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))))
-                # self.__kV.setSession(key, "hashDigest", hashDigest)  # if user uploads new file with same parameters before saving previoius file, delete previous file
-                # self.__kV.setSession(key, "uploadId", key)  # redundant, however returns id from get upload status
-            # self.__kV.inc(key, val)
 
-        chunkOffset = chunkIndex * chunkSize
         # remove comment for testing
         # logger.info(f"chunk {chunkIndex} of {expectedChunks} for {uploadId}")
+
         ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
         dirPath, _ = os.path.split(filePath)
         tempPath = self.getTempFilePath(uploadId, dirPath)
@@ -484,3 +477,4 @@ class IoUtils:
 
     def getNewUploadId(self):
         return uuid.uuid4().hex
+

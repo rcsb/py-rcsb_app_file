@@ -2,7 +2,7 @@
 <html lang="en">
 	<head>
         <meta charset="UTF-8">
-        <title>HTML DOWNLOAD EXAMPLE</title>
+        <title>HTML LIST EXAMPLE</title>
         <!-- author James Smith -->
 		<style>
 			div {
@@ -43,7 +43,15 @@
             fetch(url, {
               method: 'GET',
 			  headers: {'Authorization': `Bearer ${jwt_token}`}
-            }).then(response => response.json()).then(json => populate(json.dirList)).catch(err => console.log(err));
+            }).then(response => {
+				if(response && response.status && response.status < 400){
+					return response.json();
+				} else if(response && response.status){
+					throw new Error(`status code ${response.status}`);
+				} else {
+					throw new Error('unknown error');
+				}
+			}).then(json => populate(json.dirList)).catch(err => console.log(err));
           }
           populate = (dirlist) => {
             if(document.getElementById('dirlist')) {
