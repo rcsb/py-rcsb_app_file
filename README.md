@@ -62,7 +62,7 @@ Upload requires some setup by invoking the 'file-v2/getUploadParameters' endpoin
 
 To maintain sequential order, the client must wait for each response before sending the next chunk.
 
-The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in both uploadRequest and IoUtils.
+The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in IoUtils.
 
 The download endpoint is found at 'file-v1/download'.
 
@@ -225,7 +225,8 @@ If Redis runs on a different machine than the files API, then the host must be s
 
 Change Redis host to '#:#:#:#' and port 6379 in rcsb/app/config/config.yml.
 
-For example
+KvRedis.py should resemble
+
 ```
 
 self.kV = redis.Redis(host='1.2.3.4', port=6379, decode_responses=True)
@@ -261,15 +262,19 @@ docker run --name redis-container -p 6379:6379 -d redis
 ```
 
 If the Redis container runs on the same machine as the files API, change Redis host to 'redis' in rcsb/app/config/config.yml.
+
+KvRedis.py should resemble
+
 ```
 
-self.kV = redis.Redis(host='redis', decode_responses=True)
+self.kV = redis.Redis(host='redis', port=6379, decode_responses=True)
 
 ```
 
 Or, if connecting remotely to Redis container on different server, change Redis host to '#:#:#:#' and port 6379 in rcsb/app/config/config.yml.
 
-For example
+KvRedis.py should resemble
+
 ```
 
 self.kV = redis.Redis(host='1.2.3.4', port=6379, decode_responses=True)
@@ -338,8 +343,6 @@ docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/sy
 `--link` connects to a Redis container if the container is running on the same machine as the files API 
 
 # Error handling
-
-Errors related to 'shared locks' are generally fixed by deleting the 'shared-locks' directory and, if necessary, restarting.
 
 For production, Redis variables are set to expire periodically. However, hidden files are not, so a cron job should be run periodically to remove lingering hidden files from the deposit or archive directories.
 
