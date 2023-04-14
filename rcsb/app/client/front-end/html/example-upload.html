@@ -43,7 +43,7 @@
                 let contentFormat = document.getElementsByName('contentFormat')[0].value;
                 let version = document.getElementsByName('version')[0].value;
                 let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
-                let query = `?repositoryType=${repositoryType}&depId=${depId}&contentType=${contentType}&milestone=${milestone}&partNumber=${partNumber}&contentFormat=${contentFormat}&version=${version}&allowOverwrite=${allowOverwrite}&hashDigest=${hashDigest}&resumable=${resumable}`;
+                let query = `?repositoryType=${repositoryType}&depId=${depId}&contentType=${contentType}&milestone=${milestone}&partNumber=${partNumber}&contentFormat=${contentFormat}&version=${version}&allowOverwrite=${allowOverwrite}&resumable=${resumable}`;
                 let url = upload_parameters_url + query;
                 await fetch(url, {
                     method: "GET",

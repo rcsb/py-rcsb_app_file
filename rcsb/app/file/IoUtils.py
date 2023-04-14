@@ -113,7 +113,7 @@ class IoUtils:
         contentFormat: str,
         version: str,
         allowOverwrite: bool,
-        hashDigest: str,
+        # hashDigest: str,
         resumable: bool,
     ):
         # get save file path
@@ -500,7 +500,7 @@ class IoUtils:
         partNumber: int,
         contentFormat: str,
         version: str,
-        hashDigest: str,
+        # hashDigest: str,
         resumable: bool,
     ):
         if version is None or not re.match(r"\d+", version):

@@ -203,7 +203,7 @@ class ClientUtils(object):
             "contentFormat": contentFormat,
             "version": version,
             "allowOverwrite": allowOverwrite,
-            "hashDigest": fullTestHash,
+            # "hashDigest": fullTestHash,
             "resumable": resumable
         }
         url = os.path.join(self.baseUrl, "file-v2", "getUploadParameters")
