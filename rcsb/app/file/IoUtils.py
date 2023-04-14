@@ -156,7 +156,7 @@ class IoUtils:
                 partNumber=partNumber,
                 contentFormat=contentFormat,
                 version=version,
-                hashDigest=hashDigest,
+                # hashDigest=hashDigest,
             )
         if not uploadId:
             uploadId = self.getNewUploadId()
@@ -524,7 +524,7 @@ class IoUtils:
                 partNumber=partNumber,
                 contentFormat=contentFormat,
                 version=version,
-                hashDigest=hashDigest,
+                # hashDigest=hashDigest,
             )
         if uploadId:
             status = await self.getSession(uploadId)
