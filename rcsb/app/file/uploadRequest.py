@@ -9,10 +9,7 @@ __email__ = "james.smith@rcsb.org, ahsan@ebi.ac.uk"
 __license__ = "Apache 2.0"
 
 
-import json
 import logging
-import os
-import uuid
 from enum import Enum
 from typing import Optional
 from fastapi import APIRouter, Query, File, Form, HTTPException, UploadFile, Depends
@@ -20,7 +17,6 @@ from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
-from rcsb.app.file.PathUtils import PathUtils
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 
 logger = logging.getLogger(__name__)
@@ -50,6 +46,28 @@ class UploadResult(BaseModel):
     statusMessage: str = Field(
         None, title="Status message", description="Status message", example="Success"
     )
+
+
+@router.get("/getUploadParameters")
+async def getUploadParameters(
+        repositoryType: str = Query(...),
+        depId: str = Query(...),
+        contentType: str = Query(...),
+        milestone: Optional[str] = Query(default="next"),
+        partNumber: int = Query(...),
+        contentFormat: str = Query(...),
+        version: str = Query(default="next"),
+        allowOverwrite: bool = Query(default=True),
+        hashDigest: str = Query(default=None),
+        resumable: bool = Query(default=False)
+):
+    ret = None
+    try:
+        ret = await IoUtils(ConfigProvider()).getUploadParameters(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, hashDigest, resumable)
+    except HTTPException as exc:
+        ret = {"success": False, "statusCode": exc.status_code, "statsMessage": f"error in upload parameters {exc.detail}"}
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+    return ret
 
 
 # upload chunked file
@@ -95,80 +113,6 @@ async def upload(
         ret = {"success": False, "statusCode": exc.status_code, "statusMessage": f"error in upload {exc.detail}"}
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
     return ret
-
-
-def getNewUploadId():
-    return uuid.uuid4().hex
-
-
-@router.get("/getUploadParameters")
-async def getUploadParameters(
-        repositoryType: str = Query(...),
-        depId: str = Query(...),
-        contentType: str = Query(...),
-        milestone: Optional[str] = Query(default="next"),
-        partNumber: int = Query(...),
-        contentFormat: str = Query(...),
-        version: str = Query(default="next"),
-        allowOverwrite: bool = Query(default=True),
-        hashDigest: str = Query(default=None),
-        resumable: bool = Query(default=False)
-):
-    # get save file path
-    cP = ConfigProvider()
-    pathU = PathUtils(cP)
-    if not pathU.checkContentTypeFormat(contentType, contentFormat):
-        logging.warning("Bad content type and/or format")
-        raise HTTPException(status_code=400, detail="Error - bad content type and/or format")
-    outPath = pathU.getVersionedPath(
-        repositoryType=repositoryType,
-        depId=depId,
-        contentType=contentType,
-        milestone=milestone,
-        partNumber=partNumber,
-        contentFormat=contentFormat,
-        version=version
-    )
-    if not outPath:
-        logging.warning("Error - could not make file path from parameters")
-        raise HTTPException(status_code=400, detail="Error - could not make file path from parameters")
-    if os.path.exists(outPath) and not allowOverwrite:
-        logging.warning("Encountered existing file - overwrite prohibited")
-        raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
-    dirPath, _ = os.path.split(outPath)
-    os.makedirs(dirPath, mode=0o777, exist_ok=True)
-    # get upload id
-    uploadId = None
-    iU = IoUtils(cP)
-    if resumable:
-        uploadId = await iU.getResumedUpload(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version,
-            hashDigest=hashDigest
-        )
-    if not uploadId:
-        uploadId = getNewUploadId()
-    # get chunk index
-    uploadCount = 0
-    if uploadId:
-        status = await iU.getSession(uploadId)
-        if status:
-            status = str(status)
-            status = status.replace("'", '"')
-            status = json.loads(status)
-            # uploadCount = status["uploadCount"]
-            if "chunkSize" in status:
-                chunkSize = int(status["chunkSize"])
-                tempPath = iU.getTempFilePath(uploadId, dirPath)
-                if os.path.exists(tempPath):
-                    fileSize = os.path.getsize(tempPath)
-                    uploadCount = round(fileSize / chunkSize)
-    return {"filePath": outPath, "chunkIndex": uploadCount, "uploadId": uploadId}
 
 
 # clear kv entries from one user

@@ -111,7 +111,9 @@ Redis with Docker requires Redis in a Docker container.
 
 Production with multiple servers will require all servers to coordinate through a single remote Redis server.
 
-Multiple servers should connect to a single file system for deposition.
+Since one server could host Redis while others don't, the docker instances could be run differently, or the config files set differently, on each server.
+
+Also, multiple servers must connect to a single file system for deposition.
 
 # Deployment on local server without docker
 

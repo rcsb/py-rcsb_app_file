@@ -98,6 +98,71 @@ class IoUtils:
             logger.exception("Failing with file %s %r", filePath, str(e))
         return None
 
+    async def getUploadParameters(self,
+            repositoryType: str,
+            depId: str,
+            contentType: str,
+            milestone: typing.Optional[str],
+            partNumber: int,
+            contentFormat: str,
+            version: str,
+            allowOverwrite: bool,
+            hashDigest: str,
+            resumable: bool
+    ):
+        # get save file path
+        if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
+            logging.warning("Bad content type and/or format")
+            raise HTTPException(status_code=400, detail="Error - bad content type and/or format")
+        outPath = self.__pathU.getVersionedPath(
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version
+        )
+        if not outPath:
+            logging.warning("Error - could not make file path from parameters")
+            raise HTTPException(status_code=400, detail="Error - could not make file path from parameters")
+        if os.path.exists(outPath) and not allowOverwrite:
+            logging.warning("Encountered existing file - overwrite prohibited")
+            raise HTTPException(status_code=400, detail="Encountered existing file - overwrite prohibited")
+        dirPath, _ = os.path.split(outPath)
+        os.makedirs(dirPath, mode=0o777, exist_ok=True)
+        # get upload id
+        uploadId = None
+        if resumable:
+            uploadId = await self.getResumedUpload(
+                repositoryType=repositoryType,
+                depId=depId,
+                contentType=contentType,
+                milestone=milestone,
+                partNumber=partNumber,
+                contentFormat=contentFormat,
+                version=version,
+                hashDigest=hashDigest
+            )
+        if not uploadId:
+            uploadId = self.getNewUploadId()
+        # get chunk index
+        uploadCount = 0
+        if uploadId:
+            status = await self.getSession(uploadId)
+            if status:
+                status = str(status)
+                status = status.replace("'", '"')
+                status = json.loads(status)
+                if "chunkSize" in status:
+                    chunkSize = int(status["chunkSize"])
+                    tempPath = self.getTempFilePath(uploadId, dirPath)
+                    if os.path.exists(tempPath):
+                        fileSize = os.path.getsize(tempPath)
+                        uploadCount = round(fileSize / chunkSize)
+        return {"filePath": outPath, "chunkIndex": uploadCount, "uploadId": uploadId}
+
+
     # in-place sequential chunk
     async def upload(self,
             # chunk parameters
@@ -133,8 +198,10 @@ class IoUtils:
         dirPath, _ = os.path.split(filePath)
         tempPath = self.getTempFilePath(uploadId, dirPath)
         contents = chunk.read()
-        # empty chunk beyond loop index from client side, don't erase tempPath so keep out of try block
+        # empty chunk beyond loop index from client side, don't erase temp file so keep out of try block
         if contents and len(contents) <= 0:
+            # outside of try block an exception will exit
+            chunk.close()
             raise HTTPException(status_code=400, detail="error - empty file")
         try:
             # save, then hash, then decompress
@@ -210,7 +277,6 @@ class IoUtils:
         finally:
             chunk.close()
         return ret
-
 
     def getTempFilePath(self, uploadId, dirPath):
         return os.path.join(dirPath, "._" + uploadId)
@@ -370,26 +436,6 @@ class IoUtils:
     async def clearKv(self):
         self.__kV.clearTable(self.__kV.sessionTable)
         self.__kV.clearTable(self.__kV.logTable)
-
-    # duplicates of upload request functions
-    async def getUploadParameters(
-        self,
-        repositoryType: str,
-        depId: str,
-        contentType: str,
-        milestone: str,
-        partNumber: int,
-        contentFormat: str,
-        version: str,
-        hashDigest: str,
-        allowOverwrite: bool,
-        resumable: bool,
-    ):
-        chunkIndex, uploadId = await self.getUploadStatus(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, hashDigest, resumable)
-        filePath = await self.getSaveFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite)
-        if not filePath:
-            raise HTTPException(status_code=400, detail="Error - could not make file path from parameters")
-        return filePath, chunkIndex, uploadId
 
     # return kv entry from file parameters, if have resumed upload, or None if don't
     # if have resumed upload, kv response has chunk count
