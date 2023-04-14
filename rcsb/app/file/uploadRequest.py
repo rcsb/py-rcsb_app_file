@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 provider = ConfigProvider()
-jwtDisable = bool(provider.get('JWT_DISABLE'))
+jwtDisable = bool(provider.get("JWT_DISABLE"))
 if not jwtDisable:
     router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
 else:
@@ -50,22 +50,37 @@ class UploadResult(BaseModel):
 
 @router.get("/getUploadParameters")
 async def getUploadParameters(
-        repositoryType: str = Query(...),
-        depId: str = Query(...),
-        contentType: str = Query(...),
-        milestone: Optional[str] = Query(default="next"),
-        partNumber: int = Query(...),
-        contentFormat: str = Query(...),
-        version: str = Query(default="next"),
-        allowOverwrite: bool = Query(default=True),
-        hashDigest: str = Query(default=None),
-        resumable: bool = Query(default=False)
+    repositoryType: str = Query(...),
+    depId: str = Query(...),
+    contentType: str = Query(...),
+    milestone: Optional[str] = Query(default="next"),
+    partNumber: int = Query(...),
+    contentFormat: str = Query(...),
+    version: str = Query(default="next"),
+    allowOverwrite: bool = Query(default=True),
+    hashDigest: str = Query(default=None),
+    resumable: bool = Query(default=False),
 ):
     ret = None
     try:
-        ret = await IoUtils(ConfigProvider()).getUploadParameters(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, hashDigest, resumable)
+        ret = await IoUtils(ConfigProvider()).getUploadParameters(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+            allowOverwrite,
+            hashDigest,
+            resumable,
+        )
     except HTTPException as exc:
-        ret = {"success": False, "statusCode": exc.status_code, "statsMessage": f"error in upload parameters {exc.detail}"}
+        ret = {
+            "success": False,
+            "statusCode": exc.status_code,
+            "statsMessage": f"error in upload parameters {exc.detail}",
+        }
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
     return ret
 
@@ -87,7 +102,7 @@ async def upload(
     decompress: bool = Form(False),
     allowOverwrite: bool = Form(False),
     # other
-    resumable: bool = Form(False)
+    resumable: bool = Form(False),
 ):
     ret = None
     try:
@@ -107,10 +122,14 @@ async def upload(
             filePath=filePath,
             decompress=decompress,
             allowOverwrite=allowOverwrite,
-            resumable=resumable
+            resumable=resumable,
         )
     except HTTPException as exc:
-        ret = {"success": False, "statusCode": exc.status_code, "statusMessage": f"error in upload {exc.detail}"}
+        ret = {
+            "success": False,
+            "statusCode": exc.status_code,
+            "statusMessage": f"error in upload {exc.detail}",
+        }
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
     return ret
 
