@@ -23,7 +23,6 @@ import os
 import typing
 import uuid
 import aiofiles
-import re
 import json
 from filelock import Timeout, FileLock
 from fastapi import HTTPException
@@ -321,34 +320,13 @@ class IoUtils:
             chunk.close()
         return ret
 
-    def getTempFilePath(self, uploadId, dirPath):
-        return os.path.join(dirPath, "._" + uploadId)
+    def getNewUploadId(self):
+        return uuid.uuid4().hex
 
     # file path functions
 
-    async def findVersion(
-        self,
-        repositoryType: str = "archive",
-        depId: str = None,
-        contentType: str = "model",
-        milestone: str = None,
-        partNumber: int = 1,
-        contentFormat: str = "pdbx",
-        version: str = "next",
-    ):
-        primaryKey = self.getPrimaryLogKey(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version,
-        )
-        versions = primaryKey.split(".")
-        version = versions[-1]
-        version = version.replace("V", "")
-        return version
+    def getTempFilePath(self, uploadId, dirPath):
+        return os.path.join(dirPath, "._" + uploadId)
 
     def getPrimaryLogKey(
         self,
@@ -408,6 +386,7 @@ class IoUtils:
         )
         uploadId = self.__kV.getLog(filename)
         if not uploadId:
+            # not a resumed upload
             return None
         # remove expired entries
         timestamp = int(self.__kV.getSession(uploadId, "timestamp"))
@@ -422,6 +401,7 @@ class IoUtils:
                 repositoryType=repositoryType,
             )
             return None
+
         # test if user resumes with same file as previously
         # if hashDigest is not None:
         #     hashvar = self.__kV.getSession(uploadId, "hashDigest")
@@ -430,7 +410,9 @@ class IoUtils:
         #         return None
         # else:
         #     logging.warning("error - no hash")
-        return uploadId  # returns uploadId or None
+
+        # returns uploadId or None
+        return uploadId
 
     # remove an entry from session table and log table, remove corresponding hidden files
     # does not check expiration
@@ -488,90 +470,3 @@ class IoUtils:
     async def clearKv(self):
         self.__kV.clearTable(self.__kV.sessionTable)
         self.__kV.clearTable(self.__kV.logTable)
-
-    # return kv entry from file parameters, if have resumed upload, or None if don't
-    # if have resumed upload, kv response has chunk count
-    async def getUploadStatus(
-        self,
-        repositoryType: str,
-        depId: str,
-        contentType: str,
-        milestone: str,
-        partNumber: int,
-        contentFormat: str,
-        version: str,
-        # hashDigest: str,
-        resumable: bool,
-    ):
-        if version is None or not re.match(r"\d+", version):
-            version = await self.findVersion(
-                repositoryType=repositoryType,
-                depId=depId,
-                contentType=contentType,
-                milestone=milestone,
-                partNumber=partNumber,
-                contentFormat=contentFormat,
-                version=version,
-            )
-        uploadCount = 0
-        uploadId = None
-        if resumable:
-            uploadId = await self.getResumedUpload(
-                repositoryType=repositoryType,
-                depId=depId,
-                contentType=contentType,
-                milestone=milestone,
-                partNumber=partNumber,
-                contentFormat=contentFormat,
-                version=version,
-                # hashDigest=hashDigest,
-            )
-        if uploadId:
-            status = await self.getSession(uploadId)
-            if status:
-                status = str(status)
-                status = status.replace("'", '"')
-                status = json.loads(status)
-                uploadCount = status["uploadCount"]
-        else:
-            uploadId = self.getNewUploadId()
-        return uploadCount, uploadId
-
-    async def getSaveFilePath(
-        self,
-        repositoryType: str,
-        depId: str,
-        contentType: str,
-        milestone: str,
-        partNumber: int,
-        contentFormat: str,
-        version: str,
-        allowOverwrite: bool,
-    ):
-        cP = ConfigProvider()
-        pathU = PathUtils(cP)
-        if not pathU.checkContentTypeFormat(contentType, contentFormat):
-            logging.warning("Bad content type and/or format - upload rejected")
-            return None
-        outPath = None
-        outPath = pathU.getVersionedPath(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version,
-        )
-        if not outPath:
-            logging.warning("Bad content type metadata - cannot build a valid path")
-            return None
-        if os.path.exists(outPath) and not allowOverwrite:
-            logging.warning("Encountered existing file - overwrite prohibited")
-            return None
-        dirPath, _ = os.path.split(outPath)
-        os.makedirs(dirPath, mode=0o777, exist_ok=True)
-        return outPath
-
-    def getNewUploadId(self):
-        return uuid.uuid4().hex
