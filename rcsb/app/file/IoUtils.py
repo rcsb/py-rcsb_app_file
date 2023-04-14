@@ -395,7 +395,7 @@ class IoUtils:
         partNumber: int = 1,
         contentFormat: str = "pdbx",
         version: str = "next",
-        hashDigest: str = None,
+        # hashDigest: str = None,
     ):
         filename = self.getPrimaryLogKey(
             repositoryType=repositoryType,
