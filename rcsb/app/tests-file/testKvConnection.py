@@ -6,7 +6,6 @@
 #
 
 import unittest
-import os
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.KvConnection import KvConnection
 

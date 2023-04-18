@@ -97,7 +97,7 @@ class ClientTests(unittest.TestCase):
         endTime = time.time()
         logger.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
 
-    def testSimpleUpload(self):
+    def testSimpleUpload(self, resumable=False):
         """Test - basic file upload """
         resumable = False
         for testFilePath, decompress, partNumber, allowOverwrite, responseCode in [
@@ -112,7 +112,6 @@ class ClientTests(unittest.TestCase):
             contentType = "model"
             milestone = ""
             contentFormat = "pdbx"
-            resumable = False
             for version in range(1, 2):
                 startTime = time.time()
                 try:
@@ -127,6 +126,9 @@ class ClientTests(unittest.TestCase):
                 except Exception as e:
                     logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
                     self.fail()
+
+    def testResumableUpload(self):
+        self.testSimpleUpload(True)
 
     def testSimpleDownload(self):
         """Test - basic file download """
@@ -246,13 +248,14 @@ class ClientTests(unittest.TestCase):
 
 def client_tests():
     suite = unittest.TestSuite()
-    # suite.addTest(ClientTests("testSimpleUpload"))
-    # suite.addTest(ClientTests("testSimpleDownload"))
-    # suite.addTest(ClientTests("testChunkDownload"))
+    suite.addTest(ClientTests("testSimpleUpload"))
+    suite.addTest(ClientTests("testResumableUpload"))
+    suite.addTest(ClientTests("testSimpleDownload"))
+    suite.addTest(ClientTests("testChunkDownload"))
     suite.addTest(ClientTests("testListDir"))
-    # suite.addTest(ClientTests("testFilePathRemote"))
-    # suite.addTest(ClientTests("testFilePathLocal"))
-    # suite.addTest(ClientTests("testDirExists"))
+    suite.addTest(ClientTests("testFilePathRemote"))
+    suite.addTest(ClientTests("testFilePathLocal"))
+    suite.addTest(ClientTests("testDirExists"))
     return suite
 
 

@@ -6,8 +6,6 @@ import os
 import gzip
 from PIL import ImageTk, Image
 import math
-import requests
-import json
 import time
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken

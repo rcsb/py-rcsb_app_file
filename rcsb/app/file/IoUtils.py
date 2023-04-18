@@ -198,8 +198,8 @@ class IoUtils:
             repositoryType = os.path.basename(
                 os.path.dirname(os.path.dirname(filePath))
             )
-            logKey = self.getPremadeLogKey(repositoryType, filePath)
             key = uploadId
+            logKey = self.getPremadeLogKey(repositoryType, filePath)
             # on first chunk upload, set chunk size, record uid in log table
             if chunkIndex == 0:
                 self.__kV.setSession(key, "chunkSize", chunkSize)
@@ -214,8 +214,7 @@ class IoUtils:
                     ),
                 )
 
-        # remove comment for testing
-        # logger.info(f"chunk {chunkIndex} of {expectedChunks} for {uploadId}")
+        logger.debug(f"chunk {chunkIndex} of {expectedChunks} for {uploadId}")
 
         ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
         dirPath, _ = os.path.split(filePath)

@@ -3,12 +3,8 @@ import concurrent.futures
 import os
 import gzip
 from concurrent.futures import ThreadPoolExecutor
-import requests
-import json
 import time
-import math
 import argparse
-from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils

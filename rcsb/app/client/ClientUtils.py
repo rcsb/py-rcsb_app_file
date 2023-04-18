@@ -18,13 +18,11 @@ __license__ = "Apache 2.0"
 import os
 import logging
 import tempfile
-import uuid
 from copy import deepcopy
 import math
 import json
 import requests
 import typing
-import pickle
 from fastapi.testclient import TestClient
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -258,7 +256,7 @@ class ClientUtils(object):
                     int(fileSize) - (int(mD["chunkIndex"]) * int(self.chunkSize)),
                     int(self.chunkSize),
                 )
-                # logger.info(f"packet size {packetSize} chunk {mD['chunkIndex']} expected {expectedChunks}")
+                logger.debug(f"packet size {packetSize} chunk {mD['chunkIndex']} expected {expectedChunks}")
                 if not self.__unit_test:
                     response = requests.post(
                         url,

@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 class ConfigProvider(SingletonClass):
     """Accessors for configuration details."""
 
-    def __init__(self):
+    def __init__(self, configFilePath: typing.Optional[str] = None):
         # ---
-        self.__configFilePath = os.environ.get("CONFIG_FILE")
+        self.__configFilePath = configFilePath if configFilePath else os.environ.get("CONFIG_FILE")
         self.__configD = None
         # ---
 

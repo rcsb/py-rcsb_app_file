@@ -37,7 +37,7 @@ def getUptime():
     minutes = seconds / 60
     hours = minutes / 60
     days = minutes / 24
-    # report total up time in either hours, minutes, or seconds (i.e. total hours, or total minutes, or total seconds)
+    # report total uptime in either hours, minutes, or seconds (i.e. total hours, or total minutes, or total seconds)
     return {"days_total": int(days), "hours_total": int(hours), "minutes_total": int(minutes), "seconds_total": int(seconds), "start": int(uptime_start), "stop": int(uptime_stop)}
 
 

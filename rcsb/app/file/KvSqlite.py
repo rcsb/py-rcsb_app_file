@@ -8,7 +8,6 @@ class KvSqlite:
     def __init__(self, cP: typing.Type[ConfigProvider]):
         self.kV = None
         self.__cP = cP
-        # fix mount point
         self.filePath = self.__cP.get("KV_FILE_PATH")
         self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
         self.logTable = self.__cP.get("KV_LOG_TABLE_NAME")
