@@ -256,7 +256,7 @@ class ClientUtils(object):
                     int(fileSize) - (int(mD["chunkIndex"]) * int(self.chunkSize)),
                     int(self.chunkSize),
                 )
-                logger.debug(f"packet size {packetSize} chunk {mD['chunkIndex']} expected {expectedChunks}")
+                logger.debug("packet size %s chunk %s expected %s", packetSize, mD['chunkIndex'], expectedChunks)
                 if not self.__unit_test:
                     response = requests.post(
                         url,

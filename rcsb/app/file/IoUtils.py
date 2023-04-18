@@ -214,7 +214,7 @@ class IoUtils:
                     ),
                 )
 
-        logger.debug(f"chunk {chunkIndex} of {expectedChunks} for {uploadId}")
+        logger.debug("chunk %s of %s for %s", chunkIndex, expectedChunks, uploadId)
 
         ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
         dirPath, _ = os.path.split(filePath)
