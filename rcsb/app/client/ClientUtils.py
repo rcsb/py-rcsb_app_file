@@ -248,8 +248,8 @@ class ClientUtils(object):
         }
         offset = chunkIndex * self.chunkSize
         response = None
-        with open(sourceFilePath, "rb") as fUpload:
-            fUpload.seek(offset)
+        with open(sourceFilePath, "rb") as of:
+            of.seek(offset)
             url = os.path.join(self.baseUrl, "file-v2", "upload")
             for _ in range(chunkIndex, mD["expectedChunks"]):
                 packetSize = min(
@@ -262,7 +262,7 @@ class ClientUtils(object):
                         url,
                         data=deepcopy(mD),
                         headers=self.headerD,
-                        files={"chunk": fUpload.read(packetSize)},
+                        files={"chunk": of.read(packetSize)},
                         stream=True,
                         timeout=None,
                     )
@@ -272,7 +272,7 @@ class ClientUtils(object):
                             url,
                             data=deepcopy(mD),
                             headers=self.headerD,
-                            files={"chunk": fUpload.read(packetSize)},
+                            files={"chunk": of.read(packetSize)},
                             timeout=None,
                         )
 
