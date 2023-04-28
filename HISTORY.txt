@@ -16,3 +16,4 @@
                      Configuration changes to support tox 4
  1-Mar-2023  - V0.23 Updates to and reorganization of client utilities
  10-Mar-2023 - V0.24 Rewrote config file path, jwt, shell scripts, and client context
+ 18-Apr-2023 - V0.25 Streamlined Redis transactions

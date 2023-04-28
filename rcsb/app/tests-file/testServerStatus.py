@@ -18,7 +18,6 @@ __email__ = "jwest@rcsb.rutgers.edu"
 __license__ = "Apache 2.0"
 
 import logging
-import os
 import platform
 import pprint
 import resource
@@ -26,7 +25,6 @@ import time
 import unittest
 
 
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
 from rcsb.app.file.main import app
@@ -42,13 +40,12 @@ logger.setLevel(logging.INFO)
 class ServerStatusTests(unittest.TestCase):
     def setUp(self):
         self.__startTime = time.time()
-        self.__configFilePath = os.environ.get("CONFIG_FILE")
         #
         logger.debug("Running tests on version %s", __version__)
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
-        cP = ConfigProvider(self.__configFilePath)
+        cP = ConfigProvider()
         subject = cP.get("JWT_SUBJECT")
-        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken(self.__configFilePath).createToken({}, subject)}
+        self.__headerD = {"Authorization": "Bearer " + JWTAuthToken().createToken({}, subject)}
 
     def tearDown(self):
         unitS = "MB" if platform.system() == "Darwin" else "GB"

@@ -23,17 +23,18 @@ import os
 import typing
 import uuid
 import aiofiles
-import re
 import json
 from filelock import Timeout, FileLock
 from fastapi import HTTPException
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.app.file.KvSqlite import KvSqlite
 from rcsb.app.file.KvRedis import KvRedis
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s",
+)
 logger = logging.getLogger()
 
 
@@ -70,7 +71,9 @@ class IoUtils:
         tHash = self.getHashDigest(pth, hashType)
         return tHash == hashDigest
 
-    def getHashDigest(self, filePath: str, hashType: str = "SHA1", blockSize: int = 65536) -> typing.Optional[str]:
+    def getHashDigest(
+        self, filePath: str, hashType: str = "SHA1", blockSize: int = 65536
+    ) -> typing.Optional[str]:
         """Return the hash (hashType) for the input file.
 
         Args:
@@ -99,52 +102,134 @@ class IoUtils:
             logger.exception("Failing with file %s %r", filePath, str(e))
         return None
 
+    async def getUploadParameters(
+        self,
+        repositoryType: str,
+        depId: str,
+        contentType: str,
+        milestone: typing.Optional[str],
+        partNumber: int,
+        contentFormat: str,
+        version: str,
+        allowOverwrite: bool,
+        # hashDigest: str,
+        resumable: bool,
+    ):
+        # get save file path
+        if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
+            logging.warning("Bad content type and/or format")
+            raise HTTPException(
+                status_code=400, detail="Error - bad content type and/or format"
+            )
+        outPath = self.__pathU.getVersionedPath(
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version,
+        )
+        if not outPath:
+            logging.warning("Error - could not make file path from parameters")
+            raise HTTPException(
+                status_code=400,
+                detail="Error - could not make file path from parameters",
+            )
+        if os.path.exists(outPath) and not allowOverwrite:
+            logging.warning("Encountered existing file - overwrite prohibited")
+            raise HTTPException(
+                status_code=400,
+                detail="Encountered existing file - overwrite prohibited",
+            )
+        dirPath, _ = os.path.split(outPath)
+        os.makedirs(dirPath, mode=0o777, exist_ok=True)
+        # get upload id
+        uploadId = None
+        if resumable:
+            uploadId = await self.getResumedUpload(
+                repositoryType=repositoryType,
+                depId=depId,
+                contentType=contentType,
+                milestone=milestone,
+                partNumber=partNumber,
+                contentFormat=contentFormat,
+                version=version,
+                # hashDigest=hashDigest,
+            )
+        if not uploadId:
+            uploadId = self.getNewUploadId()
+        # get chunk index
+        uploadCount = 0
+        if uploadId:
+            status = await self.getSession(uploadId)
+            if status:
+                status = str(status)
+                status = status.replace("'", '"')
+                status = json.loads(status)
+                if "chunkSize" in status:
+                    chunkSize = int(status["chunkSize"])
+                    tempPath = self.getTempFilePath(uploadId, dirPath)
+                    if os.path.exists(tempPath):
+                        fileSize = os.path.getsize(tempPath)
+                        uploadCount = round(fileSize / chunkSize)
+        return {"filePath": outPath, "chunkIndex": uploadCount, "uploadId": uploadId}
+
     # in-place sequential chunk
     async def upload(
-            self,
-            # chunk parameters
-            chunk: typing.IO,
-            chunkSize: int,
-            chunkIndex: int,
-            expectedChunks: int,
-            # upload file parameters
-            uploadId: str,
-            hashType: str,
-            hashDigest: str,
-            resumable: bool,
-            # save file parameters
-            filePath: str,
-            decompress: bool,
-            allowOverwrite: bool,
+        self,
+        # chunk parameters
+        chunk: typing.IO,
+        chunkSize: int,
+        chunkIndex: int,
+        expectedChunks: int,
+        # upload file parameters
+        uploadId: str,
+        hashType: str,
+        hashDigest: str,
+        # save file parameters
+        filePath: str,
+        decompress: bool,
+        allowOverwrite: bool,
+        # other
+        resumable: bool,
     ):
         if resumable:
-            repositoryType = os.path.basename(os.path.dirname(os.path.dirname(filePath)))
-            logKey = self.getPremadeLogKey(repositoryType, filePath)
+            repositoryType = os.path.basename(
+                os.path.dirname(os.path.dirname(filePath))
+            )
             key = uploadId
-            val = "uploadCount"
-            # initializes to zero
-            currentCount = int(self.__kV.getSession(key, val))  # for sequential chunks, current index = current count
-            # on first chunk upload, set expected count, record uid in log table
-            if currentCount == 0:
-                self.__kV.setSession(key, "expectedCount", expectedChunks)
+            logKey = self.getPremadeLogKey(repositoryType, filePath)
+            # on first chunk upload, set chunk size, record uid in log table
+            if chunkIndex == 0:
+                self.__kV.setSession(key, "chunkSize", chunkSize)
                 self.__kV.setLog(logKey, uploadId)
-                self.__kV.setSession(key, "timestamp", int(datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))))
-                self.__kV.setSession(key, "hashDigest", hashDigest)  # if user uploads new file with same parameters before saving previous file, delete previous file
-                self.__kV.setSession(key, "uploadId", key)  # redundant, however returns id from get upload status
-            self.__kV.inc(key, val)
+                self.__kV.setSession(
+                    key,
+                    "timestamp",
+                    int(
+                        datetime.datetime.timestamp(
+                            datetime.datetime.now(datetime.timezone.utc)
+                        )
+                    ),
+                )
 
-        chunkOffset = chunkIndex * chunkSize
+        logger.debug("chunk %s of %s for %s", chunkIndex, expectedChunks, uploadId)
+
         ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
         dirPath, _ = os.path.split(filePath)
         tempPath = self.getTempFilePath(uploadId, dirPath)
+        contents = chunk.read()
+        # empty chunk beyond loop index from client side, don't erase temp file so keep out of try block
+        if contents and len(contents) <= 0:
+            # outside of try block an exception will exit
+            chunk.close()
+            raise HTTPException(status_code=400, detail="error - empty file")
         try:
             # save, then hash, then decompress
             # should lock, however client must wait for each response before sending next chunk, precluding race conditions (unless multifile upload problem)
             async with aiofiles.open(tempPath, "ab") as ofh:
-                await ofh.seek(chunkOffset)
-                await ofh.write(chunk.read())
-                await ofh.flush()
-                os.fsync(ofh.fileno())
+                await ofh.write(contents)
             # if last chunk
             if chunkIndex + 1 == expectedChunks:
                 if hashDigest and hashType:
@@ -160,24 +245,34 @@ class IoUtils:
                         while hash_chunk := r.read(blockSize):
                             hashObj.update(hash_chunk)
                     hexdigest = hashObj.hexdigest()
-                    ok = (hexdigest == hashDigest)
+                    ok = hexdigest == hashDigest
                     if not ok:
-                        raise HTTPException(status_code=400, detail=f"{hashType} hash check failed")
+                        raise HTTPException(
+                            status_code=400, detail=f"{hashType} hash check failed"
+                        )
                     else:
                         # lock then save
-                        lockPath = os.path.join(os.path.dirname(filePath), "." + os.path.basename(filePath) + ".lock")
+                        lockPath = os.path.join(
+                            os.path.dirname(filePath),
+                            "." + os.path.basename(filePath) + ".lock",
+                        )
                         lock = FileLock(lockPath)
                         try:
                             with lock.acquire(timeout=60 * 60 * 4):
                                 # last minute race condition handling
                                 if os.path.exists(filePath) and not allowOverwrite:
-                                    raise HTTPException(status_code=400,
-                                                        detail="Encountered existing file - cannot overwrite")
+                                    raise HTTPException(
+                                        status_code=400,
+                                        detail="Encountered existing file - cannot overwrite",
+                                    )
                                 else:
                                     # save final version
                                     os.replace(tempPath, filePath)
                         except Timeout:
-                            raise HTTPException(status_code=400, detail=f"error - lock timed out on {filePath}")
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"error - lock timed out on {filePath}",
+                            )
                         finally:
                             lock.release()
                             if os.path.exists(lockPath):
@@ -201,57 +296,47 @@ class IoUtils:
                 os.unlink(tempPath)
             if resumable:
                 self.clearSession(key, logKey)
-            ret = {"success": False, "statusCode": exc.status_code,
-                   "statusMessage": f"error in sequential upload {exc.detail}"}
+            ret = {
+                "success": False,
+                "statusCode": exc.status_code,
+                "statusMessage": f"error in sequential upload {exc.detail}",
+            }
             raise HTTPException(status_code=exc.status_code, detail=exc.detail)
         except Exception as exc:
             if os.path.exists(tempPath):
                 os.unlink(tempPath)
             if resumable:
                 self.clearSession(key, logKey)
-            ret = {"success": False, "statusCode": 400, "statusMessage": f"error in sequential upload {str(exc)}"}
-            raise HTTPException(status_code=400, detail=f"error in sequential upload {str(exc)}")
+            ret = {
+                "success": False,
+                "statusCode": 400,
+                "statusMessage": f"error in sequential upload {str(exc)}",
+            }
+            raise HTTPException(
+                status_code=400, detail=f"error in sequential upload {str(exc)}"
+            )
         finally:
             chunk.close()
         return ret
 
-    def getTempFilePath(self, uploadId, dirPath):
-        return os.path.join(dirPath, "._" + uploadId)
+    def getNewUploadId(self):
+        return uuid.uuid4().hex
 
     # file path functions
 
-    async def findVersion(self,
-                          repositoryType: str = "archive",
-                          depId: str = None,
-                          contentType: str = "model",
-                          milestone: str = None,
-                          partNumber: int = 1,
-                          contentFormat: str = "pdbx",
-                          version: str = "next"
-                          ):
-        primaryKey = self.getPrimaryLogKey(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version
-        )
-        versions = primaryKey.split(".")
-        version = versions[-1]
-        version = version.replace("V", "")
-        return version
+    def getTempFilePath(self, uploadId, dirPath):
+        return os.path.join(dirPath, "._" + uploadId)
 
-    def getPrimaryLogKey(self,
-                         repositoryType: str = "archive",
-                         depId: str = None,
-                         contentType: str = "model",
-                         milestone: str = None,
-                         partNumber: int = 1,
-                         contentFormat: str = "pdbx",
-                         version: str = "next"
-                         ):
+    def getPrimaryLogKey(
+        self,
+        repositoryType: str = "archive",
+        depId: str = None,
+        contentType: str = "model",
+        milestone: str = None,
+        partNumber: int = 1,
+        contentFormat: str = "pdbx",
+        version: str = "next",
+    ):
         filename = self.__pathU.getVersionedPath(
             repositoryType=repositoryType,
             depId=depId,
@@ -259,7 +344,7 @@ class IoUtils:
             milestone=milestone,
             partNumber=partNumber,
             contentFormat=contentFormat,
-            version=version
+            version=version,
         )
         if not filename:
             return None
@@ -278,16 +363,17 @@ class IoUtils:
     # database functions
 
     # find upload id using file parameters
-    async def getResumedUpload(self,
-                               repositoryType: str = "archive",
-                               depId: str = None,
-                               contentType: str = "model",
-                               milestone: str = None,
-                               partNumber: int = 1,
-                               contentFormat: str = "pdbx",
-                               version: str = "next",
-                               hashDigest: str = None
-                               ):
+    async def getResumedUpload(
+        self,
+        repositoryType: str = "archive",
+        depId: str = None,
+        contentType: str = "model",
+        milestone: str = None,
+        partNumber: int = 1,
+        contentFormat: str = "pdbx",
+        version: str = "next",
+        # hashDigest: str = None,
+    ):
         filename = self.getPrimaryLogKey(
             repositoryType=repositoryType,
             depId=depId,
@@ -295,10 +381,11 @@ class IoUtils:
             milestone=milestone,
             partNumber=partNumber,
             contentFormat=contentFormat,
-            version=version
+            version=version,
         )
         uploadId = self.__kV.getLog(filename)
         if not uploadId:
+            # not a resumed upload
             return None
         # remove expired entries
         timestamp = int(self.__kV.getSession(uploadId, "timestamp"))
@@ -306,26 +393,35 @@ class IoUtils:
         duration = now - timestamp
         max_duration = self.__cP.get("KV_MAX_SECONDS")
         if duration > max_duration:
-            await self.removeExpiredEntry(uploadId=uploadId, fileName=filename, depId=depId, repositoryType=repositoryType)
+            await self.removeExpiredEntry(
+                uploadId=uploadId,
+                fileName=filename,
+                depId=depId,
+                repositoryType=repositoryType,
+            )
             return None
+
         # test if user resumes with same file as previously
-        if hashDigest is not None:
-            hashvar = self.__kV.getSession(uploadId, "hashDigest")
-            if hashvar != hashDigest:
-                await self.removeExpiredEntry(uploadId=uploadId, fileName=filename, depId=depId, repositoryType=repositoryType)
-                return None
-        else:
-            logging.warning("error - no hash")
-        return uploadId  # returns uploadId or None
+        # if hashDigest is not None:
+        #     hashvar = self.__kV.getSession(uploadId, "hashDigest")
+        #     if hashvar != hashDigest:
+        #         await self.removeExpiredEntry(uploadId=uploadId, fileName=filename, depId=depId, repositoryType=repositoryType)
+        #         return None
+        # else:
+        #     logging.warning("error - no hash")
+
+        # returns uploadId or None
+        return uploadId
 
     # remove an entry from session table and log table, remove corresponding hidden files
     # does not check expiration
-    async def removeExpiredEntry(self,
-                                 uploadId: str = None,
-                                 fileName: str = None,
-                                 depId: str = None,
-                                 repositoryType: str = None
-                                 ):
+    async def removeExpiredEntry(
+        self,
+        uploadId: str = None,
+        fileName: str = None,
+        depId: str = None,
+        repositoryType: str = None,
+    ):
         # remove expired entry and temp files
         self.__kV.clearSessionKey(uploadId)
         # still must remove log table entry (key = file parameters)
@@ -373,111 +469,3 @@ class IoUtils:
     async def clearKv(self):
         self.__kV.clearTable(self.__kV.sessionTable)
         self.__kV.clearTable(self.__kV.logTable)
-
-    # duplicates of upload request functions
-    async def getUploadParameters(
-        self,
-        repositoryType: str,
-        depId: str,
-        contentType: str,
-        milestone: str,
-        partNumber: int,
-        contentFormat: str,
-        version: str,
-        hashDigest: str,
-        allowOverwrite: bool,
-        resumable: bool,
-    ):
-        chunkIndex, uploadId = await self.getUploadStatus(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, hashDigest, resumable)
-        filePath = await self.getSaveFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite)
-        if not filePath:
-            raise HTTPException(status_code=400, detail="Error - could not make file path from parameters")
-        return filePath, chunkIndex, uploadId
-
-    # return kv entry from file parameters, if have resumed upload, or None if don't
-    # if have resumed upload, kv response has chunk count
-    async def getUploadStatus(
-        self,
-        repositoryType: str,
-        depId: str,
-        contentType: str,
-        milestone: str,
-        partNumber: int,
-        contentFormat: str,
-        version: str,
-        hashDigest: str,
-        resumable: bool,
-    ):
-        if version is None or not re.match(r"\d+", version):
-            version = await self.findVersion(
-                repositoryType=repositoryType,
-                depId=depId,
-                contentType=contentType,
-                milestone=milestone,
-                partNumber=partNumber,
-                contentFormat=contentFormat,
-                version=version
-            )
-        uploadCount = 0
-        uploadId = None
-        if resumable:
-            uploadId = await self.getResumedUpload(
-                repositoryType=repositoryType,
-                depId=depId,
-                contentType=contentType,
-                milestone=milestone,
-                partNumber=partNumber,
-                contentFormat=contentFormat,
-                version=version,
-                hashDigest=hashDigest
-            )
-        if uploadId:
-            status = await self.getSession(uploadId)
-            if status:
-                status = str(status)
-                status = status.replace("'", '"')
-                status = json.loads(status)
-                uploadCount = status["uploadCount"]
-        else:
-            uploadId = self.getNewUploadId()
-        return uploadCount, uploadId
-
-    async def getSaveFilePath(
-        self,
-        repositoryType: str,
-        depId: str,
-        contentType: str,
-        milestone: str,
-        partNumber: int,
-        contentFormat: str,
-        version: str,
-        allowOverwrite: bool,
-    ):
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
-        pathU = PathUtils(cP)
-        if not pathU.checkContentTypeFormat(contentType, contentFormat):
-            logging.warning("Bad content type and/or format - upload rejected")
-            return None
-        outPath = None
-        outPath = pathU.getVersionedPath(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version
-        )
-        if not outPath:
-            logging.warning("Bad content type metadata - cannot build a valid path")
-            return None
-        if os.path.exists(outPath) and not allowOverwrite:
-            logging.warning("Encountered existing file - overwrite prohibited")
-            return None
-        dirPath, _ = os.path.split(outPath)
-        os.makedirs(dirPath, mode=0o777, exist_ok=True)
-        return outPath
-
-    def getNewUploadId(self):
-        return uuid.uuid4().hex

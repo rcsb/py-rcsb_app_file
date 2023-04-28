@@ -19,7 +19,6 @@ import shutil
 
 # requires server
 
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.FileUtil import FileUtil
@@ -37,11 +36,11 @@ class ClientTests(unittest.TestCase):
 
     def setUp(self):
         self.__cU = ClientUtils(unit_test=True)
-        self.__configFilePath = os.environ.get("CONFIG_FILE")
-        self.__cP = ConfigProvider(self.__configFilePath)
+        self.__cP = ConfigProvider()
+        self.__configFilePath = self.__cP.getConfigFilePath()
         self.__chunkSize = self.__cP.get("CHUNK_SIZE")
         self.__hashType = self.__cP.get("HASH_TYPE")
-        self.__dataPath = self.__cP.get("REPOSITORY_DIR_PATH")  # os.path.join(HERE, "data")
+        self.__dataPath = self.__cP.get("REPOSITORY_DIR_PATH")
         self.__repositoryType = "unit-test"
         self.__unitTestFolder = os.path.join(self.__dataPath, self.__repositoryType)
         logger.info("self.__dataPath %s", self.__dataPath)
@@ -98,7 +97,7 @@ class ClientTests(unittest.TestCase):
         endTime = time.time()
         logger.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
 
-    def testSimpleUpload(self):
+    def testSimpleUpload(self, resumable=False):
         """Test - basic file upload """
         resumable = False
         for testFilePath, decompress, partNumber, allowOverwrite, responseCode in [
@@ -129,64 +128,7 @@ class ClientTests(unittest.TestCase):
                     self.fail()
 
     def testResumableUpload(self):
-        """Test - resumable file upload """
-        resumable = True
-        for testFilePath, decompress, partNumber, allowOverwrite, responseCode in [
-            (self.__testFileDatPath, False, 1, True, 200),
-            (self.__testFileDatPath, False, 2, True, 200),
-            (self.__testFileDatPath, False, 1, False, 405),
-            (self.__testFileGzipPath, True, 3, True, 200),
-        ]:
-            logging.warning(f"{decompress} {partNumber} {allowOverwrite} {responseCode}")
-            repositoryType = self.__repositoryType
-            depId = "D_1000000001"
-            contentType = "model"
-            milestone = None
-            contentFormat = "pdbx"
-            for version in range(1, 2):
-                startTime = time.time()
-                try:
-                    # get upload parameters
-                    # null test - should find nothing
-                    response = self.__cU.getUploadParameters(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, resumable)
-                    if not allowOverwrite:
-                        self.assertTrue(response is None, "error - did not detect pre-existing file")
-                    if not response:
-                        logger.info("error in get upload parameters")
-                        break
-                    logger.info(f"response {response}")
-                    saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash = response
-                    self.assertTrue(chunkIndex == 0, f"error - chunk index {chunkIndex}")
-                    # upload first chunk, not last chunk
-                    for index in range(chunkIndex, expectedChunks - 1):
-                        response = self.__cU.uploadChunk(testFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, decompress, allowOverwrite, resumable)
-                        if not response:
-                            logger.info("error in upload chunk")
-                            break
-                    logger.info(response)
-                    self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
-                    # get upload parameters - should find at least one chunk
-                    response = self.__cU.getUploadParameters(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, allowOverwrite, resumable)
-                    if not allowOverwrite:
-                        self.assertTrue(response is None, "error - did not detect pre-existing file")
-                    if not response:
-                        logger.info("error in get upload parameters")
-                        break
-                    logger.info(f"response {response}")
-                    saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash = response
-                    self.assertTrue(chunkIndex > 0, f"error - chunk index {chunkIndex}")
-                    # upload remaining chunks
-                    for index in range(chunkIndex, expectedChunks):
-                        response = self.__cU.uploadChunk(testFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, decompress, allowOverwrite, resumable)
-                        if not response:
-                            logger.info("error in upload chunk")
-                            break
-                    logger.info(response)
-                    self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
-                    logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
-                except Exception as e:
-                    logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
-                    self.fail()
+        self.testSimpleUpload(True)
 
     def testSimpleDownload(self):
         """Test - basic file download """
@@ -208,7 +150,7 @@ class ClientTests(unittest.TestCase):
             for version in range(1, 2):
                 startTime = time.time()
                 try:
-                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, self.__hashType, downloadFolderPath, allowOverwrite)
+                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, downloadFolderPath, allowOverwrite)
                     self.assertTrue(response == responseCode or (response==None and responseCode==404) or response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
                 except Exception as e:
@@ -237,7 +179,7 @@ class ClientTests(unittest.TestCase):
             for version in range(1, 2):
                 startTime = time.time()
                 try:
-                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, self.__hashType, downloadFolderPath, allowOverwrite, chunkSize=chunkSize, chunkIndex=chunkIndex)
+                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, downloadFolderPath, allowOverwrite, chunkSize=chunkSize, chunkIndex=chunkIndex)
                     self.assertTrue(response == responseCode or (response==None and responseCode==404) or response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
                     fileSize = os.path.getsize(self.__downloadFile)
                     self.assertTrue(fileSize == self.__chunkSize)

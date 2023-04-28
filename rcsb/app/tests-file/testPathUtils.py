@@ -19,12 +19,10 @@ __email__ = "connor.parker@rcsb.org"
 __license__ = "Apache 2.0"
 
 import logging
-import os
 import platform
 import resource
 import time
 import unittest
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file import __version__
 from rcsb.app.file.PathUtils import PathUtils
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -38,8 +36,7 @@ logger.setLevel(logging.INFO)
 class PathUtilsTests(unittest.TestCase):
 
     def setUp(self):
-        configFilePath = os.environ.get("CONFIG_FILE")
-        self.cP = ConfigProvider(configFilePath)
+        self.cP = ConfigProvider()
         self.pathU = PathUtils(self.cP)
         self.__startTime = time.time()
         logger.debug("Running tests on version %s", __version__)

@@ -3,14 +3,8 @@ import concurrent.futures
 import os
 import gzip
 from concurrent.futures import ThreadPoolExecutor
-import requests
-import json
-from tqdm.auto import tqdm
 import time
-import math
 import argparse
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
-from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.IoUtils import IoUtils
@@ -20,9 +14,7 @@ from rcsb.app.client.ClientUtils import ClientUtils
 author James Smith 2023
 """
 
-
-configFilePath = os.environ.get("CONFIG_FILE")
-cP = ConfigProvider(configFilePath)
+cP = ConfigProvider()
 cP.getConfig()
 
 """ modifiable variables
@@ -37,7 +29,7 @@ ioU = IoUtils(cP)
 cU = ClientUtils()
 headerD = {
     "Authorization": "Bearer "
-    + JWTAuthToken(configFilePath).createToken({}, subject)
+    + JWTAuthToken().createToken({}, subject)
 }
 RESUMABLE = False
 COMPRESS = False
@@ -60,7 +52,6 @@ def upload(mD):
     global RESUMABLE
     global OVERWRITE
     global cU
-    t1 = time.perf_counter()
     readFilePath = mD["filePath"]
     respositoryType = mD["repositoryType"]
     depId = mD["depId"]
@@ -83,63 +74,42 @@ def upload(mD):
             with gzip.open(tempPath, "wb") as w:
                 w.write(r.read())
         readFilePath = tempPath
-    # get upload parameters
-    response = cU.getUploadParameters(readFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, OVERWRITE, RESUMABLE)
+    # upload
+    response = cU.upload(readFilePath, respositoryType, depId, contentType, milestone, partNumber, contentFormat, version, DECOMPRESS, OVERWRITE, RESUMABLE)
     if not response:
-        print("error in get upload parameters")
-        return
-    saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash = response
-    # upload chunks
-    for index in tqdm(range(chunkIndex,expectedChunks), leave=False, total=expectedChunks - chunkIndex, desc=os.path.basename(readFilePath)):
-        response = cU.uploadChunk(readFilePath, saveFilePath, index, expectedChunks, uploadId, fullTestHash, DECOMPRESS, OVERWRITE, RESUMABLE)
-        if not response:
-            print("error in upload chunk")
-            break
+        print("error in upload")
+        return None
     return response
 
 
-def download(downloadFilePath, downloadDict):
+def download(downloadFolderPath, downloadDict):
     global headerD
     global maxChunkSize
     global COMPRESS
     global DECOMPRESS
     global SEQUENTIAL
     global OVERWRITE
-    url = os.path.join(base_url, "file-v1", "downloadSize")
-    fileSize = requests.get(url, params=downloadDict, headers=headerD, timeout=None).text
-    if not fileSize or not fileSize.isnumeric():
-        print(f"error - no response for {downloadDict}")
+    global cU
+    if not os.path.exists(downloadFolderPath):
+        print(f"error - download folder does not exist - {downloadFolderPath}")
         return None
-    fileSize = int(fileSize)
-    chunkSize = maxChunkSize
-    chunks = math.ceil(fileSize / maxChunkSize)
-    url = os.path.join(base_url, "file-v1", "download")
-    responseCode = None
-    count = 0
-    if os.path.isdir(downloadFilePath):
-        print(f'error - path is a directory {downloadFilePath}')
+    response = cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, downloadFolderPath, allowOverwrite)
+    if response and response.status_code:
+        return response.status_code
+    else:
         return None
-    if os.path.exists(downloadFilePath):
-        if OVERWRITE:
-            os.remove(downloadFilePath)
-        else:
-            print(f"error - file already exists {downloadFilePath}")
-            return None
-    with requests.get(url, params=downloadDict, headers=headerD, timeout=None, stream=True) as response:
-        with open(downloadFilePath, "ab") as ofh:
-            for chunk in tqdm(response.iter_content(chunk_size=chunkSize), leave=False, total=chunks, desc=os.path.basename(downloadFilePath)):
-                if chunk:
-                    ofh.write(chunk)
-                count += 1
-        responseCode = response.status_code
-        rspHashType = response.headers["rcsb_hash_type"]
-        rspHashDigest = response.headers["rcsb_hexdigest"]
-        thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
-        if not thD["hashDigest"] == rspHashDigest:
-            print("error - hash comparison failed")
-            sys.exit()
-    return responseCode
 
+def listDir(repoType, depId):
+    global cU
+    dirList = cU.listDir(repoType, depId)
+    if dirList and len(dirList) > 0:
+        print("\n")
+        print(f"{repoType} {depId}")
+        for fi in sorted(dirList):
+            print(f"\t{fi}")
+        print("\n")
+    else:
+        print("\nerror - not found\n")
 
 def description():
     print()
@@ -157,7 +127,7 @@ if __name__ == "__main__":
                         metavar=("file-path", "repo-type", "dep-id", "content-type", "milestone", "part-number", "content-format", "version"),
                         help="***** multiple uploads allowed *****")
     parser.add_argument("-d", "--download", nargs=8, action="append",
-                        metavar=("file-path", "repo-type", "dep-id", "content-type", "milestone", "part-number", "content-format", "version"),
+                        metavar=("folder-path", "repo-type", "dep-id", "content-type", "milestone", "part-number", "content-format", "version"),
                         help="***** multiple downloads allowed *****")
     parser.add_argument("-l", "--list", nargs=2, metavar=("repository-type", "dep-id"), help="***** list contents of requested directory *****")
     parser.add_argument("-r", "--resumable", action="store_true", help="***** upload resumable sequential chunks *****")
@@ -209,7 +179,7 @@ if __name__ == "__main__":
         for arglist in args.download:
             if len(arglist) < 8:
                 sys.exit(f"error - wrong number of args to download {len(arglist)}")
-            downloadFilePath = arglist[0]
+            downloadFolderPath = arglist[0]
             repositoryType = arglist[1]
             depId = arglist[2]
             contentType = arglist[3]
@@ -231,7 +201,7 @@ if __name__ == "__main__":
                 "milestone": milestone,
                 "allowOverwrite": allowOverwrite
             }
-            downloads.append((downloadFilePath, downloadDict))
+            downloads.append((downloadFolderPath, downloadDict))
     if len(uploads) > 0:
         # upload concurrent files sequential chunks
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -262,23 +232,8 @@ if __name__ == "__main__":
             sys.exit("error - list takes two args")
         repoType = arglist[0]
         depId = arglist[1]
-        parameters = {
-            "depId": depId,
-            "repositoryType": repoType
-        }
-        url = os.path.join(base_url, "file-v1", "list-dir")
-        responseCode = None
-        dirList = None
-        with requests.get(url, params=parameters, headers=headerD, timeout=None) as response:
-            responseCode = response.status_code
-            if responseCode == 200:
-                resp = response.text
-                if resp:
-                    if not isinstance(resp, dict):
-                        resp = json.loads(resp)
-                    dirList = resp["dirList"]
-        print(f"response {responseCode}")
-        if responseCode == 200:
-            for fi in sorted(dirList):
-                print(f"\t{fi}")
+        listDir(repoType, depId)
+
+
+
     print("time %.2f seconds" % (time.perf_counter() - t1))

@@ -16,7 +16,6 @@ __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
 import os
-import io
 import logging
 import tempfile
 from copy import deepcopy
@@ -25,7 +24,6 @@ import json
 import requests
 import typing
 from fastapi.testclient import TestClient
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -75,7 +73,7 @@ class FileAppObject(object):
         )
 
 
-# dodge circular reference to client utils by including class in same file
+# dodge circular reference error from client utils by including class in same file
 class ClientContext(object):
     def __init__(
         self,
@@ -114,7 +112,6 @@ class ClientContext(object):
             self.partNumber,
             self.contentFormat,
             self.version,
-            self.hashType,
             downloadFolder,
             allowOverwrite,
             returnTempFile,
@@ -138,7 +135,7 @@ class ClientContext(object):
             self.version,
             decompress,
             allowOverwrite,
-            resumable,
+            resumable
         )
         # delete local file
         self.file.close()
@@ -146,8 +143,7 @@ class ClientContext(object):
 
 class ClientUtils(object):
     def __init__(self, unit_test=False):
-        configFilePath = os.environ.get("CONFIG_FILE")
-        self.cP = ConfigProvider(configFilePath)
+        self.cP = ConfigProvider()
         self.cP.getConfig()
         self.baseUrl = self.cP.get("SERVER_HOST_AND_PORT")
         self.chunkSize = self.cP.get("CHUNK_SIZE")
@@ -155,7 +151,7 @@ class ClientUtils(object):
         subject = self.cP.get("JWT_SUBJECT")
         self.headerD = {
             "Authorization": "Bearer "
-            + JWTAuthToken(configFilePath).createToken({}, subject)
+            + JWTAuthToken().createToken({}, subject)
         }
         self.dP = Definitions()
         self.fileFormatExtensionD = self.dP.fileFormatExtD
@@ -178,7 +174,7 @@ class ClientUtils(object):
         version,
         decompress,
         allowOverwrite,
-        resumable,
+        resumable
     ):
         if not os.path.exists(sourceFilePath):
             logger.error("File does not exist: %r", sourceFilePath)
@@ -204,9 +200,9 @@ class ClientUtils(object):
             "partNumber": partNumber,
             "contentFormat": contentFormat,
             "version": version,
-            "hashDigest": fullTestHash,
             "allowOverwrite": allowOverwrite,
-            "resumable": resumable,
+            # "hashDigest": fullTestHash,
+            "resumable": resumable
         }
         url = os.path.join(self.baseUrl, "file-v2", "getUploadParameters")
         response = None
@@ -219,16 +215,21 @@ class ClientUtils(object):
                 response = client.get(
                     url, params=parameters, headers=self.headerD, timeout=None
                 )
-        # logger.info("status code %r", response.status_code)
         if response.status_code == 200:
             result = json.loads(response.text)
             if result:
                 saveFilePath = result["filePath"]
-                chunkIndex = result["chunkIndex"]
+                chunkIndex = int(result["chunkIndex"])
                 uploadId = result["uploadId"]
-        if not saveFilePath or not uploadId:
-            logger.error("No file path or upload id were formed")
+                if chunkIndex > 0:
+                    logger.info(f"detected upload with chunk index {chunkIndex}")
+        if not saveFilePath:
+            logger.error("No file path was formed")
             return None
+        if not uploadId:
+            logger.error("No upload id was formed")
+            return None
+
         # chunk file and upload
         mD = {
             # chunk parameters
@@ -239,34 +240,29 @@ class ClientUtils(object):
             "uploadId": uploadId,
             "hashType": self.hashType,
             "hashDigest": fullTestHash,
-            "resumable": resumable,
             # save file parameters
             "filePath": saveFilePath,
             "decompress": decompress,
             "allowOverwrite": allowOverwrite,
+            "resumable": resumable
         }
         offset = chunkIndex * self.chunkSize
         response = None
-        tmp = io.BytesIO()
-        with open(sourceFilePath, "rb") as fUpload:
-            fUpload.seek(offset)
+        with open(sourceFilePath, "rb") as of:
+            of.seek(offset)
             url = os.path.join(self.baseUrl, "file-v2", "upload")
             for _ in range(chunkIndex, mD["expectedChunks"]):
                 packetSize = min(
                     int(fileSize) - (int(mD["chunkIndex"]) * int(self.chunkSize)),
                     int(self.chunkSize),
                 )
-                tmp.truncate(packetSize)
-                tmp.seek(0)
-                tmp.write(fUpload.read(packetSize))
-                tmp.seek(0)
-
+                logger.debug("packet size %s chunk %s expected %s", packetSize, mD['chunkIndex'], expectedChunks)
                 if not self.__unit_test:
                     response = requests.post(
                         url,
                         data=deepcopy(mD),
                         headers=self.headerD,
-                        files={"chunk": tmp},
+                        files={"chunk": of.read(packetSize)},
                         stream=True,
                         timeout=None,
                     )
@@ -276,7 +272,7 @@ class ClientUtils(object):
                             url,
                             data=deepcopy(mD),
                             headers=self.headerD,
-                            files={"chunk": tmp},
+                            files={"chunk": of.read(packetSize)},
                             timeout=None,
                         )
 
@@ -288,148 +284,7 @@ class ClientUtils(object):
                     )
                     break
                 mD["chunkIndex"] += 1
-        return response
 
-    # file parameter is one chunk
-
-    def getUploadParameters(
-        self,
-        sourceFilePath,
-        repositoryType,
-        depId,
-        contentType,
-        milestone,
-        partNumber,
-        contentFormat,
-        version,
-        allowOverwrite,
-        resumable,
-    ):
-        if not os.path.exists(sourceFilePath):
-            logger.error("File does not exist: %r", sourceFilePath)
-            return None
-        # compress (externally), then hash, then upload
-        # hash
-        hD = CryptUtils().getFileHash(sourceFilePath, hashType=self.hashType)
-        fullTestHash = hD["hashDigest"]
-        # get upload parameters
-        saveFilePath = None
-        chunkIndex = 0
-        uploadId = None
-        parameters = {
-            "repositoryType": repositoryType,
-            "depId": depId,
-            "contentType": contentType,
-            "milestone": milestone,
-            "partNumber": partNumber,
-            "contentFormat": contentFormat,
-            "version": version,
-            "hashDigest": fullTestHash,
-            "allowOverwrite": allowOverwrite,
-            "resumable": resumable,
-        }
-        url = os.path.join(self.baseUrl, "file-v2", "getUploadParameters")
-
-        if not self.__unit_test:
-            response = requests.get(
-                url, params=parameters, headers=self.headerD, timeout=None
-            )
-        else:
-            with TestClient(app) as client:
-                response = client.get(
-                    url, params=parameters, headers=self.headerD, timeout=None
-                )
-
-        if response.status_code == 200:
-            result = json.loads(response.text)
-            if result:
-                saveFilePath = result["filePath"]
-                chunkIndex = result["chunkIndex"]
-                uploadId = result["uploadId"]
-        if not saveFilePath or not uploadId:
-            logger.error("error - no file path or upload id were formed")
-            return None
-        # compute expected chunks
-        fileSize = os.path.getsize(sourceFilePath)
-        expectedChunks = 1
-        if self.chunkSize < fileSize:
-            expectedChunks = math.ceil(fileSize / self.chunkSize)
-        return saveFilePath, chunkIndex, expectedChunks, uploadId, fullTestHash
-
-    # file parameter is one chunk
-
-    def uploadChunk(
-        self,
-        sourceFilePath,
-        saveFilePath,
-        chunkIndex,
-        expectedChunks,
-        uploadId,
-        fullTestHash,
-        decompress,
-        allowOverwrite,
-        resumable,
-    ):
-        if not os.path.exists(sourceFilePath):
-            logger.error("File does not exist: %r", sourceFilePath)
-            return None
-        # chunk file and upload
-        mD = {
-            # chunk parameters
-            "chunkSize": self.chunkSize,
-            "chunkIndex": chunkIndex,
-            "expectedChunks": expectedChunks,
-            # upload file parameters
-            "uploadId": uploadId,
-            "hashType": self.hashType,
-            "hashDigest": fullTestHash,
-            "resumable": resumable,
-            # save file parameters
-            "filePath": saveFilePath,
-            "decompress": decompress,
-            "allowOverwrite": allowOverwrite,
-        }
-        fileSize = os.path.getsize(sourceFilePath)
-        offset = chunkIndex * self.chunkSize
-        response = None
-        tmp = io.BytesIO()
-        with open(sourceFilePath, "rb") as toUpload:
-            toUpload.seek(offset)
-            packetSize = min(
-                int(fileSize) - int(offset),
-                int(self.chunkSize),
-            )
-            tmp.truncate(packetSize)
-            tmp.seek(0)
-            tmp.write(toUpload.read(packetSize))
-            tmp.seek(0)
-            url = os.path.join(self.baseUrl, "file-v2", "upload")
-
-            if not self.__unit_test:
-                response = requests.post(
-                    url,
-                    data=deepcopy(mD),
-                    headers=self.headerD,
-                    files={"chunk": tmp},
-                    stream=True,
-                    timeout=None,
-                )
-            else:
-                with TestClient(app) as client:
-                    response = client.post(
-                        url,
-                        data=deepcopy(mD),
-                        headers=self.headerD,
-                        files={"chunk": tmp},
-                        timeout=None,
-                    )
-
-            if response.status_code != 200:
-                logger.error(
-                    "Terminating with status code %r and response text: %r",
-                    response.status_code,
-                    response.text,
-                )
         return response
 
     def download(
@@ -441,7 +296,6 @@ class ClientUtils(object):
         partNumber: int,
         contentFormat: str,
         version: str,
-        hashType: str = "MD5",
         downloadFolder: typing.Optional[str] = None,
         allowOverwrite: bool = False,
         returnTempFile: bool = False,
@@ -468,7 +322,7 @@ class ClientUtils(object):
                     logger.error("File already exists: %r", downloadFilePath)
                     return None
                 os.remove(downloadFilePath)
-
+        hashType = self.hashType
         downloadUrlPrefix = os.path.join(self.baseUrl, "file-v1", "download")
         suffix = ""
         if chunkSize and chunkIndex:
@@ -481,6 +335,7 @@ class ClientUtils(object):
 
         if not self.__unit_test:
             if not returnTempFile:
+                # download file to folder, return http response
                 with requests.get(
                     downloadUrl, headers=self.headerD, timeout=None, stream=True
                 ) as response:
@@ -501,6 +356,7 @@ class ClientUtils(object):
                             return None
                         resp = response
             else:
+                # client context, return open file handle
                 with requests.get(
                     downloadUrl, headers=self.headerD, timeout=None, stream=True
                 ) as response:
@@ -519,6 +375,7 @@ class ClientUtils(object):
         else:
             resp = None
             if not returnTempFile:
+                # test download file, return http response
                 with TestClient(app) as client:
                     response = client.get(
                         downloadUrl, headers=self.headerD, timeout=None
@@ -536,6 +393,7 @@ class ClientUtils(object):
                             return None
                         resp = response.status_code
             else:
+                # test client context
                 with TestClient(app) as client:
                     response = client.get(
                         downloadUrl, headers=self.headerD, timeout=None
@@ -662,7 +520,6 @@ class ClientUtils(object):
             partNumber,
             contentFormat,
             version,
-            hashType,
             downloadFolder,
             allowOverwrite,
             returnTempFile,

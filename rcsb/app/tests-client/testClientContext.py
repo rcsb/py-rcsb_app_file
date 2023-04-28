@@ -3,7 +3,6 @@ import unittest
 import os
 import hashlib
 import logging
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.client.ClientUtils import ClientUtils
 from rcsb.utils.io.LogUtil import StructFormatter
@@ -21,8 +20,7 @@ class TestClientContext(unittest.TestCase):
 
     def setUp(self):
         self.__cU = ClientUtils(unit_test=True)
-        self.__configFilePath = os.environ.get("CONFIG_FILE")
-        self.__cP = ConfigProvider(self.__configFilePath)
+        self.__cP = ConfigProvider()
         self.__chunkSize = self.__cP.get("CHUNK_SIZE")
         self.__hashType = self.__cP.get("HASH_TYPE")
         self.__dataPath = self.__cP.get("REPOSITORY_DIR_PATH")
@@ -69,7 +67,6 @@ class TestClientContext(unittest.TestCase):
             client_hash = h2.hexdigest()
             cc.seek(0)
             bytes = cc.read(64)
-            # logger.info(bytes)
             cc.seek(0)
             cc.write(os.urandom(self.__chunkSize))
             self.assertTrue(os.path.exists(tempFilePath), 'error - file path does not exist')

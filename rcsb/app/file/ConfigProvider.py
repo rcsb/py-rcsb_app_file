@@ -54,6 +54,9 @@ class ConfigProvider(SingletonClass):
             logger.exception("Failing with %s", str(e))
         return self.__configD["data"]
 
+    def getConfigFilePath(self) -> str:
+        return self.__configFilePath
+
     def getVersion(self) -> typing.Optional[str]:
         try:
             return self.__configD["version"]

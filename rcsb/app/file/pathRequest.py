@@ -24,7 +24,6 @@ from fastapi import Query
 from fastapi import HTTPException
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 from rcsb.app.file.PathUtils import PathUtils
@@ -33,7 +32,7 @@ from rcsb.utils.io.FileUtil import FileUtil
 logger = logging.getLogger(__name__)
 
 
-provider = ConfigProvider(os.environ.get("CONFIG_FILE"))
+provider = ConfigProvider()
 jwtDisable = bool(provider.get('JWT_DISABLE'))
 if not jwtDisable:
     router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["status"])
@@ -101,8 +100,7 @@ async def fileExists(
     success = False
     try:
         fU = FileUtil()
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
+        cP = ConfigProvider()
         pathU = PathUtils(cP)
         #
         logger.info("Checking repositoryType %r depId %r contentType %r milestone %r format %r version %r", repositoryType, depId, contentType, milestone, contentFormat, version)
@@ -137,8 +135,7 @@ async def dirExists(
     success = False
     try:
         fU = FileUtil()
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
+        cP = ConfigProvider()
         pathU = PathUtils(cP)
         #
         logger.info("Checking repositoryType %r depId %r", repositoryType, depId)
@@ -207,8 +204,7 @@ async def latestFileVersion(
     fileVersion = None
     try:
         fU = FileUtil()
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
+        cP = ConfigProvider()
         pathU = PathUtils(cP)
         #
         logger.info(
@@ -266,8 +262,7 @@ async def copyFile(
     success = False
     try:
         fU = FileUtil()
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
+        cP = ConfigProvider()
         pathU = PathUtils(cP)
         #
         logger.info(
@@ -356,8 +351,7 @@ async def moveFile(
     success = False
     try:
         fU = FileUtil()
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
+        cP = ConfigProvider()
         pathU = PathUtils(cP)
         #
         logger.info(
@@ -441,8 +435,7 @@ async def listDir(
     dirExistsCheck = None
     try:
         fU = FileUtil()
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
+        cP = ConfigProvider()
         pathU = PathUtils(cP)
         #
         # List directory of requested repositoryType and depId
@@ -516,8 +509,7 @@ async def compressDir(
     dirRemovedBool = None
     try:
         fU = FileUtil()
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
+        cP = ConfigProvider()
         pathU = PathUtils(cP)
         #
         # Compress directory of requested repositoryType and depId

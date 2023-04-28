@@ -6,8 +6,6 @@
 #
 
 import unittest
-import os
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.KvConnection import KvConnection
 
@@ -15,8 +13,7 @@ from rcsb.app.file.KvConnection import KvConnection
 class KvConnectionTest(unittest.TestCase):
 
     def testConnection(self):
-        configFilePath = os.environ.get("CONFIG_FILE")
-        cP = ConfigProvider(configFilePath)
+        cP = ConfigProvider()
         filePath = cP.get("KV_FILE_PATH")
         sessionTable = cP.get("KV_SESSION_TABLE_NAME")
         logTable = cP.get("KV_LOG_TABLE_NAME")
