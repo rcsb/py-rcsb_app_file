@@ -65,6 +65,8 @@ class IoUtils:
             self.__kV = KvSqlite(self.__cP)
         elif self.__cP.get("KV_MODE") == "redis":
             self.__kV = KvRedis(self.__cP)
+        self.__defaultFilePermissions = self.__cP.get("DEFAULT_FILE_PERMISSIONS")
+        self.__repositoryPath = self.__cP.get("REPOSITORY_DIR_PATH")
         self.__pathU = PathUtils(self.__cP)
 
     def checkHash(self, pth: str, hashDigest: str, hashType: str) -> bool:
@@ -143,7 +145,15 @@ class IoUtils:
                 detail="Encountered existing file - overwrite prohibited",
             )
         dirPath, _ = os.path.split(outPath)
-        os.makedirs(dirPath, mode=0o777, exist_ok=True)
+        os.makedirs(dirPath, mode=self.__defaultFilePermissions, exist_ok=True)
+        if outPath.startswith(self.__repositoryPath):
+            outPath = outPath.replace(self.__repositoryPath, "")
+            outPath = outPath[1:]
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Error in file path formation %s" % outPath
+            )
         # get upload id
         uploadId = None
         if resumable:
@@ -194,6 +204,7 @@ class IoUtils:
         # other
         resumable: bool,
     ):
+        filePath = os.path.join(self.__repositoryPath, filePath)
         if resumable:
             repositoryType = os.path.basename(
                 os.path.dirname(os.path.dirname(filePath))
