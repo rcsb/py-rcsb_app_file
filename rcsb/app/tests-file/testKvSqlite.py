@@ -6,9 +6,11 @@
 #
 
 import unittest
+import logging
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.KvSqlite import KvSqlite
 
+logging.basicConfig(level=logging.INFO)
 
 class KvSqliteTest(unittest.TestCase):
 

@@ -9,8 +9,9 @@ __author__ = "James Smith"
 __email__ = "james.smith@rcsb.org"
 __license__ = "Apache 2.0"
 
-import logging
+import subprocess
 import os
+import logging
 import platform
 import resource
 import time
@@ -34,8 +35,15 @@ logger.setLevel(logging.INFO)
 
 class ClientTests(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(self):
+        subprocess.Popen(['uvicorn', 'rcsb.app.file.main:app'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    @classmethod
+    def tearDownClass(self):
+        os.system("pid=$(ps -e | grep uvicorn | head -n1 | awk '{print $1;}';);kill $pid;")
+
     def setUp(self):
-        self.__cU = ClientUtils(unit_test=True)
+        self.__cU = ClientUtils(unit_test=False)
         self.__cP = ConfigProvider()
         self.__configFilePath = self.__cP.getConfigFilePath()
         self.__chunkSize = self.__cP.get("CHUNK_SIZE")
@@ -73,7 +81,7 @@ class ClientTests(unittest.TestCase):
         self.__startTime = time.time()
 
         logger.debug("Running tests on version %s", __version__)
-        logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
+        logger.info("Starting at %s", time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
 
     def tearDown(self):
         if os.path.exists(self.__repositoryFile1):
@@ -95,7 +103,7 @@ class ClientTests(unittest.TestCase):
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
         endTime = time.time()
-        logger.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
+        logger.info("Finished at %s (%.4f seconds)", time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
 
     def testSimpleUpload(self, resumable=False):
         """Test - basic file upload """

@@ -365,6 +365,7 @@ class ClientUtils(object):
                         for chunk in response.iter_content(chunk_size=self.chunkSize):
                             if chunk:
                                 ofh.write(chunk)
+                        ofh.seek(0)
                         rspHashType = response.headers["rcsb_hash_type"]
                         rspHashDigest = response.headers["rcsb_hexdigest"]
                         thD = CryptUtils().getFileHash(ofh.name, hashType=rspHashType)
