@@ -38,6 +38,7 @@ class ClientTests(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         subprocess.Popen(['uvicorn', 'rcsb.app.file.main:app'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+
     @classmethod
     def tearDownClass(self):
         os.system("pid=$(ps -e | grep uvicorn | head -n1 | awk '{print $1;}';);kill $pid;")

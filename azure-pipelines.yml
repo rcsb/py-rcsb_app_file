@@ -27,11 +27,11 @@ jobs:
   - template: azure/azure-template-tox-job.yml
     parameters: { tox: "py39", python: "3.9", os: "linux" }
   #
-#  - template: azure/azure-template-publish-job.yml
-#    parameters: { tox: "py39", python: "3.9", os: "linux" }
+  - template: azure/azure-template-publish-job.yml
+    parameters: { tox: "py39", python: "3.9", os: "linux" }
   #
-#  - template: azure/azure-template-docker-job.yml
-#    parameters: { os: "linux", docker_task: "build_and_test" }
-#  - template: azure/azure-template-docker-publish-job.yml
-#    parameters: { os: "linux", docker_task: "build_and_publish" }
+  - template: azure/azure-template-docker-job.yml
+    parameters: { os: "linux", docker_task: "build_and_test" }
+  - template: azure/azure-template-docker-publish-job.yml
+    parameters: { os: "linux", docker_task: "build_and_publish" }
 #
