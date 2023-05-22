@@ -16,7 +16,7 @@ from fastapi import APIRouter, Query, File, Form, HTTPException, UploadFile, Dep
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
-from rcsb.app.file.IoUtils import IoUtils
+from rcsb.app.file.uploadProvider import UploadProvider
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ async def getUploadParameters(
 ):
     ret = None
     try:
-        ret = await IoUtils(ConfigProvider()).getUploadParameters(
+        ret = await UploadProvider(ConfigProvider()).getUploadParameters(
             repositoryType,
             depId,
             contentType,
@@ -107,7 +107,7 @@ async def upload(
     ret = None
     try:
         cP = ConfigProvider()
-        iU = IoUtils(cP)
+        iU = UploadProvider(cP)
         ret = await iU.upload(
             # chunk parameters
             chunk=chunk.file,
@@ -138,13 +138,13 @@ async def upload(
 @router.post("/clearSession")
 async def clearSession(uploadIds: list = Form(...)):
     cP = ConfigProvider()
-    ioU = IoUtils(cP)
-    return await ioU.clearSession(uploadIds, None)
+    upProvider = UploadProvider(cP)
+    return await upProvider.clearSession(uploadIds, None)
 
 
 # purge kv before testing
 @router.post("/clearKv")
 async def clearKv():
     cP = ConfigProvider()
-    ioU = IoUtils(cP)
-    return await ioU.clearKv()
+    upProvider = UploadProvider(cP)
+    return await upProvider.clearKv()

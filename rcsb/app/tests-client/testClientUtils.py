@@ -10,8 +10,8 @@ __email__ = "james.smith@rcsb.org"
 __license__ = "Apache 2.0"
 
 import subprocess
-import os
 import logging
+import os
 import platform
 import resource
 import time

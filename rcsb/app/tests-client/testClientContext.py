@@ -8,7 +8,6 @@ from rcsb.app.client.ClientUtils import ClientUtils
 from rcsb.utils.io.LogUtil import StructFormatter
 
 
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
 root_handler = logger.handlers[0]
@@ -19,7 +18,7 @@ logger.setLevel(logging.INFO)
 class TestClientContext(unittest.TestCase):
 
     def setUp(self):
-        self.__cU = ClientUtils(unit_test=True)
+        self.__cU = ClientUtils(unit_test=False)
         self.__cP = ConfigProvider()
         self.__chunkSize = self.__cP.get("CHUNK_SIZE")
         self.__hashType = self.__cP.get("HASH_TYPE")
@@ -60,7 +59,9 @@ class TestClientContext(unittest.TestCase):
             server_hash1 = h1.hexdigest()
         fao = self.__cU.getFileObject(self.__repoType, self.__depId, self.__contentType, self.__milestone, self.__partNumber, self.__contentFormat, self.__version, hashType, unit_test)
         with fao.clientContext as cc:
+            # the code below works but if try to save file locally it's not same as original file
             tempFilePath = cc.name
+            # shutil.copy(tempFilePath, "./outfile")
             h2 = hashlib.md5()
             cc.seek(0)  # required before reading
             h2.update(cc.read())
@@ -69,7 +70,9 @@ class TestClientContext(unittest.TestCase):
             bytes = cc.read(64)
             cc.seek(0)
             cc.write(os.urandom(self.__chunkSize))
+            cc.seek(0)
             self.assertTrue(os.path.exists(tempFilePath), 'error - file path does not exist')
+
         with open(self.__filePath, "rb") as r:
             h3 = hashlib.md5()
             h3.update(r.read())

@@ -2,12 +2,17 @@
 # File: downloadRequest.py
 # Date: 11-Aug-2021
 #
+
 ##
 __docformat__ = "google en"
 __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
+"""
+    Download a single file
+    Download/upload a session bundle
+"""
 
 import logging
 import os

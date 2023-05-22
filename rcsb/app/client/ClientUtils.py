@@ -103,6 +103,7 @@ class ClientContext(object):
         downloadFolder = None
         allowOverwrite = True
         returnTempFile = True
+        deleteTempFile = True
         self.cU = ClientUtils(self.unit_test)
         self.file = self.cU.download(
             self.repositoryType,
@@ -115,6 +116,7 @@ class ClientContext(object):
             downloadFolder,
             allowOverwrite,
             returnTempFile,
+            deleteTempFile
         )
         self.tempFilePath = self.file.name
         return self.file
