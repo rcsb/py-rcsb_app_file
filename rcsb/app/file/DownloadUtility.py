@@ -1,0 +1,125 @@
+##
+# File: DownloadRequest.py
+# Date: 11-Aug-2021
+#
+
+##
+__docformat__ = "google en"
+__author__ = "John Westbrook"
+__email__ = "john.westbrook@rcsb.org"
+__license__ = "Apache 2.0"
+
+"""
+    Download a single file
+    Download/upload a session bundle
+"""
+
+import logging
+import os
+import typing
+from enum import Enum
+from fastapi import HTTPException
+from fastapi.responses import FileResponse, Response
+from rcsb.app.file.PathProvider import PathProvider
+from rcsb.utils.io.CryptUtils import CryptUtils
+from rcsb.app.file.IoUtility import IoUtility
+
+
+logger = logging.getLogger(__name__)
+
+
+class HashType(str, Enum):
+    MD5 = "MD5"
+    SHA1 = "SHA1"
+    SHA256 = "SHA256"
+
+
+class DownloadUtility(object):
+    def __init__(self):
+        pass
+
+    async def download(
+        self,
+        repositoryType: str,
+        depId: str,
+        contentType: str,
+        milestone: str,
+        partNumber: int,
+        contentFormat: str,
+        version: str,
+        hashType: HashType,
+        chunkSize: typing.Optional[int],
+        chunkIndex: typing.Optional[int],
+    ):
+        pathP = PathProvider()
+        # filePath = fileName = mimeType = hashDigest = None
+        tD = {}
+        try:
+            filePath = pathP.getVersionedPath(
+                repositoryType,
+                depId,
+                contentType,
+                milestone,
+                partNumber,
+                contentFormat,
+                version,
+            )
+            if not filePath:
+                raise HTTPException(
+                    status_code=404, detail="Bad or incomplete path metadata"
+                )
+            if not os.path.exists(filePath):
+                raise HTTPException(
+                    status_code=404,
+                    detail="Request file path does not exist %s" % filePath,
+                )
+            if hashType:
+                hD = CryptUtils().getFileHash(filePath, hashType.name)
+                hashDigest = hD["hashDigest"]
+                tD = {"rcsb_hash_type": hashType.name, "rcsb_hexdigest": hashDigest}
+        except HTTPException as exc:
+            logger.exception("Failing with %s", str(exc.detail))
+            raise HTTPException(status_code=404, detail=exc.detail)
+        if chunkSize is not None and chunkIndex is not None:
+            data = None
+            try:
+                with open(filePath, "rb") as r:
+                    r.seek(chunkIndex * chunkSize)
+                    data = r.read(chunkSize)
+            except Exception:
+                raise HTTPException(status_code=500, detail="error returning chunk")
+            return Response(content=data, media_type="application/octet-stream")
+        else:
+            mimeType = IoUtility().getMimeType(contentFormat)
+            return FileResponse(
+                path=filePath,
+                media_type=mimeType,
+                filename=os.path.basename(filePath),
+                headers=tD,
+            )
+
+    async def downloadSize(
+        self,
+        repositoryType,
+        depId,
+        contentType,
+        milestone,
+        partNumber,
+        contentFormat,
+        version,
+    ):
+        pathP = PathProvider()
+        filePath = pathP.getVersionedPath(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+        )
+        if not filePath or not os.path.exists(filePath):
+            raise HTTPException(
+                status_code=404, detail="error - file path does not exist}"
+            )
+        return os.path.getsize(filePath)

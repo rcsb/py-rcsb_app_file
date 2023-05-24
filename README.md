@@ -62,13 +62,13 @@ Upload requires some setup by invoking the 'file-v2/getUploadParameters' endpoin
 
 To maintain sequential order, the client must wait for each response before sending the next chunk.
 
-The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in IoUtils.
+The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in IoUtility.
 
 The download endpoint is found at 'file-v1/download'.
 
 The list directory endpoint is found at 'file-v1/list-dir'.
 
-To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in IoUtils.py.
+To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in IoUtility.py.
 
 # Uploads and downloads
 

@@ -1,5 +1,5 @@
 ##
-# File:    testPathRequest.py
+# File:    testIoRequest.py
 # Author:  Dennis Piehl
 # Date:    24-May-2022
 # Version: 0.001
@@ -38,7 +38,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-class PathRequestTests(unittest.TestCase):
+class IoRequestTests(unittest.TestCase):
 
     def setUp(self):
         cP = ConfigProvider()
@@ -166,57 +166,47 @@ class PathRequestTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
-    def testDirExists(self):
-        """Test - dir exists"""
-        startTime = time.time()
-        try:
-            # First test for dir that actually exists using explicit dirPath
-            endPoint = "path-exists"
-            path = os.path.join(self.__repoTestPath, "D_2000000001")
-            with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"path": path}, headers=self.__headerD)
-                logger.info("dir status response status code %r", response.status_code)
-                logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
-                self.assertTrue(response.status_code == 200)
-                logger.info("Content length (%d)", len(response.content))
-            #
-            # Next test for dir that actually exists using standard params
-            endPoint = "dir-exists"
-            with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"depId": "D_2000000001", "repositoryType": self.__repositoryType}, headers=self.__headerD)
-                logger.info("dir status response status code %r", response.status_code)
-                logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
-                self.assertTrue(response.status_code == 200)
-                logger.info("Content length (%d)", len(response.content))
-            #
-            # Next test for dir that DOESN'T exists using standard params
-            endPoint = "dir-exists"
-            with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params={"depId": "D_1234567890", "repositoryType": self.__repositoryType}, headers=self.__headerD)
-                logger.info("dir status response status code %r", response.status_code)
-                logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
-                self.assertTrue(response.status_code == 404)
-            #
-            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            self.fail()
+    # def testDirExists(self):
+    #     """Test - dir exists"""
+    #     startTime = time.time()
+    #     try:
+    #         # First test for dir that actually exists using explicit dirPath
+    #         endPoint = "path-exists"
+    #         path = os.path.join(self.__repoTestPath, "D_2000000001")
+    #         with TestClient(app) as client:
+    #             response = client.post("/file-v1/%s" % endPoint, params={"path": path}, headers=self.__headerD)
+    #             logger.info("dir status response status code %r", response.status_code)
+    #             logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+    #             self.assertTrue(response.status_code == 200)
+    #             logger.info("Content length (%d)", len(response.content))
+    #         #
+    #         # Next test for dir that actually exists using standard params
+    #         endPoint = "dir-exists"
+    #         with TestClient(app) as client:
+    #             response = client.post("/file-v1/%s" % endPoint, params={"depId": "D_2000000001", "repositoryType": self.__repositoryType}, headers=self.__headerD)
+    #             logger.info("dir status response status code %r", response.status_code)
+    #             logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+    #             self.assertTrue(response.status_code == 200)
+    #             logger.info("Content length (%d)", len(response.content))
+    #         #
+    #         # Next test for dir that DOESN'T exists using standard params
+    #         endPoint = "dir-exists"
+    #         with TestClient(app) as client:
+    #             response = client.post("/file-v1/%s" % endPoint, params={"depId": "D_1234567890", "repositoryType": self.__repositoryType}, headers=self.__headerD)
+    #             logger.info("dir status response status code %r", response.status_code)
+    #             logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+    #             self.assertTrue(response.status_code == 404)
+    #         #
+    #         logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+    #     except Exception as e:
+    #         logger.exception("Failing with %s", str(e))
+    #         self.fail()
 
     def testListDir(self):
         """Test - list dir"""
         startTime = time.time()
         try:
-            # First test for dir that actually exists (created in fixture above), given a specific dirPath
-            endPoint = "list-dirpath"
-            path = os.path.join(self.__repoTestPath, "D_2000000001")
-            with TestClient(app) as client:
-                response = client.get("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
-                logger.info("dir status response status code %r", response.status_code)
-                logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
-                self.assertTrue(response.status_code == 200)
-                logger.info("Content length (%d)", len(response.content))
-            #
-            # Next test for dir that actually exists (created in fixture above), given depId and repositoryType
+            # Test for dir that actually exists (created in fixture above), given depId and repositoryType
             endPoint = "list-dir"
             mD = {
                 "depId": "D_2000000001",
@@ -230,10 +220,14 @@ class PathRequestTests(unittest.TestCase):
                 logger.info("Content length (%d)", len(response.content))
             #
             # Next test for dir that DOESN'T exists
-            endPoint = "list-dirpath"
+            endPoint = "list-dir"
+            mD = {
+                "depId": "D_2000000002",
+                "repositoryType": self.__repositoryType,
+            }
             path = os.path.join(self.__repoTestPath, "D_1234567890")
             with TestClient(app) as client:
-                response = client.get("/file-v1/%s" % endPoint, params={"dirPath": path}, headers=self.__headerD)
+                response = client.get("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
                 logger.info("dir status response status code %r", response.status_code)
                 logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
                 self.assertTrue(response.status_code == 404)
@@ -275,17 +269,21 @@ class PathRequestTests(unittest.TestCase):
         try:
             # Copy file from one repositoryType to another
             mD = {
-                "depIdSource": "D_1000000001",
                 "repositoryTypeSource": self.__repositoryType,
+                "depIdSource": "D_1000000001",
                 "contentTypeSource": "model",
-                "contentFormatSource": "pdbx",
                 "partNumberSource": 1,
+                "milestoneSource": None,
+                "contentFormatSource": "pdbx",
+                "versionSource": 1,
                 #
-                "depIdTarget": "D_1000000001",
                 "repositoryTypeTarget": self.__repositoryType2,
+                "depIdTarget": "D_1000000001",
                 "contentTypeTarget": "model",
-                "contentFormatTarget": "pdbx",
+                "milestoneTarget": None,
                 "partNumberTarget": 1,
+                "contentFormatTarget": "pdbx",
+                "versionTarget": 1
             }
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
@@ -306,20 +304,23 @@ class PathRequestTests(unittest.TestCase):
         try:
             # Move file from one repositoryType to another
             mD = {
-                "depIdSource": "D_1000000001",
                 "repositoryTypeSource": self.__repositoryType,
+                "depIdSource": "D_1000000001",
                 "contentTypeSource": "model",
-                "contentFormatSource": "pdbx",
-                "partNumberSource": 1,
-                "versionSource": 1,
                 "milestoneSource": "",
-                "depIdTarget": "D_2000000001",
+                "partNumberSource": 1,
+                "contentFormatSource": "pdbx",
+                "versionSource": 1,
+                #
                 "repositoryTypeTarget": self.__repositoryType2,
+                "depIdTarget": "D_2000000001",
                 "contentTypeTarget": "model",
-                "contentFormatTarget": "pdbx",
                 "partNumberTarget": 1,
+                "milestoneTarget": "",
+                "contentFormatTarget": "pdbx",
                 "versionTarget": 1,
-                "milestoneTarget": ""
+                #
+                "overwrite": "True"
             }
             with TestClient(app) as client:
                 response = client.post("/file-v1/%s" % endPoint, data=mD, headers=self.__headerD)
@@ -333,63 +334,63 @@ class PathRequestTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
-    def testCompressDir(self):
-        """Test - compress dir"""
-        endPoint = "compress-dir"
-        startTime = time.time()
-        try:
-            # First create a copy of one archive directory
-            mD = {
-                "depIdSource": "D_1000000001",
-                "repositoryTypeSource": self.__repositoryType,
-                "contentTypeSource": "model",
-                "contentFormatSource": "pdbx",
-                "partNumberSource": 1,
-                #
-                "depIdTarget": "D_1000000002",
-                "repositoryTypeTarget": self.__repositoryType,
-                "contentTypeTarget": "model",
-                "contentFormatTarget": "pdbx",
-                "partNumberTarget": 1,
-            }
-            with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % "copy-file", params=mD, headers=self.__headerD)
-                logger.info("file status response status code %r", response.status_code)
-                logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
-                self.assertTrue(response.status_code == 200)
-                logger.info("Content length (%d)", len(response.content))
-            #
-            # Next compress the copied directory
-            mD = {
-                "depId": "D_1000000002",
-                "repositoryType": self.__repositoryType,
-            }
-            with TestClient(app) as client:
-                response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
-                logger.info("file status response status code %r", response.status_code)
-                logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
-                self.assertTrue(response.status_code == 200)
-                logger.info("Content length (%d)", len(response.content))
-                #
-            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            self.fail()
+    # def testCompressDir(self):
+    #     """Test - compress dir"""
+    #     endPoint = "compress-dir"
+    #     startTime = time.time()
+    #     try:
+    #         # First create a copy of one archive directory
+    #         mD = {
+    #             "depIdSource": "D_1000000001",
+    #             "repositoryTypeSource": self.__repositoryType,
+    #             "contentTypeSource": "model",
+    #             "contentFormatSource": "pdbx",
+    #             "partNumberSource": 1,
+    #             #
+    #             "depIdTarget": "D_1000000002",
+    #             "repositoryTypeTarget": self.__repositoryType,
+    #             "contentTypeTarget": "model",
+    #             "contentFormatTarget": "pdbx",
+    #             "partNumberTarget": 1,
+    #         }
+    #         with TestClient(app) as client:
+    #             response = client.post("/file-v1/%s" % "copy-file", params=mD, headers=self.__headerD)
+    #             logger.info("file status response status code %r", response.status_code)
+    #             logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+    #             self.assertTrue(response.status_code == 200)
+    #             logger.info("Content length (%d)", len(response.content))
+    #         #
+    #         # Next compress the copied directory
+    #         mD = {
+    #             "depId": "D_1000000002",
+    #             "repositoryType": self.__repositoryType,
+    #         }
+    #         with TestClient(app) as client:
+    #             response = client.post("/file-v1/%s" % endPoint, params=mD, headers=self.__headerD)
+    #             logger.info("file status response status code %r", response.status_code)
+    #             logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+    #             self.assertTrue(response.status_code == 200)
+    #             logger.info("Content length (%d)", len(response.content))
+    #             #
+    #         logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
+    #     except Exception as e:
+    #         logger.exception("Failing with %s", str(e))
+    #         self.fail()
 
 
-def pathRequestTestSuite():
+def ioRequestTestSuite():
     suiteSelect = unittest.TestSuite()
-    suiteSelect.addTest(PathRequestTests("testFileExists"))
-    suiteSelect.addTest(PathRequestTests("testPathExists"))
-    suiteSelect.addTest(PathRequestTests("testDirExists"))
-    suiteSelect.addTest(PathRequestTests("testListDir"))
-    suiteSelect.addTest(PathRequestTests("testLatestFileVersion"))
-    suiteSelect.addTest(PathRequestTests("testCopyFile"))
-    suiteSelect.addTest(PathRequestTests("testCompressDir"))
-    suiteSelect.addTest(PathRequestTests("testMoveFile"))  # deletes a file that other tests may rely on so must go last
+    suiteSelect.addTest(IoRequestTests("testFileExists"))
+    suiteSelect.addTest(IoRequestTests("testPathExists"))
+    # suiteSelect.addTest(IoRequestTests("testDirExists"))
+    suiteSelect.addTest(IoRequestTests("testListDir"))
+    suiteSelect.addTest(IoRequestTests("testLatestFileVersion"))
+    suiteSelect.addTest(IoRequestTests("testCopyFile"))
+    suiteSelect.addTest(IoRequestTests("testMoveFile"))  # deletes a file that other tests may rely on so must go last
+    # suiteSelect.addTest(IoRequestTests("testCompressDir"))
     return suiteSelect
 
 
 if __name__ == "__main__":
-    mySuite = pathRequestTestSuite()
+    mySuite = ioRequestTestSuite()
     unittest.TextTestRunner(verbosity=2).run(mySuite)

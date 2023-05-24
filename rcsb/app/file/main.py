@@ -16,10 +16,10 @@ from starlette.middleware.cors import CORSMiddleware
 
 from . import ConfigProvider
 from . import LogFilterUtils
-from . import downloadRequest  # This triggers JWTAuthBearer
-from . import serverStatus
-from . import uploadRequest
-from . import pathRequest
+from . import DownloadRequest  # This triggers JWTAuthBearer
+from . import ServerStatusRequest
+from . import UploadRequest
+from . import IoRequest
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -63,21 +63,21 @@ def shutdownEvent():
 
 
 app.include_router(
-    uploadRequest.router,
+    UploadRequest.router,
     prefix="/file-v2",
 )
 
 
 app.include_router(
-    downloadRequest.router,
+    DownloadRequest.router,
     prefix="/file-v1",
 )
 
 
 app.include_router(
-    pathRequest.router,
+    IoRequest.router,
     prefix="/file-v1",
 )
 
 
-app.include_router(serverStatus.router)
+app.include_router(ServerStatusRequest.router)

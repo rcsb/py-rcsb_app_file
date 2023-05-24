@@ -1,5 +1,5 @@
 ##
-# File: serverStatus.py
+# File: ServerStatusRequest.py
 # Date: 11-Aug-2020
 #
 ##

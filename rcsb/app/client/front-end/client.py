@@ -7,7 +7,7 @@ import time
 import argparse
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
-from rcsb.app.file.IoUtils import IoUtils
+from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.client.ClientUtils import ClientUtils
 
 """
@@ -25,7 +25,7 @@ hashType = cP.get("HASH_TYPE")
 """ do not alter from here
 """
 subject = cP.get("JWT_SUBJECT")
-ioU = IoUtils(cP)
+ioU = IoUtility()
 cU = ClientUtils()
 headerD = {
     "Authorization": "Bearer "

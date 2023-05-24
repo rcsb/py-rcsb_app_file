@@ -7,7 +7,7 @@ import os
 import logging
 import time
 
-from rcsb.app.file.IoUtils import IoUtils
+from rcsb.app.file.IoUtility import IoUtility
 
 os.environ["CACHE_PATH"] = "./rcsb/app/tests-file/test-data/data/"
 
@@ -174,7 +174,7 @@ url = "http://0.0.0.0:80/file-v1/upload-slice"
 awsurl = "http://X.X.X.X:80/file-v1/upload-slice"  # change this to match aws public ipv4
 
 cP = ConfigProvider(cachePath)
-ioU = IoUtils(cP)
+ioU = IoUtility()
 sessionId = uuid.uuid4().hex
 
 sliceTotal = 4

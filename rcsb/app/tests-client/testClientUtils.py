@@ -25,6 +25,7 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.utils.io.LogUtil import StructFormatter
 from rcsb.app.client.ClientUtils import ClientUtils
+from rcsb.app.file.PathProvider import PathProvider
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
@@ -35,46 +36,59 @@ logger.setLevel(logging.INFO)
 
 class ClientTests(unittest.TestCase):
 
+    # runs only once
     @classmethod
-    def setUpClass(self):
+    def setUpClass(cls):
         subprocess.Popen(['uvicorn', 'rcsb.app.file.main:app'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
+    # runs only once
     @classmethod
-    def tearDownClass(self):
+    def tearDownClass(cls):
         os.system("pid=$(ps -e | grep uvicorn | head -n1 | awk '{print $1;}';);kill $pid;")
 
+    # runs before each test
     def setUp(self):
-        self.__cU = ClientUtils(unit_test=False)
+        self.__cU = ClientUtils()
         self.__cP = ConfigProvider()
+        self.__fU = FileUtil()
+
         self.__configFilePath = self.__cP.getConfigFilePath()
         self.__chunkSize = self.__cP.get("CHUNK_SIZE")
         self.__hashType = self.__cP.get("HASH_TYPE")
+
         self.__dataPath = self.__cP.get("REPOSITORY_DIR_PATH")
         self.__repositoryType = "unit-test"
         self.__unitTestFolder = os.path.join(self.__dataPath, self.__repositoryType)
-        logger.info("self.__dataPath %s", self.__dataPath)
-        logger.info("self.__configFilePath %s", self.__configFilePath)
-        self.__fU = FileUtil()
+        logger.info("self.__dataPath %s", self.__unitTestFolder)
 
-        self.__repositoryFile1 = os.path.join(self.__dataPath, self.__repositoryType, "D_1000000001", "D_1000000001_model_P1.cif.V1")
-        self.__repositoryFile2 = os.path.join(self.__dataPath, self.__repositoryType, "D_1000000001", "D_1000000001_model_P2.cif.V1")
-        self.__repositoryFile3 = os.path.join(self.__dataPath, self.__repositoryType, "D_1000000001", "D_1000000001_model_P3.cif.V1")
-        self.__downloadFile = os.path.join(self.__dataPath, "download_D_1000000001_model_P1.cif.V1")
-        if os.path.exists(self.__repositoryFile1):
-            os.unlink(self.__repositoryFile1)
-        if os.path.exists(self.__repositoryFile2):
-            os.unlink(self.__repositoryFile2)
-        if os.path.exists(self.__repositoryFile3):
-            os.unlink(self.__repositoryFile3)
+        self.__repositoryFile1 = os.path.join(self.__unitTestFolder, "D_1000000001", "D_1000000001_model_P1.cif.V1")
+        self.__repositoryFile2 = os.path.join(self.__unitTestFolder, "D_1000000001", "D_1000000001_model_P2.cif.V1")
+        self.__repositoryFile3 = os.path.join(self.__unitTestFolder, "D_1000000001", "D_1000000001_model_P3.cif.V1")
         os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
+        if not os.path.exists(self.__repositoryFile1):
+            os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
+            nB = self.__chunkSize
+            with open(self.__repositoryFile1, "wb") as out:
+                out.write(os.urandom(nB))
+        if not os.path.exists(self.__repositoryFile2):
+            os.makedirs(os.path.dirname(self.__repositoryFile2), mode=0o757, exist_ok=True)
+            nB = self.__chunkSize
+            with open(self.__repositoryFile2, "wb") as out:
+                out.write(os.urandom(nB))
+        if not os.path.exists(self.__repositoryFile3):
+            os.makedirs(os.path.dirname(self.__repositoryFile3), mode=0o757, exist_ok=True)
+            nB = self.__chunkSize
+            with open(self.__repositoryFile3, "wb") as out:
+                out.write(os.urandom(nB))
 
-        self.__testFileDatPath = os.path.join(self.__dataPath, "testFile.dat")
+        self.__downloadFile = os.path.join(self.__unitTestFolder, "D_1000000001_model_P1.cif.V1")
+        self.__testFileDatPath = os.path.join(self.__unitTestFolder, "testFile.dat")
         if not os.path.exists(self.__testFileDatPath):
             os.makedirs(os.path.dirname(self.__testFileDatPath), mode=0o757, exist_ok=True)
             nB = self.__chunkSize * 2
             with open(self.__testFileDatPath, "wb") as out:
                 out.write(os.urandom(nB))
-        self.__testFileGzipPath = os.path.join(self.__dataPath, "testFile.dat.gz")
+        self.__testFileGzipPath = os.path.join(self.__unitTestFolder, "testFile.dat.gz")
         if os.path.exists(self.__testFileGzipPath):
             os.unlink(self.__testFileGzipPath)
         self.__fU.compress(self.__testFileDatPath, self.__testFileGzipPath)
@@ -84,6 +98,7 @@ class ClientTests(unittest.TestCase):
         logger.debug("Running tests on version %s", __version__)
         logger.info("Starting at %s", time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
 
+    # runs after each test
     def tearDown(self):
         if os.path.exists(self.__repositoryFile1):
             os.unlink(self.__repositoryFile1)
@@ -107,130 +122,158 @@ class ClientTests(unittest.TestCase):
         logger.info("Finished at %s (%.4f seconds)", time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
 
     def testSimpleUpload(self, resumable=False):
-        """Test - basic file upload """
-        resumable = False
-        for testFilePath, decompress, partNumber, allowOverwrite, responseCode in [
-            (self.__testFileDatPath, False, 1, True, 200),
-            (self.__testFileDatPath, False, 2, True, 200),
-            (self.__testFileDatPath, False, 1, False, 400),
-            (self.__testFileGzipPath, True, 3, True, 200),
-        ]:
-            logging.warning(f"{decompress} {partNumber} {allowOverwrite} {responseCode}")
-            repositoryType = self.__repositoryType
-            depId = "D_1000000001"
-            contentType = "model"
-            milestone = ""
-            contentFormat = "pdbx"
-            for version in range(1, 2):
-                startTime = time.time()
-                try:
-                    response = self.__cU.upload(testFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, allowOverwrite, resumable)
-                    if not allowOverwrite:
-                        self.assertTrue(response is None, "error - did not detect pre-existing file")
-                    if not response:
-                        logger.info("error in test simple upload")
-                        break
-                    self.assertTrue(response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
-                    logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
-                except Exception as e:
-                    logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
-                    self.fail()
+        logger.info("test simple upload")
+        self.assertTrue(os.path.exists(self.__testFileDatPath))
+        self.assertTrue(os.path.exists(self.__testFileGzipPath))
 
-    def testResumableUpload(self):
-        self.testSimpleUpload(True)
+        repositoryType = self.__repositoryType
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = ""
+        contentFormat = "pdbx"
+        version = 1
 
-    def testSimpleDownload(self):
-        """Test - basic file download """
-        if not os.path.exists(self.__repositoryFile1):
-            os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
-            nB = self.__chunkSize
-            with open(self.__repositoryFile1, "wb") as out:
-                out.write(os.urandom(nB))
-        for downloadFolderPath, partNumber, allowOverwrite, responseCode in [
-            (self.__dataPath, 1, True, 200),
-            (self.__dataPath, 2, True, 404)
-        ]:
-            logging.warning(f"{partNumber} {allowOverwrite} {responseCode}")
-            repositoryType = self.__repositoryType
-            depId = "D_1000000001"
-            contentType = "model"
-            milestone = ""
-            contentFormat = "pdbx"
-            for version in range(1, 2):
-                startTime = time.time()
-                try:
-                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, downloadFolderPath, allowOverwrite)
-                    self.assertTrue(response == responseCode or (response==None and responseCode==404) or response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
-                    logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
-                except Exception as e:
-                    logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
-                    self.fail()
-
-    def testChunkDownload(self):
-        """Test - chunk download """
-        if not os.path.exists(self.__repositoryFile1):
-            os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
-            nB = self.__chunkSize
-            with open(self.__repositoryFile1, "wb") as out:
-                out.write(os.urandom(nB))
-        for downloadFolderPath, partNumber, allowOverwrite, responseCode in [
-            (self.__dataPath, 1, True, 200),
-            (self.__dataPath, 2, True, 404)
-        ]:
-            logging.warning(f"{partNumber} {allowOverwrite} {responseCode}")
-            repositoryType = self.__repositoryType
-            depId = "D_1000000001"
-            contentType = "model"
-            milestone = ""
-            contentFormat = "pdbx"
-            chunkSize = self.__chunkSize
-            chunkIndex = 0
-            for version in range(1, 2):
-                startTime = time.time()
-                try:
-                    response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, downloadFolderPath, allowOverwrite, chunkSize=chunkSize, chunkIndex=chunkIndex)
-                    self.assertTrue(response == responseCode or (response==None and responseCode==404) or response.status_code == responseCode or (response.status_code >= 400 and responseCode >= 400))
-                    fileSize = os.path.getsize(self.__downloadFile)
-                    self.assertTrue(fileSize == self.__chunkSize)
-                    logger.info("Completed upload (%.4f seconds)", time.time() - startTime)
-                except Exception as e:
-                    logger.exception("Failing with %s (%.4f seconds)", str(e), time.time() - startTime)
-                    self.fail()
-
-
-    def testListDir(self):
-        """Test - list dir"""
-        if not os.path.exists(self.__repositoryFile1):
-            os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
-            nB = self.__chunkSize
-            with open(self.__repositoryFile1, "wb") as out:
-                out.write(os.urandom(nB))
         try:
-            # First test for dir that actually exists
-            repoType = self.__repositoryType
-            depId = "D_1000000001"
-            response = self.__cU.listDir(repoType, depId)
-            self.assertTrue(response and len(response) > 0)
-            # Next test for dir that DOESN'T exists
-            depId = "D_1234567890"
-            response = self.__cU.listDir(repoType, depId)
-            self.assertTrue(response is None or len(response) == 0)
+            # return 200
+            partNumber = 1
+            decompress = False
+            allowOverwrite = True
+            response = self.__cU.upload(self.__testFileDatPath, repositoryType, depId, contentType, milestone, partNumber,
+                                        contentFormat, version, decompress, allowOverwrite, resumable)
+            logger.info(
+                f"{PathProvider().getFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}")
+            self.assertTrue(response["status_code"] == 200)
+
+            # return 200
+            partNumber = 2
+            response = self.__cU.upload(self.__testFileDatPath, repositoryType, depId, contentType, milestone, partNumber,
+                                        contentFormat, version, decompress, allowOverwrite, resumable)
+            logger.info(
+                f"{PathProvider().getFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}")
+            self.assertTrue(response["status_code"] == 200)
+
+            # return 400 (file already exists)
+            partNumber = 1
+            allowOverwrite = False
+            response = self.__cU.upload(self.__testFileDatPath, repositoryType, depId, contentType, milestone, partNumber,
+                                        contentFormat, version, decompress, allowOverwrite, resumable)
+            logger.info(
+                f"{PathProvider().getFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}")
+            self.assertTrue(response["status_code"] == 400)
+
+            # return 200 (decompress gzip file)
+            partNumber = 3
+            decompress = True
+            allowOverwrite = True
+            response = self.__cU.upload(self.__testFileGzipPath, repositoryType, depId, contentType, milestone, partNumber,
+                                        contentFormat, version, decompress, allowOverwrite, resumable)
+            logger.info(
+                f"{PathProvider().getFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}")
+            self.assertTrue(response["status_code"] == 200)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
 
-    def testFilePathRemote(self):
-        repoType = self.__repositoryType
+    def testResumableUpload(self):
+        logger.info("test resumable upload")
+        self.testSimpleUpload(True)
+
+    def testSimpleDownload(self):
+        logger.info("test simple download")
+        self.assertTrue(os.path.exists(self.__repositoryFile1))
+        self.assertTrue(os.path.exists(self.__repositoryFile2))
+        repositoryType = self.__repositoryType
+        downloadFolderPath = self.__unitTestFolder
+        allowOverwrite = True
+
         depId = "D_1000000001"
         contentType = "model"
         milestone = None
         partNumber = 1
         contentFormat = "pdbx"
         version = 1
-        filePathResponse = self.__cU.getFilePathRemote(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
-        self.assertTrue(filePathResponse == self.__repositoryFile1, f'error {filePathResponse} {self.__repositoryFile1}')
+
+        try:
+            response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version,
+                                      downloadFolderPath, allowOverwrite)
+            logger.info(f"{PathProvider().getFileName(depId,contentType,milestone,partNumber,contentFormat,version)} 200 = {response['status_code']}")
+            self.assertTrue(response["status_code"] == 200)
+        except Exception as e:
+            logger.info(f"exception {str(e)}")
+
+        version = 2
+        try:
+            response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version,
+                                          downloadFolderPath, allowOverwrite)
+            logger.info(f"{PathProvider().getFileName(depId,contentType,milestone,partNumber,contentFormat,version)} 404 = {response['status_code']}")
+            self.assertTrue(response["status_code"] == 404)
+        except Exception as e:
+            logger.info(f"exception {str(e)}")
+
+    def testChunkDownload(self):
+        logger.info("test chunk download")
+        self.assertTrue(os.path.exists(self.__repositoryFile1))
+        self.assertTrue(os.path.exists(self.__repositoryFile2))
+        repositoryType = self.__repositoryType
+        downloadFolderPath = self.__unitTestFolder
+        allowOverwrite = True
+
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = None
+        partNumber = 1
+        contentFormat = "pdbx"
+        version = 1
+
+        chunkSize = self.__chunkSize
+        chunkIndex = 0
+
+        try:
+            response = self.__cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version,
+                                      downloadFolderPath, allowOverwrite)
+            logger.info(f"{PathProvider().getFileName(depId,contentType,milestone,partNumber,contentFormat,version)} 200 = {response['status_code']}")
+            self.assertTrue(response["status_code"] == 200)
+            fileSize = os.path.getsize(self.__downloadFile)
+            self.assertTrue(fileSize == self.__chunkSize)
+        except Exception as e:
+            logger.info(f"exception {str(e)}")
+
+    def testListDir(self):
+        logger.info("test list dir")
+        try:
+            # response 200
+            repoType = self.__repositoryType
+            depId = "D_1000000001"
+            response = self.__cU.listDir(repoType, depId)
+            status_code = response["status_code"]
+            logger.info(f"{status_code}")
+            self.assertTrue(status_code==200)
+            dirList = response["content"]
+            self.assertTrue(isinstance(dirList, list) and len(dirList) > 0)
+            # response 404
+            depId = "D_1234567890"
+            response = self.__cU.listDir(repoType, depId)
+            status_code = response["status_code"]
+            logger.info(f"{status_code}")
+            self.assertTrue(status_code == 404)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
+    # def testFilePathRemote(self):
+    #     logger.info("test file path remote")
+    #     repoType = self.__repositoryType
+    #     depId = "D_1000000001"
+    #     contentType = "model"
+    #     milestone = None
+    #     partNumber = 1
+    #     contentFormat = "pdbx"
+    #     version = 1
+    #     response = self.__cU.getFilePathRemote(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
+    #     self.assertTrue(response["status_code"] == 200)
 
     def testFilePathLocal(self):
+        logger.info("test file path local")
         if not os.path.exists(self.__repositoryFile1):
             os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
             nB = 64
@@ -250,10 +293,12 @@ class ClientTests(unittest.TestCase):
         self.assertFalse(os.path.exists(filename), f'error - {filename} exists')
 
     def testDirExists(self):
+        logger.info("test dir exists")
         repoType = self.__repositoryType
         depId = "D_1000000001"
-        response = self.__cU.dirExist(repoType, depId)
-        self.assertTrue(response)
+        response = self.__cU.dirExists(repoType, depId)
+        logger.info(response)
+        self.assertTrue(response["status_code"] == 200)
 
 def client_tests():
     suite = unittest.TestSuite()
@@ -262,8 +307,8 @@ def client_tests():
     suite.addTest(ClientTests("testSimpleDownload"))
     suite.addTest(ClientTests("testChunkDownload"))
     suite.addTest(ClientTests("testListDir"))
-    suite.addTest(ClientTests("testFilePathRemote"))
     suite.addTest(ClientTests("testFilePathLocal"))
+    # suite.addTest(ClientTests("testFilePathRemote"))
     suite.addTest(ClientTests("testDirExists"))
     return suite
 

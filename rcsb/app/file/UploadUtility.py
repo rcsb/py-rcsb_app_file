@@ -1,5 +1,5 @@
 ##
-# File:    uploadProvider.py
+# File:    UploadUtility.py
 # Author:  jdw
 # Date:    30-Aug-2021
 # Version: 0.001
@@ -24,7 +24,8 @@ import json
 from filelock import Timeout, FileLock
 from fastapi import HTTPException
 from rcsb.app.file.ConfigProvider import ConfigProvider
-from rcsb.app.file.PathUtils import PathUtils
+from rcsb.app.file.PathProvider import PathProvider
+from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.file.KvSqlite import KvSqlite
 from rcsb.app.file.KvRedis import KvRedis
 
@@ -35,7 +36,7 @@ logging.basicConfig(
 logger = logging.getLogger()
 
 
-class UploadProvider:
+class UploadUtility(object):
 
     """
 
@@ -63,7 +64,8 @@ class UploadProvider:
             self.__kV = KvRedis(self.__cP)
         self.__defaultFilePermissions = self.__cP.get("DEFAULT_FILE_PERMISSIONS")
         self.__repositoryPath = self.__cP.get("REPOSITORY_DIR_PATH")
-        self.__pathU = PathUtils(self.__cP)
+        self.__pathP = PathProvider()
+        self.__pathU = IoUtility()
 
     def checkHash(self, pth: str, hashDigest: str, hashType: str) -> bool:
         tHash = self.getHashDigest(pth, hashType)
@@ -115,11 +117,11 @@ class UploadProvider:
     ):
         # get save file path
         if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
-            logging.warning("Bad content type and/or format")
+            logging.error("Error 400 - bad content type and/or format")
             raise HTTPException(
                 status_code=400, detail="Error - bad content type and/or format"
             )
-        outPath = self.__pathU.getVersionedPath(
+        outPath = self.__pathP.getVersionedPath(
             repositoryType=repositoryType,
             depId=depId,
             contentType=contentType,
@@ -129,13 +131,13 @@ class UploadProvider:
             version=version,
         )
         if not outPath:
-            logging.warning("Error - could not make file path from parameters")
+            logging.error("Error 400 - could not make file path from parameters")
             raise HTTPException(
                 status_code=400,
                 detail="Error - could not make file path from parameters",
             )
         if os.path.exists(outPath) and not allowOverwrite:
-            logging.warning("Encountered existing file - overwrite prohibited")
+            logging.error("Error 400 - encountered existing file - overwrite prohibited")
             raise HTTPException(
                 status_code=400,
                 detail="Encountered existing file - overwrite prohibited",
@@ -344,7 +346,7 @@ class UploadProvider:
         contentFormat: str = "pdbx",
         version: str = "next",
     ):
-        filename = self.__pathU.getVersionedPath(
+        filename = self.__pathP.getVersionedPath(
             repositoryType=repositoryType,
             depId=depId,
             contentType=contentType,
@@ -436,7 +438,7 @@ class UploadProvider:
             self.__kV.clearLogVal(uploadId)
         elif self.__cP.get("KV_MODE") == "redis":
             self.__kV.clearLog(fileName)
-        dirPath = self.__pathU.getDirPath(repositoryType, depId)
+        dirPath = self.__pathP.getDirPath(repositoryType, depId)
         try:
             tempFile = self.getTempFilePath(uploadId, dirPath)
             os.unlink(tempFile)

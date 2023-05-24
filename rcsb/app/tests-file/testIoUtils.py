@@ -1,5 +1,5 @@
 ##
-# File:    testPathUtils.py
+# File:    testIoUtility.py
 # Author:  C. Parker
 # Date:    03-Mar-2022
 # Version: 0.001
@@ -24,7 +24,7 @@ import resource
 import time
 import unittest
 from rcsb.app.file import __version__
-from rcsb.app.file.PathUtils import PathUtils
+from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
 
@@ -33,11 +33,10 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-class PathUtilsTests(unittest.TestCase):
+class IoUtilityTests(unittest.TestCase):
 
     def setUp(self):
-        self.cP = ConfigProvider()
-        self.pathU = PathUtils(self.cP)
+        self.iou = IoUtility()
         self.__startTime = time.time()
         logger.debug("Running tests on version %s", __version__)
         logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
@@ -58,32 +57,32 @@ class PathUtilsTests(unittest.TestCase):
 
         for contentType in contentTypeList:
             for contentFormat in contentFormatList:
-                self.pathU.checkContentTypeFormat(contentType, contentFormat)
+                self.iou.checkContentTypeFormat(contentType, contentFormat)
 
     def testGetMimeType(self):
         mimeType = None
         mimeTypeList = ["cif", "pdf", "xml", "json", "txt", "pic", "other"]
         for mimeType in mimeTypeList:
             if mimeType == "cif":
-                self.assertEqual(self.pathU.getMimeType(mimeType), "chemical/x-mmcif")
+                self.assertEqual(self.iou.getMimeType(mimeType), "chemical/x-mmcif")
             if mimeType == "pdf":
-                self.assertEqual(self.pathU.getMimeType(mimeType), "application/pdf")
+                self.assertEqual(self.iou.getMimeType(mimeType), "application/pdf")
             if mimeType == "xml":
-                self.assertEqual(self.pathU.getMimeType(mimeType), "application/xml")
+                self.assertEqual(self.iou.getMimeType(mimeType), "application/xml")
             if mimeType == "json":
-                self.assertEqual(self.pathU.getMimeType(mimeType), "application/json")
+                self.assertEqual(self.iou.getMimeType(mimeType), "application/json")
             if mimeType == "txt":
-                self.assertEqual(self.pathU.getMimeType(mimeType), "text/plain")
+                self.assertEqual(self.iou.getMimeType(mimeType), "text/plain")
             if mimeType == "pic":
-                self.assertEqual(self.pathU.getMimeType(mimeType), "application/python-pickle")
+                self.assertEqual(self.iou.getMimeType(mimeType), "application/python-pickle")
             if mimeType == "other":
-                self.assertEqual(self.pathU.getMimeType(mimeType), "text/plain")
+                self.assertEqual(self.iou.getMimeType(mimeType), "text/plain")
 
 
 def contentFormatTypeSuite():
     suiteSelect = unittest.TestSuite()
-    suiteSelect.addTest(PathUtilsTests("testCheckContentTypeFormat"))
-    suiteSelect.addTest(PathUtilsTests("testGetMimeType"))
+    suiteSelect.addTest(IoUtilityTests("testCheckContentTypeFormat"))
+    suiteSelect.addTest(IoUtilityTests("testGetMimeType"))
     return suiteSelect
 
 
