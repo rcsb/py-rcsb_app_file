@@ -94,14 +94,16 @@ def download(downloadFolderPath, downloadDict):
         print(f"error - download folder does not exist - {downloadFolderPath}")
         return None
     response = cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, downloadFolderPath, allowOverwrite)
-    if response and response.status_code:
-        return response.status_code
+    if response and response["status_code"]:
+        return response["status_code"]
     else:
         return None
 
 def listDir(repoType, depId):
     global cU
     dirList = cU.listDir(repoType, depId)
+    print(dirList)
+    dirList = dirList["content"]
     if dirList and len(dirList) > 0:
         print("\n")
         print(f"{repoType} {depId}")
@@ -211,7 +213,7 @@ if __name__ == "__main__":
                 results.append(future.result())
             for response in results:
                 if response:
-                    uploadResults.append(response.status_code)
+                    uploadResults.append(response["status_code"])
                 else:
                     uploadResults.append(None)
     if len(downloads) > 0:

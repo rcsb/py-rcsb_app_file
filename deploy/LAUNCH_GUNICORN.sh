@@ -15,27 +15,44 @@ then
 fi
 HERE=`cd $(dirname $0) && pwd`
 TOPDIR=`dirname $HERE`
-echo "HERE=$HERE"
-echo "TOPDIR=$TOPDIR"
-#
-
-THISIP=${HOSTIP:="0.0.0.0"}
-THISPORT=${HOSTPORT:="8000"}
-ADDR=$THISIP:$THISPORT
+if [ $TOPDIR == "/" ]
+then
+  cd '/app'
+else
+  cd $TOPDIR
+fi
+echo "HERE = $HERE"
+echo "TOPDIR = $TOPDIR"
 #
 UPTIME_START=`echo $(date +%s)`
-echo "UPTIME_START=$UPTIME_START"
+echo "UPTIME_START = $UPTIME_START"
+# for ServerStatusRequest, Docker requires reading from root directory
 echo $UPTIME_START > $TOPDIR/uptime.txt
-
-cd $TOPDIR
-gunicorn \
+#
+DIR=$TOPDIR
+if [ $TOPDIR == "/" ]
+then
+  DIR='/app'
+fi
+CONFIG_FILE="$DIR/rcsb/app/config/config.yml"
+SERVER_HOST_AND_PORT=`cat $CONFIG_FILE | grep SERVER_HOST_AND_PORT | sed 's/SERVER_HOST_AND_PORT://' | sed 's/http://' | sed 's/\///g' | sed 's/ //g'`
+PROCESSORS=`getconf _NPROCESSORS_ONLN`
+WORKERS=$(( PROCESSORS - 1 ))
+if [ $WORKERS -lt 1 ]
+then
+  $WORKERS = 1
+fi
+echo "SERVER HOST AND PORT = $SERVER_HOST_AND_PORT"
+echo "WORKERS = $WORKERS"
+#
+exec gunicorn \
 rcsb.app.file.main:app \
-    --timeout 300 \
     --chdir $TOPDIR \
-    --bind $ADDR \
+    --bind $SERVER_HOST_AND_PORT \
+    --timeout 300 \
     --reload \
     --worker-class uvicorn.workers.UvicornWorker \
-    --workers 5 \
+    --workers $WORKERS \
     --access-logfile - \
     --error-logfile - \
     --capture-output \

@@ -312,8 +312,8 @@ class Gui(tk.Frame):
             if not response:
                 print(f"error in upload, no response")
                 return
-            elif response.status_code != 200:
-                print(f"error in upload, status code {response.status_code} ")
+            elif response["status_code"] != 200:
+                print(f"error in upload, status code {response['status_code']} ")
                 return
         except Exception as e:
             print(f"error in upload, {e}")
@@ -364,8 +364,8 @@ class Gui(tk.Frame):
         self.download_status.set(f"{self.status}%")
         self.master.update()
         print(f"time {time.perf_counter() - t1} s")
-        if response and response.status_code:
-            print(f"response {response.status_code}")
+        if response and response["status_code"]:
+            print(f"response {response['status_code']}")
 
 
     def listDir(self):
@@ -374,6 +374,7 @@ class Gui(tk.Frame):
         depId = self.list_dep_id.get()
         repoType = self.list_repo_type.get()
         dirList = self.__cU.listDir(repoType, depId)
+        dirList = dirList["content"]
         index = 1
         if dirList and len(dirList) > 0:
             print(f"{repoType} {depId}")
