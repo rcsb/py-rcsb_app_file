@@ -47,18 +47,6 @@ class IoUtility:
         self.__contentTypeInfoD = self.__dP.contentTypeD
         self.__fileFormatExtensionD = self.__dP.fileFormatExtD
 
-    def filePath(
-        self,
-        repositoryType: str,
-        depId: str,
-        contentType: str,
-        milestone: typing.Optional[str],
-        partNumber: int,
-        contentFormat: str,
-        version: str,
-    ):
-        return self.__pathP.getVersionedPath()
-
     def checkContentTypeFormat(
         self, contentType: str = None, contentFormat: str = None
     ) -> bool:
@@ -148,7 +136,7 @@ class IoUtility:
         repositoryTypeSource: str,
         depIdSource: str,
         contentTypeSource: str,
-        milestoneSource: str,
+        milestoneSource: typing.Optional[str],
         partNumberSource: int,
         contentFormatSource: str,
         versionSource: str,
@@ -156,11 +144,11 @@ class IoUtility:
         repositoryTypeTarget: str,
         depIdTarget: str,
         contentTypeTarget: str,
-        milestoneTarget: str,
+        milestoneTarget: typing.Optional[str],
         partNumberTarget: int,
         contentFormatTarget: str,
         versionTarget: str,
-    ) -> dict:
+    ):
         """Copy a file given standard input parameters for both the source and destination of the file."""
         ret = {"success": True, "statusCode": 200, "statusMessage": "File copy success"}
         try:
@@ -206,6 +194,49 @@ class IoUtility:
             }
             raise HTTPException(
                 status_code=400, detail="File checking fails with %s" % str(e)
+            )
+        return ret
+
+    async def copyDir(
+        self,
+        repositoryTypeSource: str,
+        depIdSource: str,
+        #
+        repositoryTypeTarget: str,
+        depIdTarget: str,
+    ):
+        ret = {"success": True, "statusCode": 200, "statusMessage": "Dir copy success"}
+        try:
+            logger.info("copy dir %s %s %s %s", repositoryTypeSource, depIdSource, repositoryTypeTarget, depIdTarget)
+            source_path = PathProvider().getDirPath(repositoryTypeSource, depIdSource)
+            logger.info("copying dir %s", source_path)
+            if not source_path or not os.path.exists(source_path):
+                logger.error("error - source path does not exist for %s %s", repositoryTypeSource, depIdSource)
+                raise HTTPException(status_code=404, detail="Error - source path does not exist")
+            target_path = PathProvider().getDirPath(repositoryTypeTarget, depIdTarget)
+            logger.info("copying %s to %s", source_path, target_path)
+            shutil.copytree(source_path, target_path)
+            ret["dirPathSource"] = source_path
+            ret["dirPathTarget"] = target_path
+        except HTTPException as exc:
+            logger.exception("Failing with %s", str(exc))
+            ret = {
+                "success": False,
+                "statusCode": 404,
+                "statusMessage": "source path does not exist"
+            }
+            raise HTTPException(
+                status_code=404, detail=exc.detail
+            )
+        except Exception as exc:
+            logger.exception("Failing with %s", str(exc))
+            ret = {
+                "success": False,
+                "statusCode": 400,
+                "statusMessage": "Dir copy failed",
+            }
+            raise HTTPException(
+                status_code=400, detail="Dir checking fails with %s" % str(exc)
             )
         return ret
 
@@ -268,7 +299,7 @@ class IoUtility:
                         status_code=403, detail="Error - file already exists"
                     )
                 else:
-                    logger.info(f"removing {filePathTarget}")
+                    logger.info("removing %s", filePathTarget)
                     os.unlink(filePathTarget)
             shutil.move(filePathSource, filePathTarget)
             ret["filePathSource"] = filePathSource

@@ -27,8 +27,6 @@ from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.Definitions import Definitions
 from rcsb.app.file.PathProvider import PathProvider
-# from rcsb.app.file.IoUtility import IoUtility
-# from rcsb.utils.io.FileUtil import FileUtil
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -259,38 +257,52 @@ class ClientUtils(object):
         contentFormat: str = None,
         version: str = None,
         hashType: str = "MD5",
-        unit_test: bool = False,
         wfInstanceId: str = None,
         sessionDir: str = None,
     ):
         pathP = PathProvider()
-        return pathP.getVersionedPath(
+        path = pathP.getVersionedPath(
             repoType, depId, contentType, milestone, partNumber, contentFormat, version
         )
+        # validate file exists
+        if os.path.exists(path):
+            # treat as web request for simplicity
+            return {"status_code": 200, "content": path}
+        return {"status_code": 404, "content": None}
 
-    # def getFilePathRemote(
-    #     self,
-    #     repoType: str = None,
-    #     depId: str = None,
-    #     contentType: str = None,
-    #     milestone: str = None,
-    #     partNumber: int = None,
-    #     contentFormat: str = None,
-    #     version: str = None,
-    #     hashType: str = "MD5",
-    #     unit_test: bool = False,
-    #     wfInstanceId: str = None,
-    #     sessionDir: str = None,
-    # ):
-    #     url = os.path.join(self.baseUrl, "file-v1", "file-path")
-    #     parameters = {"repositoryType": repoType, "depId": depId, "contentType": contentType, "milestone": milestone, "partNumber": partNumber, "contentFormat": contentFormat, "version": version}
-    #     response = requests.get(
-    #         url, params=parameters, headers=self.headerD, timeout=None
-    #     )
-    #     if response.status_code == 200:
-    #         return {"status_code": response.status_code, "content": response.content}
-    #     else:
-    #         return {"status_code": response.status_code}
+    def getFilePathRemote(
+        self,
+        repoType: str = None,
+        depId: str = None,
+        contentType: str = None,
+        milestone: str = None,
+        partNumber: int = None,
+        contentFormat: str = None,
+        version: str = None,
+        hashType: str = "MD5",
+        unit_test: bool = False,
+        wfInstanceId: str = None,
+        sessionDir: str = None,
+    ):
+        # validate file exists
+        url = os.path.join(self.baseUrl, "file-v1", "file-exists")
+        parameters = {"repositoryType": repoType, "depId": depId, "contentType": contentType, "milestone": milestone,
+                      "partNumber": partNumber, "contentFormat": contentFormat, "version": version}
+        response = requests.get(
+            url, params=parameters, headers=self.headerD, timeout=None
+        )
+        if response.status_code != 200:
+            logger.info(f"error - requested file does not exist {parameters}")
+            return {"status_code": response.status_code, "content": None}
+        # return absolute file path on server
+        url = os.path.join(self.baseUrl, "file-v1", "file-path")
+        response = requests.get(
+            url, params=parameters, headers=self.headerD, timeout=None
+        )
+        if response.status_code == 200:
+            return {"status_code": response.status_code, "content": response.content}
+        else:
+            return {"status_code": response.status_code, "content": None}
 
     def dirExists(self, repositoryType, depId):
         url = os.path.join(self.baseUrl, "file-v1", f"dir-exists?repositoryType={repositoryType}&depId={depId}")

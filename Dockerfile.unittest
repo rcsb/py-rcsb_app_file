@@ -1,0 +1,33 @@
+##
+# File: Dockerfile.unittest
+# Date: 7-Aug-2021
+#       Build a testing environment for file service application using the tox test runner.
+##
+FROM python:3.9-slim as image-compile
+
+WORKDIR /app/
+
+# copy requirements file (should include selected versions of uvicorn gunicorn)
+COPY ./requirements.txt /app/requirements.txt
+
+# install dependencies
+RUN set -eux \
+    && pip install --upgrade pip \
+    && pip install  --no-cache-dir --upgrade pip setuptools wheel tox \
+    && pip install  --no-cache-dir -r /app/requirements.txt
+
+COPY ./rcsb /app/rcsb
+
+# Testing files
+COPY ./tox.ini /app/tox.ini
+COPY ./setup.py /app/setup.py
+COPY ./setup.cfg /app/setup.cfg
+COPY ./pylintrc /app/pylintrc
+
+COPY ./deploy/LAUNCH_GUNICORN.sh /app/LAUNCH_GUNICORN.sh
+RUN chmod +x /app/LAUNCH_GUNICORN.sh
+
+EXPOSE 8000
+
+# Run test suite
+CMD ["tox"]

@@ -150,7 +150,7 @@ class CopyFileResult(BaseModel):
 
 
 @router.get("/file-path")
-async def filePath(
+async def getFilePath(
     repositoryType: str = Query(...),
     depId: str = Query(...),
     contentType: str = Query(...),
@@ -161,7 +161,7 @@ async def filePath(
 ):
     result = None
     try:
-        result = await IoUtility().filePath(
+        result = PathProvider().getFilePath(
             repositoryType,
             depId,
             contentType,
@@ -189,38 +189,38 @@ async def listDir(
     return await IoUtility().listDir(repositoryType, depId)
 
 
-@router.post("/file-exists", response_model=FileResult)
+@router.get("/file-exists", response_model=FileResult)
 async def fileExists(
-    depId: str = Query(
-        title="ID Code", description="Identifier code", example="D_0000000001"
-    ),
     repositoryType: str = Query(
         title="Repository Type",
         description="OneDep repository type",
         example="onedep-archive, onedep-deposit",
+    ),
+    depId: str = Query(
+        title="ID Code", description="Identifier code", example="D_0000000001"
     ),
     contentType: str = Query(
         title="Content type",
         description="OneDep content type",
         example="model, structure-factors, val-report-full",
     ),
+    milestone: str = Query(
+        "", title="milestone", description="milestone", example="release"
+    ),
+    partNumber: int = Query(
+        1, title="Content part", description="OneDep part number", example="1,2,3"
+    ),
     contentFormat: str = Query(
         title="Content format",
         description="OneDep content format",
         example="pdb, pdbx, mtz, pdf",
-    ),
-    partNumber: int = Query(
-        1, title="Content part", description="OneDep part number", example="1,2,3"
     ),
     version: str = Query(
         "latest",
         title="Version string",
         description="OneDep version number or description",
         example="1,2,3, latest, previous",
-    ),
-    milestone: str = Query(
-        "", title="milestone", description="milestone", example="release"
-    ),
+    )
 ):
     """Check if a file exists provided standard file parameters."""
     success = False
@@ -328,7 +328,7 @@ async def dirExists(
     return ret
 
 
-@router.post("/path-exists", response_model=PathResult)
+@router.get("/path-exists", response_model=PathResult)
 async def pathExists(
     path: str = Query(
         title="File or directory path",
@@ -464,94 +464,136 @@ async def latestFileVersion(
     return ret
 
 
-@router.post("/copy-file", response_model=CopyFileResult)
+@router.post("/copy-file")#, response_model=CopyFileResult)
 async def copyFile(
-    repositoryTypeSource: str = Query(
+    repositoryTypeSource: str = Form(
         title="Source Repository Type",
         description="OneDep repository type of file to copy",
         example="onedep-archive, onedep-deposit",
     ),
-    depIdSource: str = Query(
+    depIdSource: str = Form(
         title="Source ID Code",
         description="Identifier code of file to copy",
         example="D_0000000001",
     ),
-    contentTypeSource: str = Query(
+    contentTypeSource: str = Form(
         title="Source Content type",
         description="OneDep content type of file to copy",
         example="model, structure-factors, val-report-full",
     ),
-    milestoneSource: str = Query(),
-    partNumberSource: int = Query(
+    milestoneSource: typing.Optional[str] = Form(),
+    partNumberSource: int = Form(
         1,
         title="Source Content part",
         description="OneDep part number of file to copy",
         example="1,2,3",
     ),
-    contentFormatSource: str = Query(
+    contentFormatSource: str = Form(
         title="Input Content format",
         description="OneDep content format of file to copy",
         example="pdb, pdbx, mtz, pdf",
     ),
-    versionSource: str = Query(
+    versionSource: str = Form(
         "latest",
         title="Source Version string",
         description="OneDep version number or description of file to copy",
         example="1,2,3, latest, previous, next",
     ),
     #
-    repositoryTypeTarget: str = Query(
+    repositoryTypeTarget: str = Form(
         title="Target Repository Type",
         description="OneDep repository type of destination file",
         example="onedep-archive, onedep-deposit",
     ),
-    depIdTarget: str = Query(
+    depIdTarget: str = Form(
         title="Target ID Code",
         description="Identifier code of destination file",
         example="D_0000000001",
     ),
-    contentTypeTarget: str = Query(
+    contentTypeTarget: str = Form(
         title="Target Content type",
         description="OneDep content type of destination file",
         example="model, structure-factors, val-report-full",
     ),
-    partNumberTarget: int = Query(
+    milestoneTarget: typing.Optional[str] = Form(
+        "", title="milestone", description="milestone", example="release"
+    ),
+    partNumberTarget: int = Form(
         1,
         title="Target Content part",
         description="OneDep part number of destination file",
         example="1,2,3",
     ),
-    milestoneTarget: str = Query(
-        "", title="milestone", description="milestone", example="release"
-    ),
-    contentFormatTarget: str = Query(
+    contentFormatTarget: str = Form(
         title="Input Content format",
         description="OneDep content format of destination file",
         example="pdb, pdbx, mtz, pdf",
     ),
-    versionTarget: str = Query(
+    versionTarget: str = Form(
         None,
         title="Target Version string",
         description="OneDep version number or description of destination file",
         example="1,2,3, latest, previous, next",
     ),
 ):
-    return await IoUtility().copyFile(
-        repositoryTypeSource,
-        depIdSource,
-        contentTypeSource,
-        milestoneSource,
-        partNumberSource,
-        contentFormatSource,
-        versionSource,
-        repositoryTypeTarget,
-        depIdTarget,
-        contentTypeTarget,
-        milestoneTarget,
-        partNumberTarget,
-        contentFormatTarget,
-        versionTarget,
-    )
+    try:
+        result = await IoUtility().copyFile(
+            repositoryTypeSource,
+            depIdSource,
+            contentTypeSource,
+            milestoneSource,
+            partNumberSource,
+            contentFormatSource,
+            versionSource,
+            repositoryTypeTarget,
+            depIdTarget,
+            contentTypeTarget,
+            milestoneTarget,
+            partNumberTarget,
+            contentFormatTarget,
+            versionTarget,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="error in copy file")
+        return None
+    return result
+
+@router.post("/copy-dir")
+async def copyDir(
+    repositoryTypeSource: str = Form(
+        title="Source Repository Type",
+        description="OneDep repository type of file to copy",
+        example="onedep-archive, onedep-deposit",
+    ),
+    depIdSource: str = Form(
+        title="Source ID Code",
+        description="Identifier code of file to copy",
+        example="D_0000000001",
+    ),
+    #
+    repositoryTypeTarget: str = Form(
+        title="Target Repository Type",
+        description="OneDep repository type of destination file",
+        example="onedep-archive, onedep-deposit",
+    ),
+    depIdTarget: str = Form(
+        title="Target ID Code",
+        description="Identifier code of destination file",
+        example="D_0000000001",
+    ),
+):
+    logger.info("copy dir request %s %s %s %s", repositoryTypeSource, depIdSource, repositoryTypeTarget, depIdTarget)
+    try:
+        result = await IoUtility().copyDir(
+            repositoryTypeSource,
+            depIdSource,
+            repositoryTypeTarget,
+            depIdTarget,
+        )
+    except Exception as exc:
+        logger.error("error - %s", str(exc))
+        return None
+    return result
 
 
 @router.post("/move-file")  # response_model=CopyFileResult)
@@ -649,13 +691,13 @@ async def moveFile(
 
 @router.post("/compress-dir", response_model=CompressResult)
 async def compressDir(
-    depId: str = Query(
-        title="ID Code", description="Identifier code", example="D_0000000001"
-    ),
-    repositoryType: str = Query(
+    repositoryType: str = Form(
         title="Repository Type",
         description="OneDep repository type",
         example="onedep-archive, onedep-deposit",
+    ),
+    depId: str = Form(
+        title="ID Code", description="Identifier code", example="D_0000000001"
     ),
 ):
     """Compress directory of requested depId and repositoryType (using standard input paramaters)."""

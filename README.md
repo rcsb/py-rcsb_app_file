@@ -46,8 +46,6 @@ Also edit SERVER_HOST_AND_PORT.
 
 Other files may require configuration.
 
-Edit url in LAUNCH_GUNICORN.sh or port in Dockerfile.stage if necessary.
-
 Edit url variables to match server url in example-upload.html, example-download.html, and example-list.html.
 
 # Endpoints and forwarding
@@ -68,7 +66,7 @@ The download endpoint is found at 'file-v1/download'.
 
 The list directory endpoint is found at 'file-v1/list-dir'.
 
-To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in IoUtility.py.
+To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in various Utility.py files.
 
 # Uploads and downloads
 
@@ -306,7 +304,7 @@ exit
 In directory that contains `Dockerfile.stage`:
 ```
 
-docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fileapp -f Dockerfile.stage .
+docker build -t fileapp -f Dockerfile.stage .
 
 ```
 

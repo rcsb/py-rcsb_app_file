@@ -48,6 +48,8 @@ class ClientTests(unittest.TestCase):
 
     # runs before each test
     def setUp(self):
+        logger.info("setting up")
+
         self.__cU = ClientUtils()
         self.__cP = ConfigProvider()
         self.__fU = FileUtil()
@@ -64,7 +66,7 @@ class ClientTests(unittest.TestCase):
         self.__repositoryFile1 = os.path.join(self.__unitTestFolder, "D_1000000001", "D_1000000001_model_P1.cif.V1")
         self.__repositoryFile2 = os.path.join(self.__unitTestFolder, "D_1000000001", "D_1000000001_model_P2.cif.V1")
         self.__repositoryFile3 = os.path.join(self.__unitTestFolder, "D_1000000001", "D_1000000001_model_P3.cif.V1")
-        os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
+        # os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
         if not os.path.exists(self.__repositoryFile1):
             os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
             nB = self.__chunkSize
@@ -100,6 +102,7 @@ class ClientTests(unittest.TestCase):
 
     # runs after each test
     def tearDown(self):
+        logger.info("tearing down")
         if os.path.exists(self.__repositoryFile1):
             os.unlink(self.__repositoryFile1)
         if os.path.exists(self.__repositoryFile2):
@@ -260,25 +263,34 @@ class ClientTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
-    # def testFilePathRemote(self):
-    #     logger.info("test file path remote")
-    #     repoType = self.__repositoryType
-    #     depId = "D_1000000001"
-    #     contentType = "model"
-    #     milestone = None
-    #     partNumber = 1
-    #     contentFormat = "pdbx"
-    #     version = 1
-    #     response = self.__cU.getFilePathRemote(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
-    #     self.assertTrue(response["status_code"] == 200)
-
     def testFilePathLocal(self):
         logger.info("test file path local")
-        if not os.path.exists(self.__repositoryFile1):
-            os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
-            nB = 64
-            with open(self.__repositoryFile1, "wb") as out:
-                out.write(os.urandom(nB))
+        self.assertTrue(os.path.exists(self.__repositoryFile1))
+        repoType = self.__repositoryType
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = None
+        partNumber = 1
+        contentFormat = "pdbx"
+        # test response 200
+        version = 1
+        response = self.__cU.getFilePathLocal(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
+        # treat as web request for simplicity
+        status_code = response["status_code"]
+        filename = response["content"]
+        logger.info(f"file name {filename}")
+        self.assertTrue(status_code == 200, f"error - 200 = {status_code} for {filename}")
+        self.assertTrue(os.path.exists(filename), f"error - {filename} does not exist")
+        # test response 404
+        version = 2
+        response = self.__cU.getFilePathLocal(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
+        status_code = response["status_code"]
+        filename = response["content"]
+        self.assertTrue(status_code == 404, f"error - 404 = {status_code} for {filename}")
+
+
+    def testFilePathRemote(self):
+        logger.info("test file path remote")
         repoType = self.__repositoryType
         depId = "D_1000000001"
         contentType = "model"
@@ -286,11 +298,19 @@ class ClientTests(unittest.TestCase):
         partNumber = 1
         contentFormat = "pdbx"
         version = 1
-        filename = self.__cU.getFilePathLocal(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
-        print(f'temp file path {filename}')
-        self.assertTrue(os.path.exists(filename), f'error - {filename} does not exist')
-        os.unlink(filename)  # if had not made temp file with delete=false, would need file.close()
-        self.assertFalse(os.path.exists(filename), f'error - {filename} exists')
+        # test response 200
+        response = self.__cU.getFilePathRemote(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
+        status_code = response["status_code"]
+        filepath = response["content"]
+        self.assertTrue(response["status_code"] == 200, f"error - 200 = {status_code} for {filepath}")
+        logger.info(f"file path for version {version} = {filepath}")
+        # test response 404
+        version = 2
+        response = self.__cU.getFilePathRemote(repoType,depId,contentType,milestone,partNumber,contentFormat,version)
+        status_code = response["status_code"]
+        filepath = response["content"]
+        self.assertTrue(response["status_code"] == 404, f"error - 404 = {status_code} for {filepath}")
+        logger.info(f"file path for version {version} = {filepath}")
 
     def testDirExists(self):
         logger.info("test dir exists")
@@ -308,7 +328,7 @@ def client_tests():
     suite.addTest(ClientTests("testChunkDownload"))
     suite.addTest(ClientTests("testListDir"))
     suite.addTest(ClientTests("testFilePathLocal"))
-    # suite.addTest(ClientTests("testFilePathRemote"))
+    suite.addTest(ClientTests("testFilePathRemote"))
     suite.addTest(ClientTests("testDirExists"))
     return suite
 
