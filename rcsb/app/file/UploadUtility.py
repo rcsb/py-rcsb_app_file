@@ -116,7 +116,7 @@ class UploadUtility(object):
         resumable: bool,
     ):
         # get save file path
-        if not self.__pathU.checkContentTypeFormat(contentType, contentFormat):
+        if not self.__pathP.checkContentTypeFormat(contentType, contentFormat):
             logging.error("Error 400 - bad content type and/or format")
             raise HTTPException(
                 status_code=400, detail="Error - bad content type and/or format"

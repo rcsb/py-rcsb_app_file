@@ -94,7 +94,7 @@ class ClientUtils(object):
             # "hashDigest": fullTestHash,
             "resumable": resumable
         }
-        url = os.path.join(self.baseUrl, "file-v2", "getUploadParameters")
+        url = os.path.join(self.baseUrl, "getUploadParameters")
         response = requests.get(
             url, params=parameters, headers=self.headerD, timeout=None
         )
@@ -135,7 +135,7 @@ class ClientUtils(object):
 
         with open(sourceFilePath, "rb") as of:
             of.seek(offset)
-            url = os.path.join(self.baseUrl, "file-v2", "upload")
+            url = os.path.join(self.baseUrl, "upload")
             for _ in range(chunkIndex, mD["expectedChunks"]):
                 packetSize = min(
                     int(fileSize) - (int(mD["chunkIndex"]) * int(self.chunkSize)),
@@ -171,7 +171,7 @@ class ClientUtils(object):
         milestone: str,
         partNumber: int,
         contentFormat: str,
-        version: str,
+        version: int,
         downloadFolder: typing.Optional[str] = None,
         allowOverwrite: bool = False,
         chunkSize: typing.Optional[int] = None,
@@ -188,12 +188,12 @@ class ClientUtils(object):
         if os.path.exists(downloadFilePath):
             if not allowOverwrite:
                 logger.error("File already exists: %r", downloadFilePath)
-                return None
+                return {"status_code": 403}
             os.remove(downloadFilePath)
 
         # form query string
         hashType = self.hashType
-        downloadUrlPrefix = os.path.join(self.baseUrl, "file-v1", "download")
+        downloadUrlPrefix = os.path.join(self.baseUrl, "download")
         suffix = ""
         # optionally return one chunk
         if chunkSize and chunkIndex:
@@ -231,7 +231,7 @@ class ClientUtils(object):
         if not depId or not repoType:
             logger.error("Missing values")
             return None
-        url = os.path.join(self.baseUrl, "file-v1", "list-dir")
+        url = os.path.join(self.baseUrl, "list-dir")
         parameters = {"repositoryType": repoType, "depId": depId}
         response = requests.get(
             url, params=parameters, headers=self.headerD, timeout=None
@@ -252,22 +252,24 @@ class ClientUtils(object):
         repoType: str = None,
         depId: str = None,
         contentType: str = None,
-        milestone: str = None,
-        partNumber: int = None,
+        milestone: str = "",
+        partNumber: int = 1,
         contentFormat: str = None,
-        version: str = None,
+        version: str = "next",
         hashType: str = "MD5",
         wfInstanceId: str = None,
         sessionDir: str = None,
     ):
-        pathP = PathProvider()
-        path = pathP.getVersionedPath(
+        if not repoType or not depId or not contentType or not contentFormat:
+            return {"status_code": 404, "content": None}
+        path = PathProvider().getVersionedPath(
             repoType, depId, contentType, milestone, partNumber, contentFormat, version
         )
         # validate file exists
-        if os.path.exists(path):
+        if path and os.path.exists(path):
             # treat as web request for simplicity
             return {"status_code": 200, "content": path}
+        logger.exception("error - path not found %s" % path)
         return {"status_code": 404, "content": None}
 
     def getFilePathRemote(
@@ -285,7 +287,7 @@ class ClientUtils(object):
         sessionDir: str = None,
     ):
         # validate file exists
-        url = os.path.join(self.baseUrl, "file-v1", "file-exists")
+        url = os.path.join(self.baseUrl, "file-exists")
         parameters = {"repositoryType": repoType, "depId": depId, "contentType": contentType, "milestone": milestone,
                       "partNumber": partNumber, "contentFormat": contentFormat, "version": version}
         response = requests.get(
@@ -295,7 +297,7 @@ class ClientUtils(object):
             logger.info(f"error - requested file does not exist {parameters}")
             return {"status_code": response.status_code, "content": None}
         # return absolute file path on server
-        url = os.path.join(self.baseUrl, "file-v1", "file-path")
+        url = os.path.join(self.baseUrl, "file-path")
         response = requests.get(
             url, params=parameters, headers=self.headerD, timeout=None
         )
@@ -305,9 +307,8 @@ class ClientUtils(object):
             return {"status_code": response.status_code, "content": None}
 
     def dirExists(self, repositoryType, depId):
-        url = os.path.join(self.baseUrl, "file-v1", f"dir-exists?repositoryType={repositoryType}&depId={depId}")
-        response = requests.get(url)
-        logger.info(f"testing dir exists {repositoryType} {depId}")
+        url = os.path.join(self.baseUrl, f"dir-exists?repositoryType={repositoryType}&depId={depId}")
+        response = requests.get(url, headers=self.headerD)
         result = False
         if response.status_code == 200:
             result = True

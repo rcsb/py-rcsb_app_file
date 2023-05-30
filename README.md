@@ -52,19 +52,19 @@ Edit url variables to match server url in example-upload.html, example-download.
 
 The repository has one upload endpoint, one download endpoint, and one list-directory endpoint, among others.
 
-To upload a file in chunks, use the 'file-v2/upload' endpoint.
+To upload a file in chunks, use the '/upload' endpoint.
 
 To upload the entire file in one request, configure the parameters to treat the file as one chunk.
 
-Upload requires some setup by invoking the 'file-v2/getUploadParameters' endpoint first, then passing the results as parameters.
+Upload requires some setup by invoking the '/getUploadParameters' endpoint first, then passing the results as parameters.
 
 To maintain sequential order, the client must wait for each response before sending the next chunk.
 
 The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in IoUtility.
 
-The download endpoint is found at 'file-v1/download'.
+The download endpoint is found at '/download'.
 
-The list directory endpoint is found at 'file-v1/list-dir'.
+The list directory endpoint is found at '/list-dir'.
 
 To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in various Utility.py files.
 

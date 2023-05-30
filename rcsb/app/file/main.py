@@ -15,11 +15,12 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from . import ConfigProvider
-from . import LogFilterUtils
-from . import DownloadRequest  # This triggers JWTAuthBearer
+from . import DownloadRequest
 from . import ServerStatusRequest
 from . import UploadRequest
 from . import IoRequest
+from . import PathRequest
+# from . import LogFilterUtils
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -34,8 +35,8 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 logger.propagate = True
 # Apply logging filters -
-lu = LogFilterUtils.LogFilterUtils()
-lu.addFilters()
+# lu = LogFilterUtils.LogFilterUtils()
+# lu.addFilters()
 # ---
 
 app = FastAPI()
@@ -64,20 +65,25 @@ def shutdownEvent():
 
 app.include_router(
     UploadRequest.router,
-    prefix="/file-v2",
+    # prefix="/",
 )
 
 
 app.include_router(
     DownloadRequest.router,
-    prefix="/file-v1",
+    # prefix="/",
 )
 
 
 app.include_router(
     IoRequest.router,
-    prefix="/file-v1",
+    # prefix="/",
 )
 
+app.include_router(
+    PathRequest.router
+)
 
-app.include_router(ServerStatusRequest.router)
+app.include_router(
+    ServerStatusRequest.router
+)

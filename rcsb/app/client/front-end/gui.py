@@ -65,7 +65,7 @@ class Gui(tk.Frame):
         self.tabs.add(self.listTab, text="LIST")
         self.tabs.pack(expand=1, fill="both")
 
-        load = Image.open(os.path.join(HERE, "onedep_logo.png"))
+        load = Image.open(os.path.join(HERE, "resources/onedep_logo.png"))
         render = ImageTk.PhotoImage(load)
         img = ttk.Label(self.splashTab, image=render)
         img.image = render

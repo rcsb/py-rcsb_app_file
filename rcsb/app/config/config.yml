@@ -5,6 +5,7 @@
 ---
 configuration:
   SERVER_HOST_AND_PORT: http://0.0.0.0:8000
+  SURPLUS_PROCESSORS: 1
   REPOSITORY_DIR_PATH: rcsb/app/tests-file/data/repository
   PDBX_REPOSITORY: rcsb/app/tests-file/data/mmcif
   SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks

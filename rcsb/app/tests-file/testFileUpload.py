@@ -107,7 +107,7 @@ class UploadTest(unittest.TestCase):
             "allowOverwrite": False,
             "resumable": False
         }
-        url = os.path.join(self.__baseUrl, "file-v2", "getUploadParameters")
+        url = os.path.join(self.__baseUrl, "getUploadParameters")
         response = None
         with TestClient(app) as client:
             response = client.get(
@@ -155,7 +155,109 @@ class UploadTest(unittest.TestCase):
         response = None
         with open(self.__dataFile, "rb") as of:
             of.seek(offset)
-            url = os.path.join(self.__baseUrl, "file-v2", "upload")
+            url = os.path.join(self.__baseUrl, "upload")
+            for _ in range(chunkIndex, mD["expectedChunks"]):
+                packetSize = min(
+                    int(fileSize) - (int(mD["chunkIndex"]) * int(self.__chunkSize)),
+                    int(self.__chunkSize),
+                )
+                logging.debug("packet size %s chunk %s expected %s", packetSize, mD['chunkIndex'], expectedChunks)
+                with TestClient(app) as client:
+                    response = client.post(
+                        url,
+                        data=deepcopy(mD),
+                        headers=self.__headerD,
+                        files={"chunk": of.read(packetSize)},
+                        timeout=None,
+                    )
+                if not response or not response.status_code:
+                    logging.error(
+                        "Status code %r with text %r ...terminating",
+                        response.status_code,
+                        response.text,
+                    )
+                    break
+                self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
+                mD["chunkIndex"] += 1
+        return response
+
+    def testSimpleUpdate(self):
+        if not os.path.exists(self.__dataFile):
+            logging.error("File does not exist: %r", self.__dataFile)
+            return None
+        # compress (externally), then hash, then upload
+        # hash
+        hD = CryptUtils().getFileHash(self.__dataFile, hashType=self.__hashType)
+        fullTestHash = hD["hashDigest"]
+        # compute expected chunks
+        fileSize = os.path.getsize(self.__dataFile)
+        expectedChunks = 1
+        if self.__chunkSize < fileSize:
+            expectedChunks = math.ceil(fileSize / self.__chunkSize)
+        # get upload parameters
+        saveFilePath = None
+        chunkIndex = 0
+        uploadId = None
+        parameters = {
+            "repositoryType": self.__repositoryType,
+            "depId": self.__depId,
+            "contentType": self.__contentType,
+            "milestone": self.__milestone,
+            "partNumber": self.__partNumber,
+            "contentFormat": self.__contentFormat,
+            "version": self.__version,
+            "allowOverwrite": False,
+            "resumable": False
+        }
+        url = os.path.join(self.__baseUrl, "getUploadParameters")
+        response = None
+        with TestClient(app) as client:
+            response = client.get(
+                url, params=parameters, headers=self.__headerD, timeout=None
+            )
+        if not response or not response.status_code:
+            logging.error("error - no response")
+            sys.exit()
+        self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
+        if response.status_code == 200:
+            result = json.loads(response.text)
+            if result:
+                saveFilePath = result["filePath"]
+                chunkIndex = int(result["chunkIndex"])
+                uploadId = result["uploadId"]
+                if chunkIndex > 0:
+                    logging.info(f"detected upload with chunk index {chunkIndex}")
+        self.assertTrue(saveFilePath is not None)
+        self.assertTrue(uploadId is not None)
+        self.assertTrue(chunkIndex == 0)
+        if not saveFilePath:
+            logging.error("No file path was formed")
+            return None
+        if not uploadId:
+            logging.error("No upload id was formed")
+            return None
+
+        # chunk file and upload
+        mD = {
+            # chunk parameters
+            "chunkSize": self.__chunkSize,
+            "chunkIndex": chunkIndex,
+            "expectedChunks": expectedChunks,
+            # upload file parameters
+            "uploadId": uploadId,
+            "hashType": self.__hashType,
+            "hashDigest": fullTestHash,
+            # save file parameters
+            "filePath": saveFilePath,
+            "decompress": False,
+            "allowOverwrite": True,
+            "resumable": False
+        }
+        offset = chunkIndex * self.__chunkSize
+        response = None
+        with open(self.__dataFile, "rb") as of:
+            of.seek(offset)
+            url = os.path.join(self.__baseUrl, "upload")
             for _ in range(chunkIndex, mD["expectedChunks"]):
                 packetSize = min(
                     int(fileSize) - (int(mD["chunkIndex"]) * int(self.__chunkSize)),
@@ -184,6 +286,7 @@ class UploadTest(unittest.TestCase):
 def upload_tests():
     suite = unittest.TestSuite()
     suite.addTest(UploadTest("testSimpleUpload"))
+    suite.addTest(UploadTest("testSimpleUpdate"))
     return suite
 
 if __name__ == "__main__":

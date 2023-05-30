@@ -90,6 +90,15 @@ def download(downloadFolderPath, downloadDict):
     global SEQUENTIAL
     global OVERWRITE
     global cU
+    repositoryType = downloadDict["repositoryType"]
+    depId = downloadDict["depId"]
+    contentType = downloadDict["contentType"]
+    milestone = downloadDict["milestone"]
+    partNumber = downloadDict["partNumber"]
+    contentFormat = downloadDict["contentFormat"]
+    version = downloadDict["version"]
+    hashType = downloadDict["hashType"]
+    allowOverwrite = downloadDict["allowOverwrite"]
     if not os.path.exists(downloadFolderPath):
         print(f"error - download folder does not exist - {downloadFolderPath}")
         return None
@@ -193,14 +202,14 @@ if __name__ == "__main__":
             version = arglist[7]
             allowOverwrite = OVERWRITE
             downloadDict = {
-                "depId": depId,
                 "repositoryType": repositoryType,
+                "depId": depId,
                 "contentType": contentType,
-                "contentFormat": contentFormat,
+                "milestone": milestone,
                 "partNumber": partNumber,
+                "contentFormat": contentFormat,
                 "version": str(version),
                 "hashType": hashType,
-                "milestone": milestone,
                 "allowOverwrite": allowOverwrite
             }
             downloads.append((downloadFolderPath, downloadDict))

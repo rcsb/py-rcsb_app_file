@@ -47,90 +47,6 @@ class IoUtility:
         self.__contentTypeInfoD = self.__dP.contentTypeD
         self.__fileFormatExtensionD = self.__dP.fileFormatExtD
 
-    def checkContentTypeFormat(
-        self, contentType: str = None, contentFormat: str = None
-    ) -> bool:
-        ok = False
-        try:
-            if (not contentType) and (not contentFormat):
-                logger.info("No 'contentType' and 'contentFormat' defined.")
-            #
-            elif contentType:
-                if contentType in self.__contentTypeInfoD:
-                    if contentFormat:
-                        if contentFormat in self.__contentTypeInfoD[contentType][0]:
-                            ok = True
-                        else:
-                            logger.info(
-                                "System does not support %s contentType with %s contentFormat.",
-                                contentType,
-                                contentFormat,
-                            )
-                    else:
-                        ok = True
-                else:
-                    logger.info("System does not support %s contentType.", contentType)
-                #
-            elif contentFormat:
-                if contentFormat in self.__fileFormatExtensionD:
-                    ok = True
-                else:
-                    logger.info(
-                        "System does not support %s contentFormat.", contentFormat
-                    )
-                #
-            #
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            ok = False
-        return ok
-        #
-
-    def getMimeType(self, contentFormat: str) -> str:
-        cFormat = contentFormat
-        if (
-            self.__fileFormatExtensionD
-            and (contentFormat in self.__fileFormatExtensionD)
-            and self.__fileFormatExtensionD[contentFormat]
-        ):
-            cFormat = self.__fileFormatExtensionD[contentFormat]
-        #
-        if cFormat in ["cif"]:
-            mt = "chemical/x-mmcif"
-        elif cFormat in ["pdf"]:
-            mt = "application/pdf"
-        elif cFormat in ["xml"]:
-            mt = "application/xml"
-        elif cFormat in ["json"]:
-            mt = "application/json"
-        elif cFormat in ["txt"]:
-            mt = "text/plain"
-        elif cFormat in ["pic"]:
-            mt = "application/python-pickle"
-        else:
-            mt = "text/plain"
-        #
-        return mt
-
-    async def listDir(self, repositoryType: str, depId: str):
-        dirList = []
-        logger.info(
-            "Listing dirPath for repositoryType %r depId %r", repositoryType, depId
-        )
-        try:
-            dirPath = self.__pathP.getDirPath(repositoryType, depId)
-            if not os.path.exists(dirPath):
-                raise HTTPException(
-                    status_code=404, detail=f"Folder not found {dirPath}"
-                )
-            dirList = os.listdir(dirPath)
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            raise HTTPException(
-                status_code=404, detail="Directory listing fails with %s" % str(e)
-            )
-        return {"dirList": dirList}
-
     async def copyFile(
         self,
         repositoryTypeSource: str,
@@ -182,6 +98,7 @@ class IoUtility:
                 )
             if not os.path.exists(os.path.dirname(filePathTarget)):
                 os.makedirs(os.path.dirname(filePathTarget))
+            logging.warning("copying %s to %s", filePathSource, filePathTarget)
             shutil.copy(filePathSource, filePathTarget)
             ret["filePathSource"] = filePathSource
             ret["filePathTarget"] = filePathTarget

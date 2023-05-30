@@ -40,8 +40,8 @@ class ClientTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         subprocess.Popen(['uvicorn', 'rcsb.app.file.main:app'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-
-    # runs only once
+    #
+    # # runs only once
     @classmethod
     def tearDownClass(cls):
         os.system("pid=$(ps -e | grep uvicorn | head -n1 | awk '{print $1;}';);kill $pid;")
@@ -144,7 +144,7 @@ class ClientTests(unittest.TestCase):
             response = self.__cU.upload(self.__testFileDatPath, repositoryType, depId, contentType, milestone, partNumber,
                                         contentFormat, version, decompress, allowOverwrite, resumable)
             logger.info(
-                f"{PathProvider().getFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}")
+                f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}")
             self.assertTrue(response["status_code"] == 200)
 
             # return 200
@@ -152,7 +152,7 @@ class ClientTests(unittest.TestCase):
             response = self.__cU.upload(self.__testFileDatPath, repositoryType, depId, contentType, milestone, partNumber,
                                         contentFormat, version, decompress, allowOverwrite, resumable)
             logger.info(
-                f"{PathProvider().getFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}")
+                f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}")
             self.assertTrue(response["status_code"] == 200)
 
             # return 400 (file already exists)
@@ -161,7 +161,7 @@ class ClientTests(unittest.TestCase):
             response = self.__cU.upload(self.__testFileDatPath, repositoryType, depId, contentType, milestone, partNumber,
                                         contentFormat, version, decompress, allowOverwrite, resumable)
             logger.info(
-                f"{PathProvider().getFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}")
+                f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}")
             self.assertTrue(response["status_code"] == 400)
 
             # return 200 (decompress gzip file)
@@ -171,7 +171,7 @@ class ClientTests(unittest.TestCase):
             response = self.__cU.upload(self.__testFileGzipPath, repositoryType, depId, contentType, milestone, partNumber,
                                         contentFormat, version, decompress, allowOverwrite, resumable)
             logger.info(
-                f"{PathProvider().getFilePath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}")
+                f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}")
             self.assertTrue(response["status_code"] == 200)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
@@ -318,7 +318,7 @@ class ClientTests(unittest.TestCase):
         depId = "D_1000000001"
         response = self.__cU.dirExists(repoType, depId)
         logger.info(response)
-        self.assertTrue(response["status_code"] == 200)
+        self.assertTrue(response["status_code"] == 200, "error - status code %s" % response["status_code"])
 
 def client_tests():
     suite = unittest.TestSuite()

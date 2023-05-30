@@ -22,7 +22,7 @@ from fastapi import HTTPException
 from fastapi.responses import FileResponse, Response
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.utils.io.CryptUtils import CryptUtils
-from rcsb.app.file.IoUtility import IoUtility
+from rcsb.app.file.Definitions import Definitions
 
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ class HashType(str, Enum):
 
 class DownloadUtility(object):
     def __init__(self):
-        pass
+        self.__fileFormatExtensionD = Definitions().getFileFormatExtD()
 
     async def download(
         self,
@@ -90,7 +90,7 @@ class DownloadUtility(object):
                 raise HTTPException(status_code=500, detail="error returning chunk")
             return Response(content=data, media_type="application/octet-stream")
         else:
-            mimeType = IoUtility().getMimeType(contentFormat)
+            mimeType = self.getMimeType(contentFormat)
             return FileResponse(
                 path=filePath,
                 media_type=mimeType,
@@ -123,3 +123,29 @@ class DownloadUtility(object):
                 status_code=404, detail="error - file path does not exist}"
             )
         return os.path.getsize(filePath)
+
+    def getMimeType(self, contentFormat: str) -> str:
+        cFormat = contentFormat
+        if (
+            self.__fileFormatExtensionD
+            and (contentFormat in self.__fileFormatExtensionD)
+            and self.__fileFormatExtensionD[contentFormat]
+        ):
+            cFormat = self.__fileFormatExtensionD[contentFormat]
+        #
+        if cFormat in ["cif"]:
+            mt = "chemical/x-mmcif"
+        elif cFormat in ["pdf"]:
+            mt = "application/pdf"
+        elif cFormat in ["xml"]:
+            mt = "application/xml"
+        elif cFormat in ["json"]:
+            mt = "application/json"
+        elif cFormat in ["txt"]:
+            mt = "text/plain"
+        elif cFormat in ["pic"]:
+            mt = "application/python-pickle"
+        else:
+            mt = "text/plain"
+        #
+        return mt
