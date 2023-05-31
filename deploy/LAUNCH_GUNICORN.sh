@@ -36,7 +36,7 @@ then
 fi
 CONFIG_FILE="$DIR/rcsb/app/config/config.yml"
 SERVER_HOST_AND_PORT=`cat $CONFIG_FILE | grep SERVER_HOST_AND_PORT | sed 's/SERVER_HOST_AND_PORT://' | sed 's/http://' | sed 's/\///g' | sed 's/ //g'`
-SURPLUS_PROCESSORS=`cat $CONFIG_FILE | grep SURPLUS_PROCESSORS | sed 's/SURPLUS_PROCESSORS://' | SED 's/ //g'`
+SURPLUS_PROCESSORS=`cat $CONFIG_FILE | grep SURPLUS_PROCESSORS | sed 's/SURPLUS_PROCESSORS://' | sed 's/ //g'`
 PROCESSORS=`getconf _NPROCESSORS_ONLN`
 WORKERS=$(( PROCESSORS - SURPLUS_PROCESSORS ))
 if [ $WORKERS -lt 1 ]
