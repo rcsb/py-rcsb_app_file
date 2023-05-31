@@ -1,14 +1,9 @@
 ##
 # File: IoRequest.py
 # Date: 24-May-2022
-#
-# To Do:
-# - Add Endpoints:
-#   - getFileHash
-# - Remove default setting for select params where appropriate (here and in tests), to make them required
-# - Make 'repositoryType' an enumerated parameter (not possible with Query() parameter)
-# - better way to determine latest version? (use subroutine)
+# Updates: James Smith 2023
 ##
+
 __docformat__ = "google en"
 __author__ = "Dennis Piehl"
 __email__ = "dennis.piehl@rcsb.org"
@@ -33,8 +28,6 @@ from rcsb.utils.io.FileUtil import FileUtil
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
-# logger = logging.getLogger(__name__)
-
 
 provider = ConfigProvider()
 jwtDisable = bool(provider.get("JWT_DISABLE"))
@@ -149,7 +142,7 @@ class CopyFileResult(BaseModel):
     )
 
 
-@router.post("/copy-file")  # , response_model=CopyFileResult)
+@router.post("/copy-file")
 async def copyFileRequest(
     repositoryTypeSource: str = Form(),
     depIdSource: str = Form(),
@@ -188,7 +181,7 @@ async def copyFileRequest(
     return result
 
 
-@router.post("/move-file")  # response_model=CopyFileResult)
+@router.post("/move-file")
 async def moveFile(
     repositoryTypeSource: str = Form(),
     depIdSource: str = Form(),
@@ -287,7 +280,6 @@ async def compressDir(
     dirRemovedBool = None
     try:
         fU = FileUtil()
-        # cP = ConfigProvider()
         pathP = PathProvider()
         #
         # Compress directory of requested repositoryType and depId
@@ -307,7 +299,6 @@ async def compressDir(
                     "created compressPath %s from dirPath %s", compressPath, dirPath
                 )
                 shutil.rmtree(dirPath)
-                # fU.remove(dirPath)
                 dirRemovedBool = not os.path.exists(dirPath)
                 logger.info("removal status %r for dirPath %s", dirRemovedBool, dirPath)
                 if not dirRemovedBool:

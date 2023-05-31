@@ -58,7 +58,6 @@ async def getUploadParameters(
     contentFormat: str = Query(...),
     version: str = Query(default="next"),
     allowOverwrite: bool = Query(default=True),
-    # hashDigest: str = Query(default=None),
     resumable: bool = Query(default=False),
 ):
     ret = None
@@ -72,7 +71,6 @@ async def getUploadParameters(
             contentFormat,
             version,
             allowOverwrite,
-            # hashDigest,
             resumable,
         )
     except HTTPException as exc:

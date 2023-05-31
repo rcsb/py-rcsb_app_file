@@ -1,3 +1,6 @@
+# file - PathRequest.py
+# author - James Smith 2023
+
 import logging
 import os
 from fastapi import APIRouter, Query, HTTPException, Depends

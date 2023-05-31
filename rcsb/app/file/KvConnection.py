@@ -1,3 +1,6 @@
+# file - KvConnection.py
+# author - James Smith 2023
+
 import sqlite3
 import logging
 from fastapi.exceptions import HTTPException

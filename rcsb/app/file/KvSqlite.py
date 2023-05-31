@@ -1,3 +1,6 @@
+# file - KvSqlite.py
+# author - James Smith 2023
+
 import typing
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.KvConnection import KvConnection

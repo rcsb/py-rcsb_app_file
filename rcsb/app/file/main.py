@@ -1,7 +1,7 @@
 ##
 # File: main.py
 # Date: 11-Aug-2020
-#
+# Updates - James Smith 2023
 # Template/skeleton web service application
 #
 ##
@@ -20,7 +20,6 @@ from . import ServerStatusRequest
 from . import UploadRequest
 from . import IoRequest
 from . import PathRequest
-# from . import LogFilterUtils
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -34,10 +33,6 @@ formatter = logging.Formatter("%(asctime)s [%(process)d] [%(levelname)s] [%(modu
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 logger.propagate = True
-# Apply logging filters -
-# lu = LogFilterUtils.LogFilterUtils()
-# lu.addFilters()
-# ---
 
 app = FastAPI()
 app.add_middleware(
@@ -65,19 +60,16 @@ def shutdownEvent():
 
 app.include_router(
     UploadRequest.router,
-    # prefix="/",
 )
 
 
 app.include_router(
     DownloadRequest.router,
-    # prefix="/",
 )
 
 
 app.include_router(
     IoRequest.router,
-    # prefix="/",
 )
 
 app.include_router(

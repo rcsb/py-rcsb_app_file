@@ -1,7 +1,7 @@
 ##
 # File: DownloadRequest.py
 # Date: 11-Aug-2021
-#
+# Updates: James Smith 2023
 
 ##
 __docformat__ = "google en"

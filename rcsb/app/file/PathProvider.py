@@ -1,3 +1,6 @@
+# file - PathProvider.py
+# author - James Smith 2023
+
 import typing
 import logging
 import os

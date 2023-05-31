@@ -1,3 +1,6 @@
+# file - KvRedis.py
+# author - James Smith 2023
+
 import redis
 import typing
 import logging

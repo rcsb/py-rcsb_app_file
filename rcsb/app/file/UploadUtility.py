@@ -38,24 +38,6 @@ logger = logging.getLogger()
 
 class UploadUtility(object):
 
-    """
-
-    1. Upload a single file (only write new versions)
-        lock the depId/contentType
-            create the output path
-            store data atomically
-
-    2. Upload a single file in parts (only write new versions):
-        if a client multipart partSession exists use it otherwise create the new client session
-        save part and metadata to new session
-
-        if all parts are present
-            assemble parts and do the single file update (above)
-
-    3. Upload tarfile of individual files with common type/format w/ version=next
-
-    """
-
     def __init__(self, cP: typing.Type[ConfigProvider]):
         self.__cP = cP
         if self.__cP.get("KV_MODE") == "sqlite":
@@ -112,7 +94,6 @@ class UploadUtility(object):
         contentFormat: str,
         version: str,
         allowOverwrite: bool,
-        # hashDigest: str,
         resumable: bool,
     ):
         # get save file path
@@ -163,7 +144,6 @@ class UploadUtility(object):
                 partNumber=partNumber,
                 contentFormat=contentFormat,
                 version=version,
-                # hashDigest=hashDigest,
             )
         if not uploadId:
             uploadId = self.getNewUploadId()
@@ -381,7 +361,6 @@ class UploadUtility(object):
         partNumber: int = 1,
         contentFormat: str = "pdbx",
         version: str = "next",
-        # hashDigest: str = None,
     ):
         filename = self.getPrimaryLogKey(
             repositoryType=repositoryType,
@@ -409,15 +388,6 @@ class UploadUtility(object):
                 repositoryType=repositoryType,
             )
             return None
-
-        # test if user resumes with same file as previously
-        # if hashDigest is not None:
-        #     hashvar = self.__kV.getSession(uploadId, "hashDigest")
-        #     if hashvar != hashDigest:
-        #         await self.removeExpiredEntry(uploadId=uploadId, fileName=filename, depId=depId, repositoryType=repositoryType)
-        #         return None
-        # else:
-        #     logging.warning("error - no hash")
 
         # returns uploadId or None
         return uploadId

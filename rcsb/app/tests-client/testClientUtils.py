@@ -1,6 +1,6 @@
 ##
-# Author:  James Smith 2023
-#
+# File - testClientUtils.py
+# Author - James Smith 2023
 #
 ##
 
@@ -36,12 +36,14 @@ logger.setLevel(logging.INFO)
 
 class ClientTests(unittest.TestCase):
 
+    # comment out if running gunicorn or uvicorn
     # runs only once
     @classmethod
     def setUpClass(cls):
         subprocess.Popen(['uvicorn', 'rcsb.app.file.main:app'], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-    #
-    # # runs only once
+
+    # comment out if running gunicorn or uvicorn
+    # runs only once
     @classmethod
     def tearDownClass(cls):
         os.system("pid=$(ps -e | grep uvicorn | head -n1 | awk '{print $1;}';);kill $pid;")

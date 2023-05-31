@@ -1,3 +1,6 @@
+# file - testFileUpload.py
+# author - James Smith 2023
+
 import json
 import re
 import sys

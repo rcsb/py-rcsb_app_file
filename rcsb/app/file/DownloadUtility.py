@@ -1,7 +1,7 @@
 ##
-# File: DownloadRequest.py
+# File: DownloadUtility.py
 # Date: 11-Aug-2021
-#
+# Updates: James Smith 2023
 
 ##
 __docformat__ = "google en"
@@ -52,7 +52,6 @@ class DownloadUtility(object):
         chunkIndex: typing.Optional[int],
     ):
         pathP = PathProvider()
-        # filePath = fileName = mimeType = hashDigest = None
         tD = {}
         try:
             filePath = pathP.getVersionedPath(

@@ -4,14 +4,9 @@
 # Date:    29-May-2023
 # Version: 1.0
 #
-# Update: James Smith 2023
 #
 #
 ##
-"""
-Tests for path utilities.
-
-"""
 
 __docformat__ = "google en"
 __author__ = "James Smith"

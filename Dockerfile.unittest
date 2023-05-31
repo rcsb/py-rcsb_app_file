@@ -9,6 +9,7 @@ WORKDIR /app/
 
 # copy requirements file (should include selected versions of uvicorn gunicorn)
 COPY ./requirements.txt /app/requirements.txt
+COPY ./README.md /app/README.md
 
 # install dependencies
 RUN set -eux \

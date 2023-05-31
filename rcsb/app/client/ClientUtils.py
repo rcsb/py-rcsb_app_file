@@ -2,7 +2,7 @@
 # File:    ClientUtils.py
 # Author:  js
 # Date:    22-Feb-2023
-# Version: 0.001
+# Version: 1.0
 #
 # Updates: James Smith 2023
 ##

@@ -19,7 +19,6 @@ import datetime
 import logging
 import typing
 from rcsb.app.config.setConfig import getConfig
-# import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
 from rcsb.utils.config.ConfigUtil import ConfigUtil
 from rcsb.utils.io.SingletonClass import SingletonClass
 
@@ -32,7 +31,6 @@ class ConfigProvider(SingletonClass):
     def __init__(self, configFilePath: typing.Optional[str] = None):
         # ---
         self.__configFilePath = configFilePath if configFilePath else getConfig()
-        # self.__configFilePath = configFilePath if configFilePath else os.environ.get("CONFIG_FILE")
         self.__configD = None
         # ---
 

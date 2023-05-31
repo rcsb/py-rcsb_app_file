@@ -4,6 +4,7 @@
 #
 ##
 # pylint: skip-file
+
 __docformat__ = "google en"
 __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
