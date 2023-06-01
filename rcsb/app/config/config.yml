@@ -4,21 +4,29 @@
 # Config file for File Access API server
 ---
 configuration:
+  # server host and port must start with http:// or https:// e.g. http://0.0.0.0:8000
   SERVER_HOST_AND_PORT: http://0.0.0.0:8000
+  # reserve extra processors that will be used by, for example, a redis server on same machine
   SURPLUS_PROCESSORS: 1
+  # path to mounted or local folders
   REPOSITORY_DIR_PATH: rcsb/app/tests-file/data/repository
   PDBX_REPOSITORY: rcsb/app/tests-file/data/mmcif
   SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks
   SESSION_DIR_PATH: rcsb/app/tests-file/data/sessions
+  # kv mode = redis or sqlite
   KV_MODE: sqlite
+  # redis host = localhost, redis, or url
   REDIS_HOST: localhost
+  # database parameters
   KV_FILE_PATH: ./kv.sqlite
   KV_SESSION_TABLE_NAME: sessions
   KV_LOG_TABLE_NAME: log
   KV_MAX_SECONDS: 14400
+  # file parameters
   CHUNK_SIZE: 8388608
   HASH_TYPE: MD5
   DEFAULT_FILE_PERMISSIONS: 0o777
+  # jwt token parameters
   JWT_SUBJECT: aTestSubject
   JWT_ALGORITHM: HS256
   JWT_SECRET: aTestSecret

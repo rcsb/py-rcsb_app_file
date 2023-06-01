@@ -8,6 +8,8 @@
 ##
 """
 Client utilities - wrapper of basic functionalities
+upload, download, list-dir, dir-exists, get-file-path-local, get-file-path-remote
+tasks - file-exists, copy-file, copy-dir, move-file, get versioned path, get latest version, get next version, file size
 """
 
 __docformat__ = "google en"
@@ -265,7 +267,7 @@ class ClientUtils(object):
         path = PathProvider().getVersionedPath(
             repoType, depId, contentType, milestone, partNumber, contentFormat, version
         )
-        # validate file exists
+        # validate file exists on local machine
         if path and os.path.exists(path):
             # treat as web request for simplicity
             return {"status_code": 200, "content": path}

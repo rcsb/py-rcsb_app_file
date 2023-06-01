@@ -50,6 +50,8 @@ Edit url variables to match server url in example-upload.html, example-download.
 
 # Endpoints and forwarding
 
+To view documentation, run a server, then visit localhost:8000/docs.
+
 The repository has one upload endpoint, one download endpoint, and one list-directory endpoint, among others.
 
 To upload a file in chunks, use the '/upload' endpoint.
@@ -66,7 +68,7 @@ The download endpoint is found at '/download'.
 
 The list directory endpoint is found at '/list-dir'.
 
-To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in various Utility.py files.
+To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in various Utility or Provider files.
 
 # Uploads and downloads
 
@@ -101,7 +103,7 @@ Should hashing be performed before or after compression/decompression? From the 
 
 # Testing and deployment
 
-Testing is easiest without Docker and using a Sqlite database.
+If you don't have Redis on your local machine, testing is still possible with a Sqlite database.
 
 For production, use a Docker container with a Redis database.
 
@@ -111,7 +113,7 @@ Production with multiple servers will require all servers to coordinate through 
 
 Since one server could host Redis while others don't, the docker instances could be run differently, or the config files set differently, on each server.
 
-Also, multiple servers must connect to a single file system for deposition.
+Also, multiple servers must connect to a single mounted file system for deposition.
 
 # Deployment on local server without docker
 

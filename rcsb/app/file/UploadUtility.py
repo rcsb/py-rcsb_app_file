@@ -28,6 +28,7 @@ from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.file.KvSqlite import KvSqlite
 from rcsb.app.file.KvRedis import KvRedis
+from rcsb.app.file.Definitions import Definitions
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,11 +36,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger()
 
+# functions -
+# get upload parameters, upload, check hash, check content type format, helper resumable upload functions, helper database functions
+
 
 class UploadUtility(object):
-
-    def __init__(self, cP: typing.Type[ConfigProvider]):
-        self.__cP = cP
+    def __init__(self, cP: typing.Type[ConfigProvider] = None):
+        self.__cP = cP if cP else ConfigProvider()
         if self.__cP.get("KV_MODE") == "sqlite":
             self.__kV = KvSqlite(self.__cP)
         elif self.__cP.get("KV_MODE") == "redis":
@@ -48,6 +51,9 @@ class UploadUtility(object):
         self.__repositoryPath = self.__cP.get("REPOSITORY_DIR_PATH")
         self.__pathP = PathProvider()
         self.__pathU = IoUtility()
+        self.__dP = Definitions()
+        self.__contentTypeInfoD = self.__dP.contentTypeD
+        self.__fileFormatExtensionD = self.__dP.fileFormatExtD
 
     def checkHash(self, pth: str, hashDigest: str, hashType: str) -> bool:
         tHash = self.getHashDigest(pth, hashType)
@@ -97,7 +103,7 @@ class UploadUtility(object):
         resumable: bool,
     ):
         # get save file path
-        if not self.__pathP.checkContentTypeFormat(contentType, contentFormat):
+        if not self.checkContentTypeFormat(contentType, contentFormat):
             logging.error("Error 400 - bad content type and/or format")
             raise HTTPException(
                 status_code=400, detail="Error - bad content type and/or format"
@@ -118,7 +124,9 @@ class UploadUtility(object):
                 detail="Error - could not make file path from parameters",
             )
         if os.path.exists(outPath) and not allowOverwrite:
-            logging.error("Error 400 - encountered existing file - overwrite prohibited")
+            logging.error(
+                "Error 400 - encountered existing file - overwrite prohibited"
+            )
             raise HTTPException(
                 status_code=400,
                 detail="Encountered existing file - overwrite prohibited",
@@ -130,8 +138,7 @@ class UploadUtility(object):
             outPath = outPath[1:]
         else:
             raise HTTPException(
-                status_code=400,
-                detail="Error in file path formation %s" % outPath
+                status_code=400, detail="Error in file path formation %s" % outPath
             )
         # get upload id
         uploadId = None
@@ -310,6 +317,26 @@ class UploadUtility(object):
 
     def getNewUploadId(self):
         return uuid.uuid4().hex
+
+    # functions that validate parameters that form a file path
+
+    def checkContentTypeFormat(self, contentType: str, contentFormat: str) -> bool:
+        # validate content parameters
+        if not contentType or not contentFormat:
+            return False
+        if contentType not in self.__contentTypeInfoD:
+            return False
+        if contentFormat not in self.__fileFormatExtensionD:
+            return False
+        # assert valid combination of type and format
+        if contentFormat in self.__contentTypeInfoD[contentType][0]:
+            return True
+        logger.info(
+            "System does not support %s contentType with %s contentFormat.",
+            contentType,
+            contentFormat,
+        )
+        return False
 
     # file path functions
 

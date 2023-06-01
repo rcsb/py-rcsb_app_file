@@ -11,7 +11,7 @@ __license__ = "Apache 2.0"
 
 """
     Download a single file
-    Download/upload a session bundle
+    Download/upload a session bundle (not implemented)
 """
 
 import logging
@@ -32,6 +32,10 @@ class HashType(str, Enum):
     MD5 = "MD5"
     SHA1 = "SHA1"
     SHA256 = "SHA256"
+
+
+# functions -
+# download, get mime type
 
 
 class DownloadUtility(object):
@@ -96,32 +100,6 @@ class DownloadUtility(object):
                 filename=os.path.basename(filePath),
                 headers=tD,
             )
-
-    async def downloadSize(
-        self,
-        repositoryType,
-        depId,
-        contentType,
-        milestone,
-        partNumber,
-        contentFormat,
-        version,
-    ):
-        pathP = PathProvider()
-        filePath = pathP.getVersionedPath(
-            repositoryType,
-            depId,
-            contentType,
-            milestone,
-            partNumber,
-            contentFormat,
-            version,
-        )
-        if not filePath or not os.path.exists(filePath):
-            raise HTTPException(
-                status_code=404, detail="error - file path does not exist}"
-            )
-        return os.path.getsize(filePath)
 
     def getMimeType(self, contentFormat: str) -> str:
         cFormat = contentFormat

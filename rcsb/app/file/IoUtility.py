@@ -8,6 +8,7 @@
 #
 """
 Collected I/O utilities.
+copy file, copy dir, move file, compress dir, compress dir path
 """
 
 __docformat__ = "google en"
@@ -19,8 +20,7 @@ import shutil
 import logging
 import os
 import typing
-
-from fastapi import HTTPException
+from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.Definitions import Definitions
@@ -33,8 +33,6 @@ logger = logging.getLogger()
 
 
 class IoUtility:
-    """Collected utilities request I/O processing."""
-
     def __init__(self):
         self.__pathP = PathProvider()
         self.__cP = ConfigProvider()
@@ -65,8 +63,6 @@ class IoUtility:
         contentFormatTarget: str,
         versionTarget: str,
     ):
-        """Copy a file given standard input parameters for both the source and destination of the file."""
-        ret = {"success": True, "statusCode": 200, "statusMessage": "File copy success"}
         try:
             filePathSource = self.__pathP.getVersionedPath(
                 repositoryTypeSource,
@@ -77,11 +73,6 @@ class IoUtility:
                 contentFormatSource,
                 versionSource,
             )
-            if not versionTarget:
-                sourceFileEnd = filePathSource.split(".")[-1]
-                if "V" in sourceFileEnd:
-                    # set target version to the same as source version
-                    versionTarget = sourceFileEnd.split("V")[1]
             filePathTarget = self.__pathP.getVersionedPath(
                 repositoryTypeTarget,
                 depIdTarget,
@@ -100,19 +91,9 @@ class IoUtility:
                 os.makedirs(os.path.dirname(filePathTarget))
             logging.warning("copying %s to %s", filePathSource, filePathTarget)
             shutil.copy(filePathSource, filePathTarget)
-            ret["filePathSource"] = filePathSource
-            ret["filePathTarget"] = filePathTarget
-        except Exception as e:
+        except ValueError as e:
             logger.exception("Failing with %s", str(e))
-            ret = {
-                "success": False,
-                "statusCode": 400,
-                "statusMessage": "File copy failed",
-            }
-            raise HTTPException(
-                status_code=400, detail="File checking fails with %s" % str(e)
-            )
-        return ret
+            raise ValueError("File copy fails with %s" % str(e))
 
     async def copyDir(
         self,
@@ -122,40 +103,21 @@ class IoUtility:
         repositoryTypeTarget: str,
         depIdTarget: str,
     ):
-        ret = {"success": True, "statusCode": 200, "statusMessage": "Dir copy success"}
         try:
-            logger.info("copy dir %s %s %s %s", repositoryTypeSource, depIdSource, repositoryTypeTarget, depIdTarget)
             source_path = PathProvider().getDirPath(repositoryTypeSource, depIdSource)
-            logger.info("copying dir %s", source_path)
             if not source_path or not os.path.exists(source_path):
-                logger.error("error - source path does not exist for %s %s", repositoryTypeSource, depIdSource)
-                raise HTTPException(status_code=404, detail="Error - source path does not exist")
+                logger.error(
+                    "error - source path does not exist for %s %s",
+                    repositoryTypeSource,
+                    depIdSource,
+                )
+                raise FileNotFoundError("Error - source path does not exist")
             target_path = PathProvider().getDirPath(repositoryTypeTarget, depIdTarget)
             logger.info("copying %s to %s", source_path, target_path)
             shutil.copytree(source_path, target_path)
-            ret["dirPathSource"] = source_path
-            ret["dirPathTarget"] = target_path
-        except HTTPException as exc:
-            logger.exception("Failing with %s", str(exc))
-            ret = {
-                "success": False,
-                "statusCode": 404,
-                "statusMessage": "source path does not exist"
-            }
-            raise HTTPException(
-                status_code=404, detail=exc.detail
-            )
-        except Exception as exc:
-            logger.exception("Failing with %s", str(exc))
-            ret = {
-                "success": False,
-                "statusCode": 400,
-                "statusMessage": "Dir copy failed",
-            }
-            raise HTTPException(
-                status_code=400, detail="Dir checking fails with %s" % str(exc)
-            )
-        return ret
+        except FileNotFoundError as exc:
+            logger.exception("failing with %s", str(exc))
+            raise FileNotFoundError("copy fails with %s" % str(exc))
 
     async def moveFile(
         self,
@@ -176,9 +138,7 @@ class IoUtility:
         versionTarget: str,
         #
         overwrite: bool,
-    ) -> dict:
-        """Move a file given standard input parameters for both the source and destination of the file."""
-        ret = {"success": True, "statusCode": 200, "statusMessage": "File move success"}
+    ):
         try:
             filePathSource = self.__pathP.getVersionedPath(
                 repositoryTypeSource,
@@ -189,11 +149,6 @@ class IoUtility:
                 contentFormatSource,
                 versionSource,
             )
-            if not versionTarget:
-                sourceFileEnd = filePathSource.split(".")[-1]
-                if "V" in sourceFileEnd:
-                    # set target version to the same as source version
-                    versionTarget = sourceFileEnd.split("V")[1]
             filePathTarget = self.__pathP.getVersionedPath(
                 repositoryTypeTarget,
                 depIdTarget,
@@ -212,23 +167,59 @@ class IoUtility:
                 os.makedirs(os.path.dirname(filePathTarget))
             if os.path.exists(filePathTarget):
                 if not overwrite:
-                    raise HTTPException(
-                        status_code=403, detail="Error - file already exists"
-                    )
+                    raise FileExistsError("Error - file already exists")
                 else:
                     logger.info("removing %s", filePathTarget)
                     os.unlink(filePathTarget)
             shutil.move(filePathSource, filePathTarget)
-            ret["filePathSource"] = filePathSource
-            ret["filePathTarget"] = filePathTarget
-        except Exception as e:
-            ret = {
-                "success": False,
-                "statusCode": 400,
-                "statusMessage": "File move failed",
-            }
+        except ValueError as e:
             logger.exception("Failing with %s", str(e))
-            raise HTTPException(
-                status_code=400, detail="File checking fails with %s" % str(e)
-            )
-        return ret
+            raise OSError("Failing with %s" % str(e))
+        except FileExistsError as e:
+            logger.exception("Failing with %s", str(e))
+            raise OSError("Failing with %s" % str(e))
+
+    async def compressDir(self, repositoryType: str, depId: str):
+        try:
+            dirPath = self.__pathP.getDirPath(repositoryType, depId)
+            if os.path.exists(dirPath):
+                compressPath = os.path.abspath(dirPath) + ".tar.gz"
+                if FileUtil().bundleTarfile(compressPath, [os.path.abspath(dirPath)]):
+                    logger.info(
+                        "created compressPath %s from dirPath %s", compressPath, dirPath
+                    )
+                    shutil.rmtree(dirPath)
+                    if os.path.exists(dirPath):
+                        logger.error(
+                            "unable to remove dirPath %s after compression", dirPath
+                        )
+                        raise OSError(
+                            "Failed to remove directory after compression %s" % dirPath
+                        )
+            else:
+                raise OSError("Requested directory does not exist %s" % dirPath)
+        except OSError as e:
+            logger.exception("Failing with %s", str(e))
+            raise OSError("Directory compression fails with %s" % str(e))
+
+    async def compressDirPath(self, dirPath: str):
+        """Compress directory at given dirPath, as opposed to standard input parameters."""
+        try:
+            if os.path.exists(dirPath):
+                compressPath = os.path.abspath(dirPath) + ".tar.gz"
+                if FileUtil().bundleTarfile(compressPath, [os.path.abspath(dirPath)]):
+                    logger.info(
+                        "created compressPath %s from dirPath %s", compressPath, dirPath
+                    )
+                    shutil.rmtree(dirPath)
+                    if os.path.exists(dirPath):
+                        logger.error(
+                            "unable to remove dirPath %s after compression", dirPath
+                        )
+                else:
+                    raise OSError("Failed to compress directory")
+            else:
+                raise OSError("Requested directory does not exist %s" % dirPath)
+        except OSError as e:
+            logger.exception("Failing with %s", str(e))
+            raise OSError("Directory compression fails with %s" % str(e))

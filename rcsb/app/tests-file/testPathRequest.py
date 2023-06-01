@@ -17,11 +17,9 @@ import logging
 import os
 import platform
 import shutil
-
 import resource
 import unittest
 from fastapi.testclient import TestClient
-
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.main import app
 from rcsb.app.file import __version__
@@ -212,18 +210,6 @@ class PathRequestTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
-    def testContentTypeFormat(self):
-        contentTypeList = [None, "model", "map-model-fsc", "badType"]
-        contentFormatList = [None, "pdbx", "xml", "badFormat"]
-        validCombinationList = [("model", "pdbx"), ("map-model-fsc", "xml")]
-        for contentType in contentTypeList:
-            for contentFormat in contentFormatList:
-                result = PathProvider().checkContentTypeFormat(contentType, contentFormat)
-                if (contentType, contentFormat) in validCombinationList:
-                    self.assertTrue(result, "error - result false for %s %s" % (contentType, contentFormat))
-                else:
-                    self.assertFalse(result, "error - result true for %s %s" % (contentType, contentFormat))
-
     def testNextVersion(self):
         endPoint = "next-version"
         try:
@@ -275,7 +261,6 @@ def tests():
     suite.addTest(PathRequestTests("testPathExists"))
     suite.addTest(PathRequestTests("testListDir"))
     suite.addTest(PathRequestTests("testDirExists"))
-    suite.addTest(PathRequestTests("testContentTypeFormat"))
     suite.addTest(PathRequestTests("testNextVersion"))
     suite.addTest(PathRequestTests("testLatestVersion"))
     return suite

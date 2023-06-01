@@ -11,6 +11,9 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
+# functions -
+# get file name, get versioned path, get latest version, get next version, list dir, dir exists, file exists, file size, get file lock path
+
 
 class PathProvider(object):
     def __init__(self):
@@ -226,7 +229,7 @@ class PathProvider(object):
         milestone: str,
         partNumber: str,
         contentFormat: str,
-        version: int
+        version: int,
     ) -> typing.Optional[str]:
         if str(version).isdigit():
             return "%s.V%s" % (
@@ -236,26 +239,6 @@ class PathProvider(object):
                 version,
             )
         return None
-
-    # functions that validate parameters that form a file path
-
-    def checkContentTypeFormat(self, contentType: str, contentFormat: str) -> bool:
-        # validate content parameters
-        if not contentType or not contentFormat:
-            return False
-        if contentType not in self.__contentTypeInfoD:
-            return False
-        if contentFormat not in self.__fileFormatExtensionD:
-            return False
-        # assert valid combination of type and format
-        if contentFormat in self.__contentTypeInfoD[contentType][0]:
-            return True
-        logger.info(
-            "System does not support %s contentType with %s contentFormat.",
-            contentType,
-            contentFormat,
-        )
-        return False
 
     # functions that just use PathProvider, so they should be placed in same file
 
@@ -300,11 +283,34 @@ class PathProvider(object):
         dirPath = self.getDirPath(repositoryType, depId)
         if not dirPath or not os.path.exists(dirPath):
             logger.exception(
-                "error - directory not found %s %s %s",
-                repositoryType, depId, dirPath
+                "error - directory not found %s %s %s", repositoryType, depId, dirPath
             )
             return False
         return True
+
+    async def fileSize(
+        self,
+        repositoryType,
+        depId,
+        contentType,
+        milestone,
+        partNumber,
+        contentFormat,
+        version,
+    ) -> typing.Optional[int]:
+        pathP = PathProvider()
+        filePath = pathP.getVersionedPath(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+        )
+        if not filePath or not os.path.exists(filePath):
+            return None
+        return os.path.getsize(filePath)
 
     # other functions related to paths
 

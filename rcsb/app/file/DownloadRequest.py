@@ -86,18 +86,3 @@ async def download(
         chunkSize,
         chunkIndex,
     )
-
-
-@router.get("/downloadSize")
-async def downloadSize(
-    repositoryType, depId, contentType, milestone, partNumber, contentFormat, version
-):
-    return await DownloadUtility().downloadSize(
-        repositoryType,
-        depId,
-        contentType,
-        milestone,
-        partNumber,
-        contentFormat,
-        version,
-    )

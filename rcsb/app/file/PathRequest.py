@@ -4,6 +4,8 @@
 import logging
 import os
 from fastapi import APIRouter, Query, HTTPException, Depends
+from pydantic import BaseModel  # pylint: disable=no-name-in-module
+from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 from rcsb.app.file.PathProvider import PathProvider
@@ -17,6 +19,15 @@ else:
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
+
+
+class DirResult(BaseModel):
+    dirList: list = Field(
+        None,
+        title="Directory list",
+        description="Directory content list",
+        example=["D_0000000001_model_P1.cif.V1", "D_0000000001_model_P1.cif.V2"],
+    )
 
 
 @router.get("/file-path")
@@ -93,7 +104,7 @@ async def pathExists(path: str = Query(...)):
         )
 
 
-@router.get("/list-dir")
+@router.get("/list-dir", response_model=DirResult)
 async def listDir(repositoryType: str = Query(), depId: str = Query()):
     dirList = await PathProvider().listDir(repositoryType, depId)
     if not dirList:
@@ -149,3 +160,22 @@ async def latestVersion(
     if version:
         return {"version": version}
     raise HTTPException(status_code=404, detail="Error - file not found")
+
+
+@router.get("/file-size")
+async def fileSize(
+    repositoryType, depId, contentType, milestone, partNumber, contentFormat, version
+):
+    try:
+        result = await PathProvider().fileSize(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+        )
+        return {"fileSize": result}
+    except HTTPException as exc:
+        raise HTTPException(status_code=404, detail=str(exc))

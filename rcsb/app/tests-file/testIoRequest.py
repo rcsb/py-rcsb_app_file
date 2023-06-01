@@ -8,10 +8,6 @@
 #
 #
 ##
-"""
-Tests for file/directory path API endpoints.
-
-"""
 
 __docformat__ = "google en"
 __author__ = "Dennis Piehl"
@@ -21,13 +17,10 @@ __license__ = "Apache 2.0"
 import logging
 import os
 import platform
-
 import resource
 import time
 import unittest
 import shutil
-
-
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -37,7 +30,6 @@ from rcsb.app.file.main import app
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-
 
 class IoRequestTests(unittest.TestCase):
 
@@ -125,7 +117,6 @@ class IoRequestTests(unittest.TestCase):
                 response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
                 self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
-                logger.info("Content length (%d)", len(response.content))
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
@@ -157,17 +148,14 @@ class IoRequestTests(unittest.TestCase):
                 response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
                 logger.info("file status response status code %r", response.status_code)
                 self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
-                logger.info("Content length (%d)", len(response.content))
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
 
     def testCompressDir(self):
-        """Test - compress dir"""
-        startTime = time.time()
-        # First create a copy of one archive directory
-        endPoint = "copy-dir"
         try:
+            # First create a copy of one archive directory
+            endPoint = "copy-dir"
             mD = {
                 "repositoryTypeSource": self.__repositoryType,
                 "depIdSource": "D_1000000001",
@@ -177,11 +165,8 @@ class IoRequestTests(unittest.TestCase):
             }
             with TestClient(app) as client:
                 response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
-                logger.info("file status response status code %r", response.status_code)
-                logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                logger.info("file status %r", response.status_code)
                 self.assertTrue(response.status_code == 200)
-                logger.info("Content length (%d)", len(response.content))
-            #
             # Next compress the copied directory
             endPoint = "compress-dir"
             mD = {
@@ -190,12 +175,8 @@ class IoRequestTests(unittest.TestCase):
             }
             with TestClient(app) as client:
                 response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
-                logger.info("file status response status code %r", response.status_code)
-                logger.debug("response %r %r %r", response.status_code, response.reason_phrase, response.content)
+                logger.info("file status %r", response.status_code)
                 self.assertTrue(response.status_code == 200)
-                logger.info("Content length (%d)", len(response.content))
-                #
-            logger.info("Completed %s (%.4f seconds)", endPoint, time.time() - startTime)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()

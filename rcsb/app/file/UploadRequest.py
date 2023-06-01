@@ -62,7 +62,7 @@ async def getUploadParameters(
 ):
     ret = None
     try:
-        ret = await UploadUtility(ConfigProvider()).getUploadParameters(
+        ret = await UploadUtility().getUploadParameters(
             repositoryType,
             depId,
             contentType,
@@ -104,8 +104,7 @@ async def upload(
 ):
     ret = None
     try:
-        cP = ConfigProvider()
-        up = UploadUtility(cP)
+        up = UploadUtility()
         ret = await up.upload(
             # chunk parameters
             chunk=chunk.file,
@@ -135,14 +134,12 @@ async def upload(
 # clear kv entries from one user
 @router.post("/clearSession")
 async def clearSession(uploadIds: list = Form(...)):
-    cP = ConfigProvider()
-    up = UploadUtility(cP)
+    up = UploadUtility()
     return await up.clearSession(uploadIds, None)
 
 
 # purge kv before testing
 @router.post("/clearKv")
 async def clearKv():
-    cP = ConfigProvider()
-    up = UploadUtility(cP)
+    up = UploadUtility()
     return await up.clearKv()
