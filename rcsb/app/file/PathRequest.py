@@ -30,6 +30,16 @@ class DirResult(BaseModel):
     )
 
 
+@router.get("/list-dir", response_model=DirResult)
+async def listDir(repositoryType: str = Query(), depId: str = Query()):
+    dirList = await PathProvider().listDir(repositoryType, depId)
+    if not dirList:
+        raise HTTPException(
+            status_code=404, detail=f"Folder not found {repositoryType} {depId}"
+        )
+    return {"dirList": dirList}
+
+
 @router.get("/file-path")
 async def getFilePath(
     repositoryType: str = Query(...),
@@ -57,6 +67,71 @@ async def getFilePath(
     except HTTPException as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"filePath": path}
+
+
+@router.get("/next-version")
+async def nextVersion(
+    repositoryType: str = Query(...),
+    depId: str = Query(...),
+    contentType: str = Query(...),
+    milestone: str = Query(default=""),
+    partNumber: int = Query(default=1),
+    contentFormat: str = Query(...),
+):
+    version = PathProvider().getNextVersion(
+        repositoryType, depId, contentType, milestone, partNumber, contentFormat, "next"
+    )
+    if version:
+        return {"version": version}
+    raise HTTPException(status_code=404, detail="Error - file not found")
+
+
+@router.get("/latest-version")
+async def latestVersion(
+    repositoryType: str = Query(...),
+    depId: str = Query(...),
+    contentType: str = Query(...),
+    milestone: str = Query(default=""),
+    partNumber: int = Query(default=1),
+    contentFormat: str = Query(...),
+):
+    version = PathProvider().getLatestVersion(
+        repositoryType,
+        depId,
+        contentType,
+        milestone,
+        partNumber,
+        contentFormat,
+        "latest",
+    )
+    if version:
+        return {"version": version}
+    raise HTTPException(status_code=404, detail="Error - file not found")
+
+
+@router.get("/file-size")
+async def fileSize(
+    repositoryType: str = Query(...),
+    depId: str = Query(...),
+    contentType: str = Query(...),
+    milestone: str = Query(default=""),
+    partNumber: int = Query(default=1),
+    contentFormat: str = Query(...),
+    version: str = Query(default="latest"),
+):
+    try:
+        result = await PathProvider().fileSize(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+        )
+        return {"fileSize": result}
+    except HTTPException as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 @router.get("/file-exists", status_code=200)
@@ -102,80 +177,3 @@ async def pathExists(path: str = Query(...)):
         raise HTTPException(
             status_code=404, detail="Request path does not exist %s" % path
         )
-
-
-@router.get("/list-dir", response_model=DirResult)
-async def listDir(repositoryType: str = Query(), depId: str = Query()):
-    dirList = await PathProvider().listDir(repositoryType, depId)
-    if not dirList:
-        raise HTTPException(
-            status_code=404, detail=f"Folder not found {repositoryType} {depId}"
-        )
-    return {"dirList": dirList}
-
-
-@router.get("/next-version")
-async def nextVersion(
-    repositoryType: str = Query(...),
-    depId: str = Query(...),
-    contentType: str = Query(...),
-    milestone: str = Query(default=""),
-    partNumber: int = Query(default=1),
-    contentFormat: str = Query(...),
-    version: str = Query(default="latest"),
-):
-    version = PathProvider().getNextVersion(
-        repositoryType,
-        depId,
-        contentType,
-        milestone,
-        partNumber,
-        contentFormat,
-        version,
-    )
-    if version:
-        return {"version": version}
-    raise HTTPException(status_code=404, detail="Error - file not found")
-
-
-@router.get("/latest-version")
-async def latestVersion(
-    repositoryType: str = Query(...),
-    depId: str = Query(...),
-    contentType: str = Query(...),
-    milestone: str = Query(default=""),
-    partNumber: int = Query(default=1),
-    contentFormat: str = Query(...),
-    version: str = Query(default="latest"),
-):
-    version = PathProvider().getLatestVersion(
-        repositoryType,
-        depId,
-        contentType,
-        milestone,
-        partNumber,
-        contentFormat,
-        version,
-    )
-    if version:
-        return {"version": version}
-    raise HTTPException(status_code=404, detail="Error - file not found")
-
-
-@router.get("/file-size")
-async def fileSize(
-    repositoryType, depId, contentType, milestone, partNumber, contentFormat, version
-):
-    try:
-        result = await PathProvider().fileSize(
-            repositoryType,
-            depId,
-            contentType,
-            milestone,
-            partNumber,
-            contentFormat,
-            version,
-        )
-        return {"fileSize": result}
-    except HTTPException as exc:
-        raise HTTPException(status_code=404, detail=str(exc))

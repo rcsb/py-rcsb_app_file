@@ -46,7 +46,7 @@ async def moveFile(
     contentFormatTarget: str = Form(),
     versionTarget: str = Form(),
     #
-    overwrite: bool = Form(),
+    overwrite: bool = Form(default=False),
 ):
     # return status 200 or status 400
     try:
@@ -92,6 +92,8 @@ async def copyFile(
     partNumberTarget: int = Form(...),
     contentFormatTarget: str = Form(...),
     versionTarget: str = Form(...),
+    #
+    overwrite: bool = Form(default=False),
 ):
     # return status 200 or 400
     try:
@@ -111,6 +113,8 @@ async def copyFile(
             partNumberTarget,
             contentFormatTarget,
             versionTarget,
+            #
+            overwrite,
         )
     except Exception as exc:
         logger.error("error - %s", str(exc))
@@ -124,6 +128,8 @@ async def copyDir(
     #
     repositoryTypeTarget: str = Form(...),
     depIdTarget: str = Form(...),
+    #
+    overwrite: bool = Form(default=False),
 ):
     # return status 200 or status 400
     try:
@@ -132,6 +138,7 @@ async def copyDir(
             depIdSource,
             repositoryTypeTarget,
             depIdTarget,
+            overwrite,
         )
     except Exception as exc:
         logger.error("error - %s", str(exc))
@@ -150,7 +157,7 @@ async def compressDir(repositoryType: str = Form(...), depId: str = Form(...)):
         )
 
 
-@router.post("/compress-dirpath")
+@router.post("/compress-dir-path")
 async def compressDirPath(dirPath: str = Form(...)):
     """Compress directory at given dirPath, as opposed to standard input parameters."""
     # return status 200 or status 400
@@ -160,4 +167,16 @@ async def compressDirPath(dirPath: str = Form(...)):
         logger.exception("Failing with %s", str(exc))
         raise HTTPException(
             status_code=400, detail="Directory compression fails with %s" % str(exc)
+        )
+
+
+@router.post("/decompress-dir", status_code=200)
+async def decompressDir(repositoryType: str = Form(...), depId: str = Form(...)):
+    # return status 200 or status 400
+    try:
+        await IoUtility().decompressDir(repositoryType, depId)
+    except Exception as exc:
+        logger.exception("Failing with %s", str(exc))
+        raise HTTPException(
+            status_code=400, detail="Directory decompression fails with %s" % str(exc)
         )

@@ -8,7 +8,7 @@
 #
 """
 Collected I/O utilities.
-copy file, copy dir, move file, compress dir, compress dir path
+copy file, copy dir, move file, compress dir, compress dir path, decompress dir
 """
 
 __docformat__ = "google en"
@@ -62,6 +62,8 @@ class IoUtility:
         partNumberTarget: int,
         contentFormatTarget: str,
         versionTarget: str,
+        #
+        overwrite: bool
     ):
         try:
             filePathSource = self.__pathP.getVersionedPath(
@@ -87,6 +89,8 @@ class IoUtility:
                     "Source (%r) or target (%r) filepath not defined"
                     % (filePathSource, filePathTarget)
                 )
+            if os.path.exists(filePathTarget) and not overwrite:
+                raise FileExistsError("error - file already exists %s" % filePathTarget)
             if not os.path.exists(os.path.dirname(filePathTarget)):
                 os.makedirs(os.path.dirname(filePathTarget))
             logging.warning("copying %s to %s", filePathSource, filePathTarget)
@@ -102,6 +106,8 @@ class IoUtility:
         #
         repositoryTypeTarget: str,
         depIdTarget: str,
+        #
+        overwrite: bool
     ):
         try:
             source_path = PathProvider().getDirPath(repositoryTypeSource, depIdSource)
@@ -113,9 +119,17 @@ class IoUtility:
                 )
                 raise FileNotFoundError("Error - source path does not exist")
             target_path = PathProvider().getDirPath(repositoryTypeTarget, depIdTarget)
+            if os.path.exists(target_path):
+                if overwrite:
+                    raise FileExistsError("error - directory already exists %s" % target_path)
+                else:
+                    shutil.rmtree(target_path)
             logger.info("copying %s to %s", source_path, target_path)
             shutil.copytree(source_path, target_path)
         except FileNotFoundError as exc:
+            logger.exception("failing with %s", str(exc))
+            raise FileNotFoundError("copy fails with %s" % str(exc))
+        except FileExistsError as exc:
             logger.exception("failing with %s", str(exc))
             raise FileNotFoundError("copy fails with %s" % str(exc))
 
@@ -223,3 +237,26 @@ class IoUtility:
         except OSError as e:
             logger.exception("Failing with %s", str(e))
             raise OSError("Directory compression fails with %s" % str(e))
+
+    async def decompressDir(self, repositoryType: str, depId: str):
+        try:
+            dirPath = self.__pathP.getDirPath(repositoryType, depId)
+            decompressPath = os.path.abspath(dirPath) + ".tar.gz"
+            if os.path.exists(decompressPath):
+                if FileUtil().unbundleTarfile(decompressPath, os.path.abspath(os.path.dirname(dirPath))):
+                    logger.info(
+                        "created decompressPath %s from dirPath %s", decompressPath, dirPath
+                    )
+                    os.unlink(decompressPath)
+                    if os.path.exists(decompressPath):
+                        logger.error(
+                            "unable to remove dirPath %s after compression", dirPath
+                        )
+                        raise OSError(
+                            "Failed to remove directory after compression %s" % dirPath
+                        )
+            else:
+                raise OSError("Requested directory does not exist %s" % dirPath)
+        except OSError as e:
+            logger.exception("Failing with %s", str(e))
+            raise OSError("Directory decompression fails with %s" % str(e))

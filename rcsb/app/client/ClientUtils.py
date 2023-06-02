@@ -6,10 +6,16 @@
 #
 # Updates: James Smith 2023
 ##
+
 """
-Client utilities - wrapper of basic functionalities
-upload, download, list-dir, dir-exists, get-file-path-local, get-file-path-remote
-tasks - file-exists, copy-file, copy-dir, move-file, get versioned path, get latest version, get next version, file size
+functions
+
+upload, download
+get-file-path-local, get-file-path-remote, dir-exists, list-dir
+copy-file, copy-dir, move-file, compress-dir, compress-dir-path, decompress-dir
+latest version, next version,
+file-size, file-exists
+
 """
 
 __docformat__ = "google en"
@@ -33,6 +39,7 @@ from rcsb.app.file.PathProvider import PathProvider
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
 class ClientUtils(object):
     def __init__(self):
         self.cP = ConfigProvider()
@@ -42,8 +49,7 @@ class ClientUtils(object):
         self.hashType = self.cP.get("HASH_TYPE")
         subject = self.cP.get("JWT_SUBJECT")
         self.headerD = {
-            "Authorization": "Bearer "
-            + JWTAuthToken().createToken({}, subject)
+            "Authorization": "Bearer " + JWTAuthToken().createToken({}, subject)
         }
         self.dP = Definitions()
         self.fileFormatExtensionD = self.dP.fileFormatExtD
@@ -65,7 +71,7 @@ class ClientUtils(object):
         version,
         decompress,
         allowOverwrite,
-        resumable
+        resumable,
     ) -> dict:
         # validate input
         if not os.path.exists(sourceFilePath):
@@ -94,7 +100,7 @@ class ClientUtils(object):
             "version": version,
             "allowOverwrite": allowOverwrite,
             # "hashDigest": fullTestHash,
-            "resumable": resumable
+            "resumable": resumable,
         }
         url = os.path.join(self.baseUrl, "getUploadParameters")
         response = requests.get(
@@ -131,7 +137,7 @@ class ClientUtils(object):
             "filePath": saveFilePath,
             "decompress": decompress,
             "allowOverwrite": allowOverwrite,
-            "resumable": resumable
+            "resumable": resumable,
         }
         offset = chunkIndex * self.chunkSize
 
@@ -143,7 +149,12 @@ class ClientUtils(object):
                     int(fileSize) - (int(mD["chunkIndex"]) * int(self.chunkSize)),
                     int(self.chunkSize),
                 )
-                logger.debug("packet size %s chunk %s expected %s", packetSize, mD['chunkIndex'], expectedChunks)
+                logger.debug(
+                    "packet size %s chunk %s expected %s",
+                    packetSize,
+                    mD["chunkIndex"],
+                    expectedChunks,
+                )
 
                 response = requests.post(
                     url,
@@ -177,10 +188,12 @@ class ClientUtils(object):
         downloadFolder: typing.Optional[str] = None,
         allowOverwrite: bool = False,
         chunkSize: typing.Optional[int] = None,
-        chunkIndex: typing.Optional[int] = None
+        chunkIndex: typing.Optional[int] = None,
     ) -> dict:
         # form paths
-        fileName = PathProvider().getFileName(depId, contentType, milestone, partNumber, contentFormat, version)
+        fileName = PathProvider().getFileName(
+            depId, contentType, milestone, partNumber, contentFormat, version
+        )
         downloadFilePath = os.path.join(downloadFolder, fileName)
 
         # validate input
@@ -212,42 +225,60 @@ class ClientUtils(object):
         if response and response.status_code == 200:
             # write to file
             with open(downloadFilePath, "ab") as ofh:
-                for chunk in response.iter_content(
-                    chunk_size=self.chunkSize
-                ):
+                for chunk in response.iter_content(chunk_size=self.chunkSize):
                     if chunk:
                         ofh.write(chunk)
             # validate hash
             rspHashType = response.headers["rcsb_hash_type"]
             rspHashDigest = response.headers["rcsb_hexdigest"]
-            thD = CryptUtils().getFileHash(
-                downloadFilePath, hashType=rspHashType
-            )
+            thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
             if not thD["hashDigest"] == rspHashDigest:
                 logger.error("Hash comparison failed")
                 return None
 
         return {"status_code": response.status_code}
 
-    def listDir(self, repoType: str, depId: str) -> dict:
-        if not depId or not repoType:
-            logger.error("Missing values")
-            return None
-        url = os.path.join(self.baseUrl, "list-dir")
-        parameters = {"repositoryType": repoType, "depId": depId}
+    def getFilePathRemote(
+        self,
+        repoType: str = None,
+        depId: str = None,
+        contentType: str = None,
+        milestone: str = None,
+        partNumber: int = None,
+        contentFormat: str = None,
+        version: str = None,
+        hashType: str = "MD5",
+        unit_test: bool = False,
+        wfInstanceId: str = None,
+        sessionDir: str = None,
+    ):
+        # validate file exists
+        url = os.path.join(self.baseUrl, "file-exists")
+        parameters = {
+            "repositoryType": repoType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+            "version": version,
+        }
         response = requests.get(
             url, params=parameters, headers=self.headerD, timeout=None
         )
-        if response and response.status_code == 200:
-            dirList = []
-            resp = response.json()
-            if resp:
-                results = resp["dirList"]
-                for fi in sorted(results):
-                    dirList.append(fi)
-            return {"status_code": response.status_code, "content": dirList}
+        if response.status_code != 200:
+            logger.info(f"error - requested file does not exist {parameters}")
+            return {"status_code": response.status_code, "content": None}
+        # return absolute file path on server
+        url = os.path.join(self.baseUrl, "file-path")
+        response = requests.get(
+            url, params=parameters, headers=self.headerD, timeout=None
+        )
+        if response.status_code == 200:
+            result = response.json()
+            return {"status_code": response.status_code, "filePath": result["filePath"]}
         else:
-            return {"status_code": response.status_code}
+            return {"status_code": response.status_code, "filePath": None}
 
     def getFilePathLocal(
         self,
@@ -270,75 +301,248 @@ class ClientUtils(object):
         # validate file exists on local machine
         if path and os.path.exists(path):
             # treat as web request for simplicity
-            return {"status_code": 200, "content": path}
+            return {"status_code": 200, "filePath": path}
         logger.exception("error - path not found %s" % path)
-        return {"status_code": 404, "content": None}
+        return {"status_code": 404, "filePath": None}
 
-    def getFilePathRemote(
-        self,
-        repoType: str = None,
-        depId: str = None,
-        contentType: str = None,
-        milestone: str = None,
-        partNumber: int = None,
-        contentFormat: str = None,
-        version: str = None,
-        hashType: str = "MD5",
-        unit_test: bool = False,
-        wfInstanceId: str = None,
-        sessionDir: str = None,
-    ):
-        # validate file exists
-        url = os.path.join(self.baseUrl, "file-exists")
-        parameters = {"repositoryType": repoType, "depId": depId, "contentType": contentType, "milestone": milestone,
-                      "partNumber": partNumber, "contentFormat": contentFormat, "version": version}
+    def listDir(self, repoType: str, depId: str) -> dict:
+        if not depId or not repoType:
+            logger.error("Missing values")
+            return None
+        url = os.path.join(self.baseUrl, "list-dir")
+        parameters = {"repositoryType": repoType, "depId": depId}
         response = requests.get(
             url, params=parameters, headers=self.headerD, timeout=None
         )
-        if response.status_code != 200:
-            logger.info(f"error - requested file does not exist {parameters}")
-            return {"status_code": response.status_code, "content": None}
-        # return absolute file path on server
-        url = os.path.join(self.baseUrl, "file-path")
-        response = requests.get(
-            url, params=parameters, headers=self.headerD, timeout=None
-        )
-        if response.status_code == 200:
-            return {"status_code": response.status_code, "content": response.content}
+        if response and response.status_code == 200:
+            dirList = []
+            resp = response.json()
+            if resp:
+                results = resp["dirList"]
+                for fi in sorted(results):
+                    dirList.append(fi)
+            return {"status_code": response.status_code, "dirList": dirList}
         else:
-            return {"status_code": response.status_code, "content": None}
+            return {"status_code": response.status_code, "dirList": None}
 
     def dirExists(self, repositoryType, depId):
-        url = os.path.join(self.baseUrl, f"dir-exists?repositoryType={repositoryType}&depId={depId}")
+        url = os.path.join(
+            self.baseUrl, f"dir-exists?repositoryType={repositoryType}&depId={depId}"
+        )
         response = requests.get(url, headers=self.headerD)
-        result = False
-        if response.status_code == 200:
-            result = True
-        return {"status_code": response.status_code, "result": result}
+        return {"status_code": response.status_code}
 
-# def getFileObject(
-    #     self,
-    #     repoType: str = None,
-    #     depId: str = None,
-    #     contentType: str = None,
-    #     milestone: str = None,
-    #     partNumber: int = None,
-    #     contentFormat: str = None,
-    #     version: str = None,
-    #     hashType: str = "MD5",
-    #     unit_test: bool = False,
-    #     wfInstanceId: str = None,
-    #     sessionDir: str = None,
-    # ):
-    #     fao = FileAppObject(
-    #         repoType,
-    #         depId,
-    #         contentType,
-    #         milestone,
-    #         partNumber,
-    #         contentFormat,
-    #         version,
-    #         hashType,
-    #         unit_test,
-    #     )
-    #     return fao
+    def copyFile(
+        self,
+        repositoryTypeSource,
+        depIdSource,
+        contentTypeSource,
+        milestoneSource,
+        partNumberSource,
+        contentFormatSource,
+        versionSource,
+        #
+        repositoryTypeTarget,
+        depIdTarget,
+        contentTypeTarget,
+        milestoneTarget,
+        partNumberTarget,
+        contentFormatTarget,
+        versionTarget,
+        #
+        overwrite,
+    ):
+        mD = {
+            "repositoryTypeSource": repositoryTypeSource,
+            "depIdSource": depIdSource,
+            "contentTypeSource": contentTypeSource,
+            "milestoneSource": milestoneSource,
+            "partNumberSource": partNumberSource,
+            "contentFormatSource": contentFormatSource,
+            "versionSource": versionSource,
+            #
+            "repositoryTypeTarget": repositoryTypeTarget,
+            "depIdTarget": depIdTarget,
+            "contentTypeTarget": contentTypeTarget,
+            "milestoneTarget": milestoneTarget,
+            "partNumberTarget": partNumberTarget,
+            "contentFormatTarget": contentFormatTarget,
+            "versionTarget": versionTarget,
+            #
+            "overwrite": overwrite,
+        }
+        url = os.path.join(self.baseUrl, "copy-file")
+        response = requests.post(url, data=mD, headers=self.headerD)
+        return {"status_code": response.status_code}
+
+    def copyDir(
+        self,
+        repositoryTypeSource,
+        depIdSource,
+        #
+        repositoryTypeTarget,
+        depIdTarget,
+        #
+        overwrite,
+    ):
+        mD = {
+            "repositoryTypeSource": repositoryTypeSource,
+            "depIdSource": depIdSource,
+            #
+            "repositoryTypeTarget": repositoryTypeTarget,
+            "depIdTarget": depIdTarget,
+            #
+            "overwrite": overwrite,
+        }
+        url = os.path.join(self.baseUrl, "copy-dir")
+        response = requests.post(url, data=mD, headers=self.headerD)
+        return {"status_code": response.status_code}
+
+    def moveFile(
+        self,
+        repositoryTypeSource,
+        depIdSource,
+        contentTypeSource,
+        milestoneSource,
+        partNumberSource,
+        contentFormatSource,
+        versionSource,
+        #
+        repositoryTypeTarget,
+        depIdTarget,
+        contentTypeTarget,
+        milestoneTarget,
+        partNumberTarget,
+        contentFormatTarget,
+        versionTarget,
+        #
+        overwrite,
+    ):
+        mD = {
+            "repositoryTypeSource": repositoryTypeSource,
+            "depIdSource": depIdSource,
+            "contentTypeSource": contentTypeSource,
+            "milestoneSource": milestoneSource,
+            "partNumberSource": partNumberSource,
+            "contentFormatSource": contentFormatSource,
+            "versionSource": versionSource,
+            #
+            "repositoryTypeTarget": repositoryTypeTarget,
+            "depIdTarget": depIdTarget,
+            "contentTypeTarget": contentTypeTarget,
+            "milestoneTarget": milestoneTarget,
+            "partNumberTarget": partNumberTarget,
+            "contentFormatTarget": contentFormatTarget,
+            "versionTarget": versionTarget,
+            #
+            "overwrite": overwrite,
+        }
+        url = os.path.join(self.baseUrl, "move-file")
+        response = requests.post(url, data=mD, headers=self.headerD)
+        return {"status_code": response.status_code}
+
+    def compressDir(self, repositoryType, depId):
+        mD = {"repositoryType": repositoryType, "depId": depId}
+        url = os.path.join(self.baseUrl, "compress-dir")
+        response = requests.post(url, data=mD, headers=self.headerD)
+        return {"status_code": response.status_code}
+
+    def compressDirPath(self, dirPath):
+        mD = {"dirPath": dirPath}
+        url = os.path.join(self.baseUrl, "compress-dir-path")
+        response = requests.post(url, data=mD, headers=self.headerD)
+        return {"status_code": response.status_code}
+
+    def decompressDir(self, repositoryType, depId):
+        mD = {"repositoryType": repositoryType, "depId": depId}
+        url = os.path.join(self.baseUrl, "decompress-dir")
+        response = requests.post(url, data=mD, headers=self.headerD)
+        return {"status_code": response.status_code}
+
+    def nextVersion(
+        self, repositoryType, depId, contentType, milestone, partNumber, contentFormat
+    ):
+        mD = {
+            "repositoryType": repositoryType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+        }
+        url = os.path.join(self.baseUrl, "next-version")
+        response = requests.get(url, params=mD, headers=self.headerD)
+        if response.status_code == 200:
+            result = response.json()
+            return {"status_code": response.status_code, "version": result["version"]}
+        else:
+            return {"status_code": response.status_code, "version": None}
+
+    def latestVersion(
+        self, repositoryType, depId, contentType, milestone, partNumber, contentFormat
+    ):
+        mD = {
+            "repositoryType": repositoryType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+        }
+        url = os.path.join(self.baseUrl, "latest-version")
+        response = requests.get(url, params=mD, headers=self.headerD)
+        if response.status_code == 200:
+            result = response.json()
+            return {"status_code": response.status_code, "version": result["version"]}
+        else:
+            return {"status_code": response.status_code, "version": None}
+
+    def fileExists(
+        self,
+        repositoryType,
+        depId,
+        contentType,
+        milestone,
+        partNumber,
+        contentFormat,
+        version,
+    ):
+        mD = {
+            "repositoryType": repositoryType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+            "version": version,
+        }
+        url = os.path.join(self.baseUrl, "file-exists")
+        response = requests.get(url, params=mD, headers=self.headerD)
+        return {"status_code": response.status_code}
+
+    def fileSize(
+        self,
+        repositoryType,
+        depId,
+        contentType,
+        milestone,
+        partNumber,
+        contentFormat,
+        version,
+    ):
+        mD = {
+            "repositoryType": repositoryType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+            "version": version,
+        }
+        url = os.path.join(self.baseUrl, "file-size")
+        response = requests.get(url, params=mD, headers=self.headerD)
+        if response.status_code == 200:
+            result = response.json()
+            return {"status_code": response.status_code, "fileSize": result["fileSize"]}
+        else:
+            return {"status_code": response.status_code, "fileSize": None}

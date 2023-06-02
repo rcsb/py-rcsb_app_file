@@ -111,11 +111,43 @@ class IoRequestTests(unittest.TestCase):
                 "milestoneTarget": "",
                 "partNumberTarget": 1,
                 "contentFormatTarget": "pdbx",
-                "versionTarget": 1
+                "versionTarget": 1,
+                #
+                "overwrite": False
             }
             with TestClient(app) as client:
                 response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
-                logger.info("file status response status code %r", response.status_code)
+                logger.info("file status %r", response.status_code)
+                self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
+    def testCopyDir(self):
+        endpoint = "copy-dir"
+        try:
+            mD = {
+                "repositoryTypeSource": self.__repositoryType,
+                "depIdSource": "D_1000000001",
+                "contentTypeSource": "model",
+                "milestoneSource": "",
+                "partNumberSource": 1,
+                "contentFormatSource": "pdbx",
+                "versionSource": 1,
+                #
+                "repositoryTypeTarget": self.__repositoryType2,
+                "depIdTarget": "D_1000000001",
+                "contentTypeTarget": "model",
+                "milestoneTarget": "",
+                "partNumberTarget": 1,
+                "contentFormatTarget": "pdbx",
+                "versionTarget": 1,
+                #
+                "overwrite": False
+            }
+            with TestClient(app) as client:
+                response = client.post("/%s" % endpoint, data=mD, headers=self.__headerD)
+                logger.info("file status %r", response.status_code)
                 self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
         except Exception as e:
             logger.exception("Failing with %s", str(e))
@@ -146,7 +178,7 @@ class IoRequestTests(unittest.TestCase):
             }
             with TestClient(app) as client:
                 response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
-                logger.info("file status response status code %r", response.status_code)
+                logger.info("file status %r", response.status_code)
                 self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
         except Exception as e:
             logger.exception("Failing with %s", str(e))
@@ -181,6 +213,50 @@ class IoRequestTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
+    def testCompressDirPath(self):
+        try:
+            # First create a copy of one archive directory
+            endPoint = "copy-dir"
+            mD = {
+                "repositoryTypeSource": self.__repositoryType,
+                "depIdSource": "D_1000000001",
+                #
+                "repositoryTypeTarget": self.__repositoryType,
+                "depIdTarget": "D_1000000002",
+            }
+            with TestClient(app) as client:
+                response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
+                logger.info("file status %r", response.status_code)
+                self.assertTrue(response.status_code == 200)
+            # Next compress the copied directory
+            endPoint = "compress-dir-path"
+            mD = {
+                "dirPath": os.path.join(self.__unitTestFolder, "D_1000000002")
+            }
+            with TestClient(app) as client:
+                response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
+                logger.info("file status %r", response.status_code)
+                self.assertTrue(response.status_code == 200)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
+    def testDecompressDir(self):
+        try:
+            mD = {"repositoryType": self.__repositoryType, "depId": "D_1000000001"}
+            with TestClient(app) as client:
+                response = client.post("/compress-dir", data=mD, headers=self.__headerD)
+                logger.info("file status %r", response.status_code)
+                self.assertTrue(response.status_code == 200)
+            with TestClient(app) as client:
+                response = client.post("/decompress-dir", data=mD, headers=self.__headerD)
+                logger.info("file status %r", response.status_code)
+                self.assertTrue(response.status_code == 200)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
+
 
 
 def tests():
@@ -188,6 +264,8 @@ def tests():
     suites.addTest(IoRequestTests("testCopyFile"))
     suites.addTest(IoRequestTests("testMoveFile"))
     suites.addTest(IoRequestTests("testCompressDir"))
+    suites.addTest(IoRequestTests("testCompressDirPath"))
+    suites.addTest(IoRequestTests("testDecompressDir"))
     return suites
 
 

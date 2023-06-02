@@ -78,6 +78,31 @@ class PathRequestTests(unittest.TestCase):
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
         logger.info("Completed")
 
+    def testListDir(self):
+        endPoint = "list-dir"
+        try:
+            # test response 200
+            mD = {
+                "depId": "D_2000000001",
+                "repositoryType": self.__repositoryType,
+            }
+            with TestClient(app) as client:
+                response = client.get("/%s" % endPoint, params=mD, headers=self.__headerD)
+                logger.info("dir status response %r", response.status_code)
+                self.assertTrue(response.status_code == 200)
+            # test response 404
+            mD = {
+                "depId": "D_2000000002",
+                "repositoryType": self.__repositoryType,
+            }
+            with TestClient(app) as client:
+                response = client.get("/%s" % endPoint, params=mD, headers=self.__headerD)
+                logger.info("dir status response status code %r", response.status_code)
+                self.assertTrue(response.status_code == 404)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
     def testFilePath(self):
         logger.info("test file path")
         url = "/file-path"
@@ -104,6 +129,48 @@ class PathRequestTests(unittest.TestCase):
             results = response.json()
             filePath = results["filePath"]
             self.assertTrue(filePath == self.__repositoryFile1, f"error - returned wrong file path {filePath}")
+
+    def testNextVersion(self):
+        endPoint = "next-version"
+        try:
+            mD = {
+                "repositoryType": self.__repositoryType,
+                "depId": "D_1000000001",
+                "contentType": "model",
+                "milestone": None,
+                "partNumber": 1,
+                "contentFormat": "pdbx",
+            }
+            with TestClient(app) as client:
+                response = client.get("/%s" % endPoint, params=mD, headers=self.__headerD)
+                logger.info("file status response %r", response.status_code)
+                self.assertTrue(response.status_code == 200)
+                results = response.json()
+                self.assertTrue(int(results["version"]) == 2, "error - returned wrong file version %s" % results["version"])
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
+    def testLatestVersion(self):
+        endPoint = "latest-version"
+        try:
+            mD = {
+                "repositoryType": self.__repositoryType,
+                "depId": "D_1000000001",
+                "contentType": "model",
+                "milestone": None,
+                "partNumber": 1,
+                "contentFormat": "pdbx",
+            }
+            with TestClient(app) as client:
+                response = client.get("/%s" % endPoint, params=mD, headers=self.__headerD)
+                logger.info("file status response %r", response.status_code)
+                self.assertTrue(response.status_code == 200)
+                results = response.json()
+                self.assertTrue(int(results["version"]) == 1, "error - returned wrong file version %s" % results["version"])
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
 
     def testFileExists(self):
         endPoint = "file-exists"
@@ -160,31 +227,6 @@ class PathRequestTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
-    def testListDir(self):
-        endPoint = "list-dir"
-        try:
-            # test response 200
-            mD = {
-                "depId": "D_2000000001",
-                "repositoryType": self.__repositoryType,
-            }
-            with TestClient(app) as client:
-                response = client.get("/%s" % endPoint, params=mD, headers=self.__headerD)
-                logger.info("dir status response %r", response.status_code)
-                self.assertTrue(response.status_code == 200)
-            # test response 404
-            mD = {
-                "depId": "D_2000000002",
-                "repositoryType": self.__repositoryType,
-            }
-            with TestClient(app) as client:
-                response = client.get("/%s" % endPoint, params=mD, headers=self.__headerD)
-                logger.info("dir status response status code %r", response.status_code)
-                self.assertTrue(response.status_code == 404)
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            self.fail()
-
     def testDirExists(self):
         try:
             # test directory path (without file name)
@@ -210,59 +252,45 @@ class PathRequestTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
-    def testNextVersion(self):
-        endPoint = "next-version"
-        try:
-            mD = {
-                "repositoryType": self.__repositoryType,
-                "depId": "D_1000000001",
-                "contentType": "model",
-                "milestone": None,
-                "partNumber": 1,
-                "contentFormat": "pdbx",
-            }
-            with TestClient(app) as client:
-                response = client.get("/%s" % endPoint, params=mD, headers=self.__headerD)
-                logger.info("file status response %r", response.status_code)
-                self.assertTrue(response.status_code == 200)
-                results = response.json()
-                self.assertTrue(int(results["version"]) == 2, "error - returned wrong file version %s" % results["version"])
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            self.fail()
-
-    def testLatestVersion(self):
-        endPoint = "latest-version"
-        try:
-            mD = {
-                "repositoryType": self.__repositoryType,
-                "depId": "D_1000000001",
-                "contentType": "model",
-                "milestone": None,
-                "partNumber": 1,
-                "contentFormat": "pdbx",
-            }
-            with TestClient(app) as client:
-                response = client.get("/%s" % endPoint, params=mD, headers=self.__headerD)
-                logger.info("file status response %r", response.status_code)
-                self.assertTrue(response.status_code == 200)
-                results = response.json()
-                self.assertTrue(int(results["version"]) == 1, "error - returned wrong file version %s" % results["version"])
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            self.fail()
+    def testFileSize(self):
+        logger.info("test file size")
+        url = "/file-size"
+        repoType = self.__repositoryType
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = None
+        partNumber = 1
+        contentFormat = "pdbx"
+        version = 1
+        parameters = {
+            "repositoryType": repoType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+            "version": version
+        }
+        # test correct file size returned
+        with TestClient(app) as client:
+            response = client.get(url, params=parameters, headers=self.__headerD)
+            self.assertTrue(response.status_code == 200, f"error - 200 = {response.status_code}")
+            results = response.json()
+            fileSize = int(results["fileSize"])
+            self.assertTrue(fileSize == self.__chunkSize, f"error - returned wrong file size {fileSize}")
 
 
 
 def tests():
     suite = unittest.TestSuite()
-    suite.addTest(PathRequestTests("testFilePath"))
-    suite.addTest(PathRequestTests("testFileExists"))
-    suite.addTest(PathRequestTests("testPathExists"))
     suite.addTest(PathRequestTests("testListDir"))
-    suite.addTest(PathRequestTests("testDirExists"))
+    suite.addTest(PathRequestTests("testFilePath"))
     suite.addTest(PathRequestTests("testNextVersion"))
     suite.addTest(PathRequestTests("testLatestVersion"))
+    suite.addTest(PathRequestTests("testFileExists"))
+    suite.addTest(PathRequestTests("testPathExists"))
+    suite.addTest(PathRequestTests("testDirExists"))
+    suite.addTest(PathRequestTests("testFileSize"))
     return suite
 
 

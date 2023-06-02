@@ -28,6 +28,7 @@ class PathProvider(object):
         self.__fileFormatExtensionD = self.__dP.fileFormatExtD
 
     # functions that find relative paths on server, or file names from parameters
+    # does not return absolute paths unless the repository path specified in config.yml is an absolute path
     # primarily for internal use by the file API itself
 
     # returns relative path to repository directory / repository type (deposit, archive...)
@@ -58,7 +59,7 @@ class PathProvider(object):
         milestone: str,
         partNumber: str,
         contentFormat: str,
-        version: str,
+        version: str
     ) -> typing.Optional[str]:
         path = None
         try:
@@ -220,7 +221,7 @@ class PathProvider(object):
         return ""
 
     # returns file name with version provided (without changing version)
-    # validate numeric version
+    # validates numeric version
     # used for downloads
     def getFileName(
         self,
