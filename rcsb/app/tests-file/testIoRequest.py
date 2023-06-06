@@ -96,6 +96,7 @@ class IoRequestTests(unittest.TestCase):
         endPoint = "copy-file"
         try:
             # Copy file from one repositoryType to another
+            # test response 200
             mD = {
                 "repositoryTypeSource": self.__repositoryType,
                 "depIdSource": "D_1000000001",
@@ -113,12 +114,36 @@ class IoRequestTests(unittest.TestCase):
                 "contentFormatTarget": "pdbx",
                 "versionTarget": 1,
                 #
-                "overwrite": False
+                "overwrite": True
             }
             with TestClient(app) as client:
                 response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
                 logger.info("file status %r", response.status_code)
-                self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
+                self.assertTrue(response.status_code == 200, f"error - status code 200 = {response.status_code}")
+            # test response 404
+            mD = {
+                "repositoryTypeSource": self.__repositoryType,
+                "depIdSource": "D_1000000001",
+                "contentTypeSource": "model",
+                "milestoneSource": "",
+                "partNumberSource": 4,
+                "contentFormatSource": "pdbx",
+                "versionSource": 1,
+                #
+                "repositoryTypeTarget": self.__repositoryType2,
+                "depIdTarget": "D_1000000001",
+                "contentTypeTarget": "model",
+                "milestoneTarget": "",
+                "partNumberTarget": 1,
+                "contentFormatTarget": "pdbx",
+                "versionTarget": 1,
+                #
+                "overwrite": True
+            }
+            with TestClient(app) as client:
+                response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
+                logger.info("file status %r", response.status_code)
+                self.assertTrue(response.status_code == 404, f"error - status code 404 = {response.status_code}")
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
@@ -126,6 +151,7 @@ class IoRequestTests(unittest.TestCase):
     def testCopyDir(self):
         endpoint = "copy-dir"
         try:
+            # test response 200
             mD = {
                 "repositoryTypeSource": self.__repositoryType,
                 "depIdSource": "D_1000000001",
@@ -149,6 +175,30 @@ class IoRequestTests(unittest.TestCase):
                 response = client.post("/%s" % endpoint, data=mD, headers=self.__headerD)
                 logger.info("file status %r", response.status_code)
                 self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
+            # test response 404
+            mD = {
+                "repositoryTypeSource": self.__repositoryType,
+                "depIdSource": "D_1000000004",
+                "contentTypeSource": "model",
+                "milestoneSource": "",
+                "partNumberSource": 1,
+                "contentFormatSource": "pdbx",
+                "versionSource": 1,
+                #
+                "repositoryTypeTarget": self.__repositoryType2,
+                "depIdTarget": "D_1000000001",
+                "contentTypeTarget": "model",
+                "milestoneTarget": "",
+                "partNumberTarget": 1,
+                "contentFormatTarget": "pdbx",
+                "versionTarget": 1,
+                #
+                "overwrite": True
+            }
+            with TestClient(app) as client:
+                response = client.post("/%s" % endpoint, data=mD, headers=self.__headerD)
+                logger.info("file status %r", response.status_code)
+                self.assertTrue(response.status_code == 404, f"error - status code {response.status_code}")
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
@@ -157,6 +207,7 @@ class IoRequestTests(unittest.TestCase):
         endPoint = "move-file"
         try:
             # Move file from one repositoryType to another
+            # test response 200
             mD = {
                 "repositoryTypeSource": self.__repositoryType,
                 "depIdSource": "D_1000000001",
@@ -180,6 +231,30 @@ class IoRequestTests(unittest.TestCase):
                 response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
                 logger.info("file status %r", response.status_code)
                 self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
+            # test response 404
+            mD = {
+                "repositoryTypeSource": self.__repositoryType,
+                "depIdSource": "D_1000000001",
+                "contentTypeSource": "model",
+                "milestoneSource": "",
+                "partNumberSource": 1,
+                "contentFormatSource": "pdbx",
+                "versionSource": 4,
+                #
+                "repositoryTypeTarget": self.__repositoryType2,
+                "depIdTarget": "D_1000000001",
+                "contentTypeTarget": "model",
+                "milestoneTarget": "",
+                "partNumberTarget": 1,
+                "contentFormatTarget": "pdbx",
+                "versionTarget": 1,
+                #
+                "overwrite": "True"
+            }
+            with TestClient(app) as client:
+                response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
+                logger.info("file status %r", response.status_code)
+                self.assertTrue(response.status_code == 404, f"error - status code {response.status_code}")
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
@@ -200,6 +275,7 @@ class IoRequestTests(unittest.TestCase):
                 logger.info("file status %r", response.status_code)
                 self.assertTrue(response.status_code == 200)
             # Next compress the copied directory
+            # test response 200
             endPoint = "compress-dir"
             mD = {
                 "repositoryType": self.__repositoryType,
@@ -209,6 +285,15 @@ class IoRequestTests(unittest.TestCase):
                 response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
                 logger.info("file status %r", response.status_code)
                 self.assertTrue(response.status_code == 200)
+            # test response 404
+            mD = {
+                "repositoryType": self.__repositoryType,
+                "depId": "D_1000000004",
+            }
+            with TestClient(app) as client:
+                response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
+                logger.info("file status %r", response.status_code)
+                self.assertTrue(response.status_code == 404)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
@@ -230,6 +315,7 @@ class IoRequestTests(unittest.TestCase):
                 self.assertTrue(response.status_code == 200)
             # Next compress the copied directory
             endPoint = "compress-dir-path"
+            # test response 200
             mD = {
                 "dirPath": os.path.join(self.__unitTestFolder, "D_1000000002")
             }
@@ -237,6 +323,14 @@ class IoRequestTests(unittest.TestCase):
                 response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
                 logger.info("file status %r", response.status_code)
                 self.assertTrue(response.status_code == 200)
+            # test response 404
+            mD = {
+                "dirPath": os.path.join(self.__unitTestFolder, "D_1000000004")
+            }
+            with TestClient(app) as client:
+                response = client.post("/%s" % endPoint, data=mD, headers=self.__headerD)
+                logger.info("file status %r", response.status_code)
+                self.assertTrue(response.status_code == 404)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
@@ -244,14 +338,22 @@ class IoRequestTests(unittest.TestCase):
     def testDecompressDir(self):
         try:
             mD = {"repositoryType": self.__repositoryType, "depId": "D_1000000001"}
+            # compress first
             with TestClient(app) as client:
                 response = client.post("/compress-dir", data=mD, headers=self.__headerD)
                 logger.info("file status %r", response.status_code)
                 self.assertTrue(response.status_code == 200)
+            # test response 200
             with TestClient(app) as client:
                 response = client.post("/decompress-dir", data=mD, headers=self.__headerD)
                 logger.info("file status %r", response.status_code)
                 self.assertTrue(response.status_code == 200)
+            # test response 404
+            mD = {"repositoryType": self.__repositoryType, "depId": "D_1000000004"}
+            with TestClient(app) as client:
+                response = client.post("/decompress-dir", data=mD, headers=self.__headerD)
+                logger.info("file status %r", response.status_code)
+                self.assertTrue(response.status_code == 404)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()

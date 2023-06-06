@@ -20,6 +20,8 @@ import shutil
 import logging
 import os
 import typing
+
+from fastapi import HTTPException
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathProvider import PathProvider
@@ -32,7 +34,7 @@ logging.basicConfig(
 logger = logging.getLogger()
 
 
-class IoUtility:
+class IoUtility(object):
     def __init__(self):
         self.__pathP = PathProvider()
         self.__cP = ConfigProvider()
@@ -65,39 +67,34 @@ class IoUtility:
         #
         overwrite: bool
     ):
-        try:
-            filePathSource = self.__pathP.getVersionedPath(
-                repositoryTypeSource,
-                depIdSource,
-                contentTypeSource,
-                milestoneSource,
-                partNumberSource,
-                contentFormatSource,
-                versionSource,
-            )
-            filePathTarget = self.__pathP.getVersionedPath(
-                repositoryTypeTarget,
-                depIdTarget,
-                contentTypeTarget,
-                milestoneTarget,
-                partNumberTarget,
-                contentFormatTarget,
-                versionTarget,
-            )
-            if not filePathSource or not filePathTarget:
-                raise ValueError(
-                    "Source (%r) or target (%r) filepath not defined"
-                    % (filePathSource, filePathTarget)
-                )
-            if os.path.exists(filePathTarget) and not overwrite:
-                raise FileExistsError("error - file already exists %s" % filePathTarget)
-            if not os.path.exists(os.path.dirname(filePathTarget)):
-                os.makedirs(os.path.dirname(filePathTarget))
-            logging.warning("copying %s to %s", filePathSource, filePathTarget)
-            shutil.copy(filePathSource, filePathTarget)
-        except ValueError as e:
-            logger.exception("Failing with %s", str(e))
-            raise ValueError("File copy fails with %s" % str(e))
+        filePathSource = self.__pathP.getVersionedPath(
+            repositoryTypeSource,
+            depIdSource,
+            contentTypeSource,
+            milestoneSource,
+            partNumberSource,
+            contentFormatSource,
+            versionSource,
+        )
+        filePathTarget = self.__pathP.getVersionedPath(
+            repositoryTypeTarget,
+            depIdTarget,
+            contentTypeTarget,
+            milestoneTarget,
+            partNumberTarget,
+            contentFormatTarget,
+            versionTarget,
+        )
+        if not filePathSource or not filePathTarget:
+            raise HTTPException(status_code=400, detail="error - source or target filepath not defined")
+        if not os.path.exists(filePathSource):
+            raise HTTPException(status_code=404, detail="error - file not found %s" % filePathSource)
+        if os.path.exists(filePathTarget) and not overwrite:
+            raise HTTPException(status_code=403, detail="error - file already exists %s" % filePathTarget)
+        if not os.path.exists(os.path.dirname(filePathTarget)):
+            os.makedirs(os.path.dirname(filePathTarget))
+        logging.info("copying %s to %s", filePathSource, filePathTarget)
+        shutil.copy(filePathSource, filePathTarget)
 
     async def copyDir(
         self,
@@ -109,29 +106,19 @@ class IoUtility:
         #
         overwrite: bool
     ):
-        try:
-            source_path = PathProvider().getDirPath(repositoryTypeSource, depIdSource)
-            if not source_path or not os.path.exists(source_path):
-                logger.error(
-                    "error - source path does not exist for %s %s",
-                    repositoryTypeSource,
-                    depIdSource,
-                )
-                raise FileNotFoundError("Error - source path does not exist")
-            target_path = PathProvider().getDirPath(repositoryTypeTarget, depIdTarget)
-            if os.path.exists(target_path):
-                if overwrite:
-                    raise FileExistsError("error - directory already exists %s" % target_path)
-                else:
-                    shutil.rmtree(target_path)
-            logger.info("copying %s to %s", source_path, target_path)
-            shutil.copytree(source_path, target_path)
-        except FileNotFoundError as exc:
-            logger.exception("failing with %s", str(exc))
-            raise FileNotFoundError("copy fails with %s" % str(exc))
-        except FileExistsError as exc:
-            logger.exception("failing with %s", str(exc))
-            raise FileNotFoundError("copy fails with %s" % str(exc))
+        source_path = PathProvider().getDirPath(repositoryTypeSource, depIdSource)
+        target_path = PathProvider().getDirPath(repositoryTypeTarget, depIdTarget)
+        if not source_path or not target_path:
+            raise HTTPException(status_code=400, detail="error - source path or target path not defined")
+        if not os.path.exists(source_path):
+            raise HTTPException(status_code=404, detail="error - source path does not exist")
+        if os.path.exists(target_path):
+            if not overwrite:
+                raise HTTPException(status_code=403, detail="error - directory already exists %s" % target_path)
+            else:
+                shutil.rmtree(target_path)
+        logger.info("copying %s to %s", source_path, target_path)
+        shutil.copytree(source_path, target_path)
 
     async def moveFile(
         self,
@@ -153,110 +140,85 @@ class IoUtility:
         #
         overwrite: bool,
     ):
-        try:
-            filePathSource = self.__pathP.getVersionedPath(
-                repositoryTypeSource,
-                depIdSource,
-                contentTypeSource,
-                milestoneSource,
-                partNumberSource,
-                contentFormatSource,
-                versionSource,
-            )
-            filePathTarget = self.__pathP.getVersionedPath(
-                repositoryTypeTarget,
-                depIdTarget,
-                contentTypeTarget,
-                milestoneTarget,
-                partNumberTarget,
-                contentFormatTarget,
-                versionTarget,
-            )
-            if not filePathSource or not filePathTarget:
-                raise ValueError(
-                    "Source (%r) or target (%r) filepath not defined"
-                    % (filePathSource, filePathTarget)
-                )
-            if not os.path.exists(os.path.dirname(filePathTarget)):
-                os.makedirs(os.path.dirname(filePathTarget))
-            if os.path.exists(filePathTarget):
-                if not overwrite:
-                    raise FileExistsError("Error - file already exists")
-                else:
-                    logger.info("removing %s", filePathTarget)
-                    os.unlink(filePathTarget)
-            shutil.move(filePathSource, filePathTarget)
-        except ValueError as e:
-            logger.exception("Failing with %s", str(e))
-            raise OSError("Failing with %s" % str(e))
-        except FileExistsError as e:
-            logger.exception("Failing with %s", str(e))
-            raise OSError("Failing with %s" % str(e))
+        filePathSource = self.__pathP.getVersionedPath(
+            repositoryTypeSource,
+            depIdSource,
+            contentTypeSource,
+            milestoneSource,
+            partNumberSource,
+            contentFormatSource,
+            versionSource,
+        )
+        filePathTarget = self.__pathP.getVersionedPath(
+            repositoryTypeTarget,
+            depIdTarget,
+            contentTypeTarget,
+            milestoneTarget,
+            partNumberTarget,
+            contentFormatTarget,
+            versionTarget,
+        )
+        if not filePathSource or not filePathTarget:
+            raise HTTPException(status_code=400, detail="Source or target filepath not defined")
+        if not os.path.exists(filePathSource):
+            raise HTTPException(status_code=404, detail="error - file does not exist %s" % filePathSource)
+        if os.path.exists(filePathTarget):
+            if not overwrite:
+                raise HTTPException(status_code=403, detail="error - file already exists %s" % filePathTarget)
+            else:
+                logger.info("removing %s", filePathTarget)
+                os.unlink(filePathTarget)
+        if not os.path.exists(os.path.dirname(filePathTarget)):
+            os.makedirs(os.path.dirname(filePathTarget))
+        logger.info("moving %s to %s", filePathSource, filePathTarget)
+        shutil.move(filePathSource, filePathTarget)
 
     async def compressDir(self, repositoryType: str, depId: str):
-        try:
-            dirPath = self.__pathP.getDirPath(repositoryType, depId)
+        dirPath = self.__pathP.getDirPath(repositoryType, depId)
+        if not dirPath:
+            raise HTTPException(status_code=400, detail="error - could not form dir path")
+        if not os.path.exists(dirPath):
+            raise HTTPException(status_code=404, detail="error - path not found %s" % dirPath)
+        compressPath = os.path.abspath(dirPath) + ".tar.gz"
+        if os.path.exists(compressPath):
+            raise HTTPException(status_code=403, detail="error - requested path already exists %s" % compressPath)
+        if FileUtil().bundleTarfile(compressPath, [os.path.abspath(dirPath)]):
+            shutil.rmtree(dirPath)
             if os.path.exists(dirPath):
-                compressPath = os.path.abspath(dirPath) + ".tar.gz"
-                if FileUtil().bundleTarfile(compressPath, [os.path.abspath(dirPath)]):
-                    logger.info(
-                        "created compressPath %s from dirPath %s", compressPath, dirPath
-                    )
-                    shutil.rmtree(dirPath)
-                    if os.path.exists(dirPath):
-                        logger.error(
-                            "unable to remove dirPath %s after compression", dirPath
-                        )
-                        raise OSError(
-                            "Failed to remove directory after compression %s" % dirPath
-                        )
-            else:
-                raise OSError("Requested directory does not exist %s" % dirPath)
-        except OSError as e:
-            logger.exception("Failing with %s", str(e))
-            raise OSError("Directory compression fails with %s" % str(e))
+                logger.error(
+                    "unable to remove dirPath %s after compression", dirPath
+                )
 
     async def compressDirPath(self, dirPath: str):
         """Compress directory at given dirPath, as opposed to standard input parameters."""
-        try:
+        if not os.path.exists(dirPath):
+            raise HTTPException(status_code=404, detail="error - path not found %s" % dirPath)
+        compressPath = os.path.abspath(dirPath) + ".tar.gz"
+        if os.path.exists(compressPath):
+            raise HTTPException(status_code=403, detail="error - requested path already exists %s" % compressPath)
+        if FileUtil().bundleTarfile(compressPath, [os.path.abspath(dirPath)]):
+            shutil.rmtree(dirPath)
             if os.path.exists(dirPath):
-                compressPath = os.path.abspath(dirPath) + ".tar.gz"
-                if FileUtil().bundleTarfile(compressPath, [os.path.abspath(dirPath)]):
-                    logger.info(
-                        "created compressPath %s from dirPath %s", compressPath, dirPath
-                    )
-                    shutil.rmtree(dirPath)
-                    if os.path.exists(dirPath):
-                        logger.error(
-                            "unable to remove dirPath %s after compression", dirPath
-                        )
-                else:
-                    raise OSError("Failed to compress directory")
-            else:
-                raise OSError("Requested directory does not exist %s" % dirPath)
-        except OSError as e:
-            logger.exception("Failing with %s", str(e))
-            raise OSError("Directory compression fails with %s" % str(e))
+                logger.error(
+                    "unable to remove dirPath %s after compression", dirPath
+                )
+        else:
+            raise HTTPException(status_code=400, detail="error - failed to compress directory")
 
     async def decompressDir(self, repositoryType: str, depId: str):
-        try:
-            dirPath = self.__pathP.getDirPath(repositoryType, depId)
-            decompressPath = os.path.abspath(dirPath) + ".tar.gz"
+        dirPath = self.__pathP.getDirPath(repositoryType, depId)
+        if not dirPath:
+            raise HTTPException(status_code=400, detail="error - could not form dir path")
+        if os.path.exists(dirPath):
+            raise HTTPException(status_code=403, detail="error - path already exists %s" % dirPath)
+        decompressPath = os.path.abspath(dirPath) + ".tar.gz"
+        if not os.path.exists(decompressPath):
+            raise HTTPException(status_code=404, detail="error - path not found %s" % decompressPath)
+        if FileUtil().unbundleTarfile(decompressPath, os.path.abspath(os.path.dirname(dirPath))):
+            os.unlink(decompressPath)
             if os.path.exists(decompressPath):
-                if FileUtil().unbundleTarfile(decompressPath, os.path.abspath(os.path.dirname(dirPath))):
-                    logger.info(
-                        "created decompressPath %s from dirPath %s", decompressPath, dirPath
-                    )
-                    os.unlink(decompressPath)
-                    if os.path.exists(decompressPath):
-                        logger.error(
-                            "unable to remove dirPath %s after compression", dirPath
-                        )
-                        raise OSError(
-                            "Failed to remove directory after compression %s" % dirPath
-                        )
-            else:
-                raise OSError("Requested directory does not exist %s" % dirPath)
-        except OSError as e:
-            logger.exception("Failing with %s", str(e))
-            raise OSError("Directory decompression fails with %s" % str(e))
+                logger.error(
+                    "unable to remove dirPath %s after compression", dirPath
+                )
+        else:
+            raise HTTPException(status_code=400, detail="error - decompression failed")

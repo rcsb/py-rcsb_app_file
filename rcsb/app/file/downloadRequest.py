@@ -1,5 +1,5 @@
 ##
-# File: DownloadRequest.py
+# File: downloadRequest.py
 # Date: 11-Aug-2021
 # Updates: James Smith 2023
 

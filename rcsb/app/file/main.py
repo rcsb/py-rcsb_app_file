@@ -15,11 +15,11 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from . import ConfigProvider
-from . import DownloadRequest
-from . import ServerStatusRequest
-from . import UploadRequest
-from . import IoRequest
-from . import PathRequest
+from . import downloadRequest
+from . import serverStatusRequest
+from . import uploadRequest
+from . import ioRequest
+from . import pathRequest
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -59,23 +59,23 @@ def shutdownEvent():
 
 
 app.include_router(
-    UploadRequest.router,
+    uploadRequest.router,
 )
 
 
 app.include_router(
-    DownloadRequest.router,
+    downloadRequest.router,
 )
 
 
 app.include_router(
-    IoRequest.router,
+    ioRequest.router,
 )
 
 app.include_router(
-    PathRequest.router
+    pathRequest.router
 )
 
 app.include_router(
-    ServerStatusRequest.router
+    serverStatusRequest.router
 )

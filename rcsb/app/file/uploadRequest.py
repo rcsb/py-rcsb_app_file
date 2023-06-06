@@ -1,5 +1,5 @@
 ##
-# File: UploadRequest.py
+# File: uploadRequest.py
 # Date: 27-Oct-2022
 #
 ##
@@ -37,18 +37,18 @@ class HashType(str, Enum):
 
 
 class UploadResult(BaseModel):
-    success: bool = Field(
-        None, title="Success status", description="Success status", example=True
+    filePath: str = Field(
+        None, title="file path", description="relative file path", example="deposit/D_000_model_P1.cif.V1"
     )
-    statusCode: int = Field(
-        None, title="HTTP status code", description="HTTP status code", example=200
+    chunkIndex: int = Field(
+        None, title="chunk index", description="chunk index", example=0
     )
-    statusMessage: str = Field(
-        None, title="Status message", description="Status message", example="Success"
+    uploadId: str = Field(
+        None, title="upload id", description="upload id", example="A1101A10101E"
     )
 
 
-@router.get("/getUploadParameters")
+@router.get("/getUploadParameters", response_model=UploadResult)
 async def getUploadParameters(
     repositoryType: str = Query(...),
     depId: str = Query(...),
@@ -74,17 +74,17 @@ async def getUploadParameters(
             resumable,
         )
     except HTTPException as exc:
-        ret = {
-            "success": False,
-            "statusCode": exc.status_code,
-            "statsMessage": f"error in upload parameters {exc.detail}",
-        }
+        # ret = {
+        #     "success": False,
+        #     "statusCode": exc.status_code,
+        #     "statsMessage": f"error in upload parameters {exc.detail}",
+        # }
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
     return ret
 
 
 # upload chunked file
-@router.post("/upload", response_model=UploadResult)
+@router.post("/upload")
 async def upload(
     # chunk parameters
     chunk: UploadFile = File(...),

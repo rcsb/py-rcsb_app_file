@@ -16,7 +16,7 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 logger = logging.getLogger(__name__)
 
 
-class JWTAuthToken:
+class JWTAuthToken(object):
     def __init__(self):
         cP = ConfigProvider()
         self.__jwtSecret = cP.get("JWT_SECRET")

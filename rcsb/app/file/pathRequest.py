@@ -1,4 +1,4 @@
-# file - PathRequest.py
+# file - pathRequest.py
 # author - James Smith 2023
 
 import logging

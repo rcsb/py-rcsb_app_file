@@ -1,5 +1,5 @@
 ##
-# File: ServerStatusRequest.py
+# File: serverStatusRequest.py
 # Date: 11-Aug-2020
 #
 ##
@@ -20,7 +20,6 @@ from fastapi import APIRouter
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.ProcessStatusUtil import ProcessStatusUtil
 
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -29,6 +28,8 @@ router = APIRouter()
 @router.get("/uptime", tags=["status"])
 def getUptime():
     global TOPDIR
+    HERE = os.path.dirname(__file__)
+    TOPDIR = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
     uptime_file = os.path.join(TOPDIR, "uptime.txt")
     uptime_start = 0
     with open(uptime_file, "r") as read:

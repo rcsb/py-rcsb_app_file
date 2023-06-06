@@ -8,7 +8,7 @@ from fastapi.exceptions import HTTPException
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
 
-class KvRedis:
+class KvRedis(object):
     def __init__(self, cP: typing.Type[ConfigProvider]):
         self.kV = None
         self.__cP = cP

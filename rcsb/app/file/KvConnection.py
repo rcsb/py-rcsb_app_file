@@ -6,7 +6,7 @@ import logging
 from fastapi.exceptions import HTTPException
 
 
-class KvConnection:
+class KvConnection(object):
     def __init__(self, filepath, sessionTable, logTable):
         self.filePath = filepath
         self.sessionTable = sessionTable

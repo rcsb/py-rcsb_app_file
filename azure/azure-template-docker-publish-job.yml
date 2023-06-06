@@ -71,7 +71,7 @@ jobs:
                           --build-arg GROUP_ID=$(id -g) \
                           --tag ${REGISTRY_USER}/${IMAGE_NAME}:${TAG_BASE} \
                           --tag ${REGISTRY_USER}/${IMAGE_NAME}:${VER} \
-                          --file ./Dockerfile.stage  .
+                          --file ./Dockerfile.devel  .
               #
               docker image ls
             displayName: "Production build script"

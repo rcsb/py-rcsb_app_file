@@ -32,7 +32,7 @@ echo "TOPDIR = $TOPDIR"
 # write start time to log file for purposes of determining uptime status
 UPTIME_START=`echo $(date +%s)`
 echo "UPTIME_START = $UPTIME_START"
-# for ServerStatusRequest, Docker requires reading from root directory, so don't write to deploy folder
+# for serverStatusRequest, Docker requires reading from root directory, so don't write to deploy folder
 echo $UPTIME_START > $TOPDIR/uptime.txt
 
 # determine whether running docker

@@ -20,12 +20,11 @@ import logging
 import typing
 from rcsb.app.config.setConfig import getConfig
 from rcsb.utils.config.ConfigUtil import ConfigUtil
-from rcsb.utils.io.SingletonClass import SingletonClass
 
 logger = logging.getLogger(__name__)
 
 
-class ConfigProvider(SingletonClass):
+class ConfigProvider(object):
     """Accessors for configuration details."""
 
     def __init__(self, configFilePath: typing.Optional[str] = None):
