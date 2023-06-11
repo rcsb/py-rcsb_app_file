@@ -14,7 +14,6 @@ __license__ = "Apache 2.0"
 
 import datetime
 import gzip
-import hashlib
 import logging
 import os
 import typing
@@ -37,7 +36,7 @@ logging.basicConfig(
 logger = logging.getLogger()
 
 # functions -
-# get upload parameters, upload, check hash, check content type format, helper resumable upload functions, helper database functions
+# get upload parameters, upload, check content type format, helper resumable upload functions, helper database functions
 
 
 class UploadUtility(object):
@@ -47,48 +46,13 @@ class UploadUtility(object):
             self.__kV = KvSqlite(self.__cP)
         elif self.__cP.get("KV_MODE") == "redis":
             self.__kV = KvRedis(self.__cP)
-        self.__defaultFilePermissions = self.__cP.get("DEFAULT_FILE_PERMISSIONS")
         self.__repositoryPath = self.__cP.get("REPOSITORY_DIR_PATH")
+        self.__defaultFilePermissions = self.__cP.get("DEFAULT_FILE_PERMISSIONS")
+
         self.__pathP = PathProvider()
-        self.__pathU = IoUtility()
         self.__dP = Definitions()
         self.__contentTypeInfoD = self.__dP.contentTypeD
         self.__fileFormatExtensionD = self.__dP.fileFormatExtD
-
-    def checkHash(self, pth: str, hashDigest: str, hashType: str) -> bool:
-        tHash = self.getHashDigest(pth, hashType)
-        return tHash == hashDigest
-
-    def getHashDigest(
-        self, filePath: str, hashType: str = "SHA1", blockSize: int = 65536
-    ) -> typing.Optional[str]:
-        """Return the hash (hashType) for the input file.
-
-        Args:
-            filePath (str): for input file path
-            hashType (str, optional): one of MD5, SHA1, or SHA256. Defaults to "SHA1".
-            blockSize (int, optional): the size of incremental read operations. Defaults to 65536.
-
-        Returns:
-            (str): hash digest or None on failure
-        """
-        if hashType not in ["MD5", "SHA1", "SHA256"]:
-            return None
-        try:
-            if hashType == "SHA1":
-                hashObj = hashlib.sha1()
-            elif hashType == "SHA256":
-                hashObj = hashlib.sha256()
-            elif hashType == "MD5":
-                hashObj = hashlib.md5()
-
-            with open(filePath, "rb") as ifh:
-                for block in iter(lambda: ifh.read(blockSize), b""):
-                    hashObj.update(block)
-            return hashObj.hexdigest()
-        except Exception as e:
-            logger.exception("Failing with file %s %r", filePath, str(e))
-        return None
 
     async def getUploadParameters(
         self,
@@ -103,7 +67,7 @@ class UploadUtility(object):
         resumable: bool,
     ):
         # get save file path
-        if not self.checkContentTypeFormat(contentType, contentFormat):
+        if not self.__pathP.checkContentTypeFormat(contentType, contentFormat):
             logging.error("Error 400 - bad content type and/or format")
             raise HTTPException(
                 status_code=400, detail="Error - bad content type and/or format"
@@ -125,10 +89,10 @@ class UploadUtility(object):
             )
         if os.path.exists(outPath) and not allowOverwrite:
             logger.exception(
-                "Error 400 - encountered existing file - overwrite prohibited"
+                "Error 403 - encountered existing file - overwrite prohibited"
             )
             raise HTTPException(
-                status_code=400,
+                status_code=403,
                 detail="Encountered existing file - overwrite prohibited",
             )
         dirPath, _ = os.path.split(outPath)
@@ -212,7 +176,6 @@ class UploadUtility(object):
 
         logger.debug("chunk %s of %s for %s", chunkIndex, expectedChunks, uploadId)
 
-        ret = {"success": True, "statusCode": 200, "statusMessage": "Chunk uploaded"}
         dirPath, _ = os.path.split(filePath)
         tempPath = self.getTempFilePath(uploadId, dirPath)
         contents = chunk.read()
@@ -228,62 +191,47 @@ class UploadUtility(object):
                 await ofh.write(contents)
             # if last chunk
             if chunkIndex + 1 == expectedChunks:
-                if hashDigest and hashType:
-                    if hashType == "SHA1":
-                        hashObj = hashlib.sha1()
-                    elif hashType == "SHA256":
-                        hashObj = hashlib.sha256()
-                    elif hashType == "MD5":
-                        hashObj = hashlib.md5()
-                    blockSize = 65536
-                    # hash temp file
-                    with open(tempPath, "rb") as r:
-                        while hash_chunk := r.read(blockSize):
-                            hashObj.update(hash_chunk)
-                    hexdigest = hashObj.hexdigest()
-                    ok = hexdigest == hashDigest
-                    if not ok:
-                        raise HTTPException(
-                            status_code=400, detail=f"{hashType} hash check failed"
-                        )
-                    else:
-                        # lock then save
-                        lockPath = os.path.join(
-                            os.path.dirname(filePath),
-                            "." + os.path.basename(filePath) + ".lock",
-                        )
-                        lock = FileLock(lockPath)
-                        try:
-                            with lock.acquire(timeout=60 * 60 * 4):
-                                # last minute race condition handling
-                                if os.path.exists(filePath) and not allowOverwrite:
-                                    raise HTTPException(
-                                        status_code=400,
-                                        detail="Encountered existing file - cannot overwrite",
-                                    )
-                                else:
-                                    # save final version
-                                    os.replace(tempPath, filePath)
-                        except Timeout:
+                if not hashDigest and hashType:
+                    raise HTTPException(status_code=400, detail="Error - missing hash")
+                if not IoUtility().checkHash(tempPath, hashDigest, hashType):
+                    raise HTTPException(
+                        status_code=400, detail=f"{hashType} hash check failed"
+                    )
+                # lock then save
+                lockPath = os.path.join(
+                    os.path.dirname(filePath),
+                    "." + os.path.basename(filePath) + ".lock",
+                )
+                lock = FileLock(lockPath)
+                try:
+                    with lock.acquire(timeout=60 * 60 * 4):
+                        # last minute race condition handling
+                        if os.path.exists(filePath) and not allowOverwrite:
                             raise HTTPException(
-                                status_code=400,
-                                detail=f"error - lock timed out on {filePath}",
+                                status_code=403,
+                                detail="Encountered existing file - cannot overwrite",
                             )
-                        finally:
-                            lock.release()
-                            if os.path.exists(lockPath):
-                                os.unlink(lockPath)
-                    # remove temp file
-                    if os.path.exists(tempPath):
-                        os.unlink(tempPath)
-                    # decompress
-                    if decompress:
-                        with gzip.open(filePath, "rb") as r:
-                            with open(tempPath, "wb") as w:
-                                w.write(r.read())
-                        os.replace(tempPath, filePath)
-                else:
-                    raise HTTPException(status_code=500, detail="Error - missing hash")
+                        else:
+                            # save final version
+                            os.replace(tempPath, filePath)
+                except Timeout:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"error - lock timed out on {filePath}",
+                    )
+                finally:
+                    lock.release()
+                    if os.path.exists(lockPath):
+                        os.unlink(lockPath)
+                # remove temp file
+                if os.path.exists(tempPath):
+                    os.unlink(tempPath)
+                # decompress
+                if decompress:
+                    with gzip.open(filePath, "rb") as r:
+                        with open(tempPath, "wb") as w:
+                            w.write(r.read())
+                    os.replace(tempPath, filePath)
                 # clear database
                 if resumable:
                     self.clearSession(key, logKey)
@@ -292,51 +240,20 @@ class UploadUtility(object):
                 os.unlink(tempPath)
             if resumable:
                 self.clearSession(key, logKey)
-            ret = {
-                "success": False,
-                "statusCode": exc.status_code,
-                "statusMessage": f"error in sequential upload {exc.detail}",
-            }
             raise HTTPException(status_code=exc.status_code, detail=exc.detail)
         except Exception as exc:
             if os.path.exists(tempPath):
                 os.unlink(tempPath)
             if resumable:
                 self.clearSession(key, logKey)
-            ret = {
-                "success": False,
-                "statusCode": 400,
-                "statusMessage": f"error in sequential upload {str(exc)}",
-            }
             raise HTTPException(
                 status_code=400, detail=f"error in sequential upload {str(exc)}"
             )
         finally:
             chunk.close()
-        return ret
 
     def getNewUploadId(self):
         return uuid.uuid4().hex
-
-    # functions that validate parameters that form a file path
-
-    def checkContentTypeFormat(self, contentType: str, contentFormat: str) -> bool:
-        # validate content parameters
-        if not contentType or not contentFormat:
-            return False
-        if contentType not in self.__contentTypeInfoD:
-            return False
-        if contentFormat not in self.__fileFormatExtensionD:
-            return False
-        # assert valid combination of type and format
-        if contentFormat in self.__contentTypeInfoD[contentType][0]:
-            return True
-        logger.info(
-            "System does not support %s contentType with %s contentFormat.",
-            contentType,
-            contentFormat,
-        )
-        return False
 
     # file path functions
 

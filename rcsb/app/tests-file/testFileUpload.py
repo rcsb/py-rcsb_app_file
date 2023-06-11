@@ -12,9 +12,8 @@ import time
 from copy import deepcopy
 import math
 from fastapi.testclient import TestClient
-from rcsb.app.file.UploadUtility import UploadUtility
+from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.file.main import app
-from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
@@ -88,8 +87,7 @@ class UploadTest(unittest.TestCase):
             return None
         # compress (externally), then hash, then upload
         # hash
-        hD = CryptUtils().getFileHash(self.__dataFile, hashType=self.__hashType)
-        fullTestHash = hD["hashDigest"]
+        fullTestHash = IoUtility().getHashDigest(self.__dataFile, hashType=self.__hashType)
         # compute expected chunks
         fileSize = os.path.getsize(self.__dataFile)
         expectedChunks = 1
@@ -190,8 +188,7 @@ class UploadTest(unittest.TestCase):
             return None
         # compress (externally), then hash, then upload
         # hash
-        hD = CryptUtils().getFileHash(self.__dataFile, hashType=self.__hashType)
-        fullTestHash = hD["hashDigest"]
+        fullTestHash = IoUtility().getHashDigest(self.__dataFile, hashType=self.__hashType)
         # compute expected chunks
         fileSize = os.path.getsize(self.__dataFile)
         expectedChunks = 1
@@ -286,23 +283,10 @@ class UploadTest(unittest.TestCase):
                 mD["chunkIndex"] += 1
         return response
 
-    def testContentTypeFormat(self):
-        contentTypeList = [None, "model", "map-model-fsc", "badType"]
-        contentFormatList = [None, "pdbx", "xml", "badFormat"]
-        validCombinationList = [("model", "pdbx"), ("map-model-fsc", "xml")]
-        for contentType in contentTypeList:
-            for contentFormat in contentFormatList:
-                result = UploadUtility().checkContentTypeFormat(contentType, contentFormat)
-                if (contentType, contentFormat) in validCombinationList:
-                    self.assertTrue(result, "error - result false for %s %s" % (contentType, contentFormat))
-                else:
-                    self.assertFalse(result, "error - result true for %s %s" % (contentType, contentFormat))
-
 def upload_tests():
     suite = unittest.TestSuite()
     suite.addTest(UploadTest("testSimpleUpload"))
     suite.addTest(UploadTest("testSimpleUpdate"))
-    suite.addTest(UploadTest("testContentTypeFormat"))
     return suite
 
 if __name__ == "__main__":

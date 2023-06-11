@@ -10,7 +10,7 @@ __email__ = "dennis.piehl@rcsb.org"
 __license__ = "Apache 2.0"
 
 import logging
-from fastapi import APIRouter, Form
+from fastapi import APIRouter, Form, HTTPException
 from fastapi import Depends
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
@@ -48,25 +48,28 @@ async def moveFile(
     overwrite: bool = Form(default=False),
 ):
     # return status
-    await IoUtility().moveFile(
-        repositoryTypeSource,
-        depIdSource,
-        contentTypeSource,
-        milestoneSource,
-        partNumberSource,
-        contentFormatSource,
-        versionSource,
-        #
-        repositoryTypeTarget,
-        depIdTarget,
-        contentTypeTarget,
-        milestoneTarget,
-        partNumberTarget,
-        contentFormatTarget,
-        versionTarget,
-        #
-        overwrite,
-    )
+    try:
+        await IoUtility().moveFile(
+            repositoryTypeSource,
+            depIdSource,
+            contentTypeSource,
+            milestoneSource,
+            partNumberSource,
+            contentFormatSource,
+            versionSource,
+            #
+            repositoryTypeTarget,
+            depIdTarget,
+            contentTypeTarget,
+            milestoneTarget,
+            partNumberTarget,
+            contentFormatTarget,
+            versionTarget,
+            #
+            overwrite,
+        )
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 @router.post("/copy-file", status_code=200)
@@ -90,25 +93,28 @@ async def copyFile(
     overwrite: bool = Form(default=False),
 ):
     # return status
-    await IoUtility().copyFile(
-        repositoryTypeSource,
-        depIdSource,
-        contentTypeSource,
-        milestoneSource,
-        partNumberSource,
-        contentFormatSource,
-        versionSource,
-        #
-        repositoryTypeTarget,
-        depIdTarget,
-        contentTypeTarget,
-        milestoneTarget,
-        partNumberTarget,
-        contentFormatTarget,
-        versionTarget,
-        #
-        overwrite,
-    )
+    try:
+        await IoUtility().copyFile(
+            repositoryTypeSource,
+            depIdSource,
+            contentTypeSource,
+            milestoneSource,
+            partNumberSource,
+            contentFormatSource,
+            versionSource,
+            #
+            repositoryTypeTarget,
+            depIdTarget,
+            contentTypeTarget,
+            milestoneTarget,
+            partNumberTarget,
+            contentFormatTarget,
+            versionTarget,
+            #
+            overwrite,
+        )
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 @router.post("/copy-dir", status_code=200)
@@ -122,26 +128,35 @@ async def copyDir(
     overwrite: bool = Form(default=False),
 ):
     # return status
-    await IoUtility().copyDir(
-        repositoryTypeSource,
-        depIdSource,
-        repositoryTypeTarget,
-        depIdTarget,
-        overwrite,
-    )
+    try:
+        await IoUtility().copyDir(
+            repositoryTypeSource,
+            depIdSource,
+            repositoryTypeTarget,
+            depIdTarget,
+            overwrite,
+        )
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 @router.post("/compress-dir", status_code=200)
 async def compressDir(repositoryType: str = Form(...), depId: str = Form(...)):
     # return status
-    await IoUtility().compressDir(repositoryType, depId)
+    try:
+        await IoUtility().compressDir(repositoryType, depId)
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 @router.post("/compress-dir-path", status_code=200)
 async def compressDirPath(dirPath: str = Form(...)):
     """Compress directory at given dirPath, as opposed to standard input parameters."""
     # return status
-    await IoUtility().compressDirPath(dirPath)
+    try:
+        await IoUtility().compressDirPath(dirPath)
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 @router.post("/decompress-dir", status_code=200)

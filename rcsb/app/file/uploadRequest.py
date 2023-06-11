@@ -10,7 +10,6 @@ __license__ = "Apache 2.0"
 
 
 import logging
-from enum import Enum
 from typing import Optional
 from fastapi import APIRouter, Query, File, Form, HTTPException, UploadFile, Depends
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
@@ -30,15 +29,12 @@ else:
     router = APIRouter(tags=["upload"])
 
 
-class HashType(str, Enum):
-    MD5 = "MD5"
-    SHA1 = "SHA1"
-    SHA256 = "SHA256"
-
-
 class UploadResult(BaseModel):
     filePath: str = Field(
-        None, title="file path", description="relative file path", example="deposit/D_000_model_P1.cif.V1"
+        None,
+        title="file path",
+        description="relative file path",
+        example="deposit/D_000_model_P1.cif.V1",
     )
     chunkIndex: int = Field(
         None, title="chunk index", description="chunk index", example=0
@@ -53,7 +49,7 @@ async def getUploadParameters(
     repositoryType: str = Query(...),
     depId: str = Query(...),
     contentType: str = Query(...),
-    milestone: Optional[str] = Query(default="next"),
+    milestone: Optional[str] = Query(default=""),
     partNumber: int = Query(...),
     contentFormat: str = Query(...),
     version: str = Query(default="next"),
@@ -61,7 +57,7 @@ async def getUploadParameters(
     resumable: bool = Query(default=False),
 ):
     try:
-        ret = await UploadUtility().getUploadParameters(
+        return await UploadUtility().getUploadParameters(
             repositoryType,
             depId,
             contentType,
@@ -74,11 +70,10 @@ async def getUploadParameters(
         )
     except HTTPException as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
-    return ret
 
 
 # upload chunked file
-@router.post("/upload")
+@router.post("/upload", status_code=200)
 async def upload(
     # chunk parameters
     chunk: UploadFile = File(...),
@@ -96,10 +91,9 @@ async def upload(
     # other
     resumable: bool = Form(False),
 ):
-    ret = None
+    # return status
     try:
-        up = UploadUtility()
-        ret = await up.upload(
+        return await UploadUtility().upload(
             # chunk parameters
             chunk=chunk.file,
             chunkSize=chunkSize,
@@ -116,24 +110,16 @@ async def upload(
             resumable=resumable,
         )
     except HTTPException as exc:
-        ret = {
-            "success": False,
-            "statusCode": exc.status_code,
-            "statusMessage": f"error in upload {exc.detail}",
-        }
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
-    return ret
 
 
 # clear kv entries from one user
 @router.post("/clearSession")
 async def clearSession(uploadIds: list = Form(...)):
-    up = UploadUtility()
-    return await up.clearSession(uploadIds, None)
+    return await UploadUtility().clearSession(uploadIds, None)
 
 
 # purge kv before testing
 @router.post("/clearKv")
 async def clearKv():
-    up = UploadUtility()
-    return await up.clearKv()
+    return await UploadUtility().clearKv()

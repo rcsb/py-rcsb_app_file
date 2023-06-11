@@ -21,8 +21,8 @@ from enum import Enum
 from fastapi import HTTPException
 from fastapi.responses import FileResponse, Response
 from rcsb.app.file.PathProvider import PathProvider
-from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.Definitions import Definitions
+from rcsb.app.file.IoUtility import IoUtility
 
 
 logger = logging.getLogger(__name__)
@@ -55,44 +55,40 @@ class DownloadUtility(object):
         chunkSize: typing.Optional[int],
         chunkIndex: typing.Optional[int],
     ):
-        pathP = PathProvider()
-        tD = {}
-        try:
-            filePath = pathP.getVersionedPath(
-                repositoryType,
-                depId,
-                contentType,
-                milestone,
-                partNumber,
-                contentFormat,
-                version,
+        filePath = PathProvider().getVersionedPath(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+        )
+        if not filePath:
+            raise HTTPException(
+                status_code=421, detail="Bad or incomplete path metadata"
             )
-            if not filePath:
-                raise HTTPException(
-                    status_code=404, detail="Bad or incomplete path metadata"
-                )
-            if not os.path.exists(filePath):
-                raise HTTPException(
-                    status_code=404,
-                    detail="Request file path does not exist %s" % filePath,
-                )
-            if hashType and not (chunkSize is not None and chunkIndex is not None):
-                hD = CryptUtils().getFileHash(filePath, hashType.name)
-                hashDigest = hD["hashDigest"]
-                tD = {"rcsb_hash_type": hashType.name, "rcsb_hexdigest": hashDigest}
-        except HTTPException as exc:
-            logger.exception("Failing with %s", str(exc.detail))
-            raise HTTPException(status_code=404, detail=exc.detail)
+        if not os.path.exists(filePath):
+            raise HTTPException(
+                status_code=404,
+                detail="Request file path does not exist %s" % filePath,
+            )
         if chunkSize is not None and chunkIndex is not None:
+            # return only one chunk
             data = None
             try:
                 with open(filePath, "rb") as r:
                     r.seek(chunkIndex * chunkSize)
                     data = r.read(chunkSize)
             except Exception:
-                raise HTTPException(status_code=500, detail="error returning chunk")
+                raise HTTPException(status_code=500, detail="error occurred while reading file")
             return Response(content=data, media_type="application/octet-stream")
         else:
+            # return complete file
+            tD = {}
+            if hashType and not (chunkSize is not None and chunkIndex is not None):
+                hashDigest = IoUtility().getHashDigest(filePath, hashType.name)
+                tD = {"rcsb_hash_type": hashType.name, "rcsb_hexdigest": hashDigest}
             mimeType = self.getMimeType(contentFormat)
             return FileResponse(
                 path=filePath,

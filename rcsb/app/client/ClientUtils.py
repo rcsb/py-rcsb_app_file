@@ -30,7 +30,7 @@ import math
 import json
 import requests
 import typing
-from rcsb.utils.io.CryptUtils import CryptUtils
+from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.Definitions import Definitions
@@ -79,8 +79,7 @@ class ClientUtils(object):
             return None
         # compress (externally), then hash, then upload
         # hash
-        hD = CryptUtils().getFileHash(sourceFilePath, hashType=self.hashType)
-        fullTestHash = hD["hashDigest"]
+        fullTestHash = IoUtility().getHashDigest(sourceFilePath, hashType=self.hashType)
         # compute expected chunks
         fileSize = os.path.getsize(sourceFilePath)
         expectedChunks = 1
@@ -232,8 +231,8 @@ class ClientUtils(object):
             if "rcsb_hash_type" in response.headers and "rcsb_hexdigest" in response.headers:
                 rspHashType = response.headers["rcsb_hash_type"]
                 rspHashDigest = response.headers["rcsb_hexdigest"]
-                thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
-                if not thD["hashDigest"] == rspHashDigest:
+                hashDigest = IoUtility().getHashDigest(downloadFilePath, hashType=rspHashType)
+                if not hashDigest == rspHashDigest:
                     logger.error("Hash comparison failed")
                     return None
 
@@ -248,7 +247,7 @@ class ClientUtils(object):
         partNumber: int = None,
         contentFormat: str = None,
         version: str = None
-    ):
+    ) -> dict:
         # validate file exists
         url = os.path.join(self.baseUrl, "file-exists")
         parameters = {
@@ -286,7 +285,7 @@ class ClientUtils(object):
         partNumber: int = 1,
         contentFormat: str = None,
         version: str = "next"
-    ):
+    ) -> dict:
         if not repoType or not depId or not contentType or not contentFormat:
             return {"status_code": 404, "content": None}
         path = PathProvider().getVersionedPath(
@@ -319,7 +318,7 @@ class ClientUtils(object):
         else:
             return {"status_code": response.status_code, "dirList": None}
 
-    def dirExists(self, repositoryType, depId):
+    def dirExists(self, repositoryType, depId) -> dict:
         url = os.path.join(
             self.baseUrl, f"dir-exists?repositoryType={repositoryType}&depId={depId}"
         )
@@ -345,7 +344,7 @@ class ClientUtils(object):
         versionTarget,
         #
         overwrite,
-    ):
+    ) -> dict:
         mD = {
             "repositoryTypeSource": repositoryTypeSource,
             "depIdSource": depIdSource,
@@ -378,7 +377,7 @@ class ClientUtils(object):
         depIdTarget,
         #
         overwrite,
-    ):
+    ) -> dict:
         mD = {
             "repositoryTypeSource": repositoryTypeSource,
             "depIdSource": depIdSource,
@@ -411,7 +410,7 @@ class ClientUtils(object):
         versionTarget,
         #
         overwrite,
-    ):
+    ) -> dict:
         mD = {
             "repositoryTypeSource": repositoryTypeSource,
             "depIdSource": depIdSource,
@@ -435,19 +434,19 @@ class ClientUtils(object):
         response = requests.post(url, data=mD, headers=self.headerD, timeout=None)
         return {"status_code": response.status_code}
 
-    def compressDir(self, repositoryType, depId):
+    def compressDir(self, repositoryType, depId) -> dict:
         mD = {"repositoryType": repositoryType, "depId": depId}
         url = os.path.join(self.baseUrl, "compress-dir")
         response = requests.post(url, data=mD, headers=self.headerD, timeout=None)
         return {"status_code": response.status_code}
 
-    def compressDirPath(self, dirPath):
+    def compressDirPath(self, dirPath) -> dict:
         mD = {"dirPath": dirPath}
         url = os.path.join(self.baseUrl, "compress-dir-path")
         response = requests.post(url, data=mD, headers=self.headerD, timeout=None)
         return {"status_code": response.status_code}
 
-    def decompressDir(self, repositoryType, depId):
+    def decompressDir(self, repositoryType, depId) -> dict:
         mD = {"repositoryType": repositoryType, "depId": depId}
         url = os.path.join(self.baseUrl, "decompress-dir")
         response = requests.post(url, data=mD, headers=self.headerD, timeout=None)
@@ -455,7 +454,7 @@ class ClientUtils(object):
 
     def nextVersion(
         self, repositoryType, depId, contentType, milestone, partNumber, contentFormat
-    ):
+    ) -> dict:
         mD = {
             "repositoryType": repositoryType,
             "depId": depId,
@@ -474,7 +473,7 @@ class ClientUtils(object):
 
     def latestVersion(
         self, repositoryType, depId, contentType, milestone, partNumber, contentFormat
-    ):
+    ) -> dict:
         mD = {
             "repositoryType": repositoryType,
             "depId": depId,
@@ -500,7 +499,7 @@ class ClientUtils(object):
         partNumber,
         contentFormat,
         version,
-    ):
+    ) -> dict:
         mD = {
             "repositoryType": repositoryType,
             "depId": depId,
@@ -523,7 +522,7 @@ class ClientUtils(object):
         partNumber,
         contentFormat,
         version,
-    ):
+    ) -> dict:
         mD = {
             "repositoryType": repositoryType,
             "depId": depId,

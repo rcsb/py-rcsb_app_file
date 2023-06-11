@@ -32,10 +32,11 @@ class DirResult(BaseModel):
 
 @router.get("/list-dir", response_model=DirResult)
 async def listDir(repositoryType: str = Query(), depId: str = Query()):
-    dirList = await PathProvider().listDir(repositoryType, depId)
-    if not dirList:
+    try:
+        dirList = await PathProvider().listDir(repositoryType, depId)
+    except HTTPException as exc:
         raise HTTPException(
-            status_code=404, detail=f"Folder not found {repositoryType} {depId}"
+            status_code=exc.status_code, detail=exc.detail
         )
     return {"dirList": dirList}
 
@@ -130,7 +131,7 @@ async def fileSize(
         )
         return {"fileSize": result}
     except HTTPException as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
 @router.get("/file-exists", status_code=200)
@@ -155,6 +156,7 @@ async def fileExists(
         version,
     ):
         raise HTTPException(status_code=404, detail="file path not found")
+    return {"result": True}
 
 
 @router.get("/dir-exists", status_code=200)
@@ -163,16 +165,17 @@ async def dirExists(repositoryType: str = Query(...), depId: str = Query(...)):
     # return status code 200 or status code 404
     if not PathProvider().dirExists(repositoryType, depId):
         raise HTTPException(
-            status_code=404, detail="Request directory path does not exist"
+            status_code=404, detail="Requested directory path does not exist"
         )
     return {"result": True}
 
 
-@router.get("/path-exists")
+@router.get("/path-exists", status_code=200)
 async def pathExists(path: str = Query(...)):
     # existence of absolute path on server
     # return status code 200 or status code 404
     if not os.path.exists(path):
         raise HTTPException(
-            status_code=404, detail="Request path does not exist %s" % path
+            status_code=404, detail="Requested path does not exist %s" % path
         )
+    return {"result": True}

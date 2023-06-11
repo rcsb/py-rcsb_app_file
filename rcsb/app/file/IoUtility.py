@@ -8,7 +8,7 @@
 #
 """
 Collected I/O utilities.
-copy file, copy dir, move file, compress dir, compress dir path, decompress dir
+check hash, get hash digest, copy file, copy dir, move file, compress dir, compress dir path, decompress dir
 """
 
 __docformat__ = "google en"
@@ -20,7 +20,7 @@ import shutil
 import logging
 import os
 import typing
-
+import hashlib
 from fastapi import HTTPException
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.app.file.PathProvider import PathProvider
@@ -35,6 +35,33 @@ logger = logging.getLogger()
 class IoUtility(object):
     def __init__(self):
         self.__pathP = PathProvider()
+
+    def checkHash(self, pth: str, hashDigest: str, hashType: str) -> bool:
+        tHash = self.getHashDigest(pth, hashType)
+        return tHash == hashDigest
+
+    def getHashDigest(
+        self, filePath: str, hashType: str = "SHA1", blockSize: int = 65536
+    ) -> typing.Optional[str]:
+        if hashType not in ["MD5", "SHA1", "SHA256"]:
+            return None
+        try:
+            if hashType == "SHA1":
+                hashObj = hashlib.sha1()
+            elif hashType == "SHA256":
+                hashObj = hashlib.sha256()
+            elif hashType == "MD5":
+                hashObj = hashlib.md5()
+            # hash file
+            if os.path.exists(filePath):
+                with open(filePath, "rb") as r:
+                    # for block in iter(lambda: r.read(blockSize), b""):
+                    while block := r.read(blockSize):
+                        hashObj.update(block)
+                return hashObj.hexdigest()
+        except Exception as e:
+            logger.exception("Failing with file %s %r", filePath, str(e))
+        return None
 
     async def copyFile(
         self,

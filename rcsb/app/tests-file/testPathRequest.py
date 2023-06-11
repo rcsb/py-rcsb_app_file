@@ -279,7 +279,17 @@ class PathRequestTests(unittest.TestCase):
             fileSize = int(results["fileSize"])
             self.assertTrue(fileSize == self.__chunkSize, f"error - returned wrong file size {fileSize}")
 
-
+    def testContentTypeFormat(self):
+        contentTypeList = [None, "model", "map-model-fsc", "badType"]
+        contentFormatList = [None, "pdbx", "xml", "badFormat"]
+        validCombinationList = [("model", "pdbx"), ("map-model-fsc", "xml")]
+        for contentType in contentTypeList:
+            for contentFormat in contentFormatList:
+                result = PathProvider().checkContentTypeFormat(contentType, contentFormat)
+                if (contentType, contentFormat) in validCombinationList:
+                    self.assertTrue(result, "error - result false for %s %s" % (contentType, contentFormat))
+                else:
+                    self.assertFalse(result, "error - result true for %s %s" % (contentType, contentFormat))
 
 def tests():
     suite = unittest.TestSuite()
@@ -291,6 +301,7 @@ def tests():
     suite.addTest(PathRequestTests("testPathExists"))
     suite.addTest(PathRequestTests("testDirExists"))
     suite.addTest(PathRequestTests("testFileSize"))
+    suite.addTest(PathRequestTests("testContentTypeFormat"))
     return suite
 
 

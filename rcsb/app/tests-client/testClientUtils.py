@@ -207,7 +207,7 @@ class ClientTests(unittest.TestCase):
             )
             self.assertTrue(response["status_code"] == 200)
 
-            # return 400 (file already exists)
+            # return 403 (file already exists)
             partNumber = 1
             allowOverwrite = False
             response = self.__cU.upload(
@@ -226,7 +226,7 @@ class ClientTests(unittest.TestCase):
             logger.info(
                 f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}"
             )
-            self.assertTrue(response["status_code"] == 400)
+            self.assertTrue(response["status_code"] == 403)
 
             # return 200 (decompress gzip file)
             partNumber = 3
@@ -271,7 +271,7 @@ class ClientTests(unittest.TestCase):
         partNumber = 1
         contentFormat = "pdbx"
         version = 1
-
+        # test response 200
         try:
             response = self.__cU.download(
                 repositoryType,
@@ -291,7 +291,7 @@ class ClientTests(unittest.TestCase):
         except Exception as e:
             logger.info(f"exception {str(e)}")
             self.fail()
-
+        # test response 404
         version = 2
         try:
             response = self.__cU.download(

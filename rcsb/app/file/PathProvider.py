@@ -5,6 +5,7 @@ import typing
 import logging
 import os
 import glob
+from fastapi import HTTPException
 from rcsb.app.file.Definitions import Definitions
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
@@ -208,6 +209,26 @@ class PathProvider(object):
         mst = self.__validateMilestone(milestone)
         return f"{depId}_{typ}{mst}_P{partNumber}.{frmt}"
 
+    # functions that validate parameters that form a file path
+
+    def checkContentTypeFormat(self, contentType: str, contentFormat: str) -> bool:
+        # validate content parameters
+        if not contentType or not contentFormat:
+            return False
+        if contentType not in self.__contentTypeInfoD:
+            return False
+        if contentFormat not in self.__fileFormatExtensionD:
+            return False
+        # assert valid combination of type and format
+        if contentFormat in self.__contentTypeInfoD[contentType][0]:
+            return True
+        logger.info(
+            "System does not support %s contentType with %s contentFormat.",
+            contentType,
+            contentFormat,
+        )
+        return False
+
     def __validateMilestone(self, milestone):
         """
 
@@ -246,50 +267,15 @@ class PathProvider(object):
     # functions that just use PathProvider, so they should be placed in same file
 
     async def listDir(self, repositoryType: str, depId: str) -> list:
-        dirList = []
-        try:
-            dirPath = self.getDirPath(repositoryType, depId)
-            if not dirPath or not os.path.exists(dirPath):
-                return None
-            dirList = os.listdir(dirPath)
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            return None
-        return dirList
-
-    def fileExists(
-        self,
-        repositoryType: str,
-        depId: str,
-        contentType: str,
-        milestone: str,
-        partNumber: int,
-        contentFormat: str,
-        version: str,
-    ) -> bool:
-        # existence of file based on 1-dep parameters
-        filePath = self.getVersionedPath(
-            repositoryType,
-            depId,
-            contentType,
-            milestone,
-            partNumber,
-            contentFormat,
-            version,
-        )
-        if not filePath or not os.path.exists(filePath):
-            return False
-        return True
-
-    def dirExists(self, repositoryType: str, depId: str) -> bool:
-        # existence of directory from 1-dep parameters
         dirPath = self.getDirPath(repositoryType, depId)
-        if not dirPath or not os.path.exists(dirPath):
-            logger.exception(
-                "error - directory not found %s %s %s", repositoryType, depId, dirPath
-            )
-            return False
-        return True
+        if not dirPath:
+            raise HTTPException(status_code=400, detail="could not form directory path")
+        if not os.path.exists(dirPath):
+            raise HTTPException(status_code=404, detail="file not found")
+        if not os.path.isdir(dirPath):
+            raise HTTPException(status_code=404, detail="path was a file, not a directory")
+        dirList = os.listdir(dirPath)
+        return dirList
 
     async def fileSize(
         self,
@@ -312,8 +298,39 @@ class PathProvider(object):
             version,
         )
         if not filePath or not os.path.exists(filePath):
-            return None
+            raise HTTPException(status_code=404, detail="requested file path not found")
         return os.path.getsize(filePath)
+
+    def fileExists(
+        self,
+        repositoryType: str,
+        depId: str,
+        contentType: str,
+        milestone: str,
+        partNumber: int,
+        contentFormat: str,
+        version: str,
+    ) -> bool:
+        # existence of file from 1-dep parameters
+        filePath = self.getVersionedPath(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+        )
+        if not filePath or not os.path.exists(filePath):
+            return False
+        return True
+
+    def dirExists(self, repositoryType: str, depId: str) -> bool:
+        # existence of directory from 1-dep parameters
+        dirPath = self.getDirPath(repositoryType, depId)
+        if not dirPath or not os.path.exists(dirPath):
+            return False
+        return True
 
     # other functions related to paths
 

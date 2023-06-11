@@ -355,11 +355,12 @@ class Gui(tk.Frame):
             allowOverwrite,
             resumable,
         )
-        if response and "status_code" in response and response["status_code"] == 200:
-            status = 100
-            self.upload_status.set(f"{status}%")
-            self.master.update()
-            print(response)
+        if response and "status_code" in response:
+            if response["status_code"] == 200:
+                status = 100
+                self.upload_status.set(f"{status}%")
+                self.master.update()
+            print(response["status_code"])
         else:
             print("error in upload %r" % response)
         print(f"time {time.perf_counter() - t1} s")
@@ -406,11 +407,12 @@ class Gui(tk.Frame):
             folderPath,
             allowOverwrite,
         )
-        if response and "status_code" in response and response["status_code"] == 200:
+        if response and "status_code" in response:
+            if response["status_code"] == 200:
+                status = math.ceil(100)
+                self.download_status.set(f"{status}%")
+                self.master.update()
             print(f"response {response['status_code']}")
-            status = math.ceil(100)
-            self.download_status.set(f"{status}%")
-            self.master.update()
         print(f"time {time.perf_counter() - t1} s")
 
     def listDir(self):
@@ -419,15 +421,17 @@ class Gui(tk.Frame):
         depId = self.list_dep_id.get()
         repoType = self.list_repo_type.get()
         response = self.__cU.listDir(repoType, depId)
-        if response and "dirList" in response and "status_code" in response and response["status_code"] == 200:
-            dirList = response["dirList"]
-            index = 1
-            if len(dirList) > 0:
-                print(f"{repoType} {depId}")
-                for fi in sorted(dirList):
-                    print(f"\t{fi}")
-                    self.list_Listbox.insert(index, fi)
-                    index += 1
+        if response and "dirList" in response and "status_code" in response:
+            if response["status_code"] == 200:
+                dirList = response["dirList"]
+                index = 1
+                if len(dirList) > 0:
+                    print(f"{repoType} {depId}")
+                    for fi in sorted(dirList):
+                        print(f"\t{fi}")
+                        self.list_Listbox.insert(index, fi)
+                        index += 1
+            print(response["status_code"])
         else:
             print("\nerror - not found\n")
         print(f"time {time.perf_counter() - t1} s")

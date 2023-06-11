@@ -17,7 +17,7 @@ __license__ = "Apache 2.0"
 import logging
 import typing
 from enum import Enum
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi import Query
 from rcsb.app.file.DownloadUtility import DownloadUtility
 
@@ -35,54 +35,29 @@ class HashType(str, Enum):
 
 @router.get("/download")
 async def download(
-    repositoryType: str = Query(
-        None,
-        title="Repository Type",
-        description="Repository type (onedep-archive,onedep-deposit)",
-        example="onedep-archive, onedep-deposit",
-    ),
-    depId: str = Query(
-        None, title="ID Code", description="Identifier code", example="D_0000000001"
-    ),
-    contentType: str = Query(
-        None,
-        title="Content type",
-        description="Content type",
-        example="model, structure-factors, val-report-full",
-    ),
-    milestone: str = Query(
-        "", title="milestone", description="milestone", example="release"
-    ),
-    partNumber: int = Query(
-        1, title="Content part", description="Content part", example="1,2,3"
-    ),
-    contentFormat: str = Query(
-        None,
-        title="Content format",
-        description="Content format",
-        example="pdb, pdbx, mtz, pdf",
-    ),
-    version: str = Query(
-        "1",
-        title="Version string",
-        description="Version number or description",
-        example="1,2,3, latest, previous",
-    ),
-    hashType: HashType = Query(
-        None, title="Hash type", description="Hash type", example="SHA256"
-    ),
+    repositoryType: str = Query(...),
+    depId: str = Query(...),
+    contentType: str = Query(...),
+    milestone: str = Query(default=""),
+    partNumber: int = Query(default=1),
+    contentFormat: str = Query(...),
+    version: str = Query(default="latest"),
+    hashType: HashType = Query(...),
     chunkSize: typing.Optional[int] = None,
     chunkIndex: typing.Optional[int] = None,
 ):
-    return await DownloadUtility().download(
-        repositoryType,
-        depId,
-        contentType,
-        milestone,
-        partNumber,
-        contentFormat,
-        version,
-        hashType,
-        chunkSize,
-        chunkIndex,
-    )
+    try:
+        return await DownloadUtility().download(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+            hashType,
+            chunkSize,
+            chunkIndex,
+        )
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)

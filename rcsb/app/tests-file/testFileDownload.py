@@ -10,8 +10,8 @@ import logging
 import time
 from fastapi.testclient import TestClient
 from rcsb.app.file.DownloadUtility import DownloadUtility
+from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.file.main import app
-from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
@@ -97,11 +97,11 @@ class DownloadTest(unittest.TestCase):
                     ofh.write(response.content)
                 rspHashType = response.headers["rcsb_hash_type"]
                 rspHashDigest = response.headers["rcsb_hexdigest"]
-                thD = CryptUtils().getFileHash(
+                hashDigest = IoUtility().getHashDigest(
                     self.__downloadFile, hashType=rspHashType
                 )
-                self.assertTrue(thD["hashDigest"] == rspHashDigest, f"error - hash comparison failed")
-                if not thD["hashDigest"] == rspHashDigest:
+                self.assertTrue(hashDigest == rspHashDigest, f"error - hash comparison failed")
+                if not hashDigest == rspHashDigest:
                     logging.error("Hash comparison failed")
                     return None
                 self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
