@@ -107,19 +107,19 @@ class ClientUtils(object):
         )
 
         if response.status_code == 200:
-            logger.info(f"upload parameters - response {response.status_code}")
+            logger.info("upload parameters - response %d", response.status_code)
             result = json.loads(response.text)
             if result:
                 saveFilePath = result["filePath"]
                 chunkIndex = int(result["chunkIndex"])
                 uploadId = result["uploadId"]
                 if chunkIndex > 0:
-                    logger.info(f"detected upload with chunk index {chunkIndex}")
+                    logger.info("detected upload with chunk index %s", chunkIndex)
         if not saveFilePath:
-            logger.error(f"Error {response.status_code} - no file path was formed")
+            logger.error("Error %d - no file path was formed", response.status_code)
             return {"status_code": response.status_code}
         if not uploadId:
-            logger.error(f"Error {response.status_code} - no upload id was formed")
+            logger.error("Error %d - no upload id was formed", response.status_code)
             return {"status_code": response.status_code}
 
         # chunk file and upload
@@ -189,16 +189,17 @@ class ClientUtils(object):
         chunkSize: typing.Optional[int] = None,
         chunkIndex: typing.Optional[int] = None,
     ) -> dict:
+
+        # validate input
+        if not downloadFolder or not os.path.exists(downloadFolder):
+            logger.error("Download folder does not exist")
+            return None
+
         # form paths
         fileName = PathProvider().getFileName(
             depId, contentType, milestone, partNumber, contentFormat, version
         )
         downloadFilePath = os.path.join(downloadFolder, fileName)
-
-        # validate input
-        if not os.path.exists(downloadFolder):
-            logger.error("Download folder does not exist")
-            return None
         if os.path.exists(downloadFilePath):
             if not allowOverwrite:
                 logger.error("File already exists: %r", downloadFilePath)
@@ -210,7 +211,7 @@ class ClientUtils(object):
         downloadUrlPrefix = os.path.join(self.baseUrl, "download")
         suffix = ""
         # optionally return one chunk
-        if chunkSize and chunkIndex:
+        if chunkSize is not None and chunkIndex is not None:
             suffix = f"&chunkSize={chunkSize}&chunkIndex={chunkIndex}"
         downloadUrl = (
             f"{downloadUrlPrefix}?repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}"
@@ -228,12 +229,13 @@ class ClientUtils(object):
                     if chunk:
                         ofh.write(chunk)
             # validate hash
-            rspHashType = response.headers["rcsb_hash_type"]
-            rspHashDigest = response.headers["rcsb_hexdigest"]
-            thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
-            if not thD["hashDigest"] == rspHashDigest:
-                logger.error("Hash comparison failed")
-                return None
+            if "rcsb_hash_type" in response.headers and "rcsb_hexdigest" in response.headers:
+                rspHashType = response.headers["rcsb_hash_type"]
+                rspHashDigest = response.headers["rcsb_hexdigest"]
+                thD = CryptUtils().getFileHash(downloadFilePath, hashType=rspHashType)
+                if not thD["hashDigest"] == rspHashDigest:
+                    logger.error("Hash comparison failed")
+                    return None
 
         return {"status_code": response.status_code}
 
@@ -245,11 +247,7 @@ class ClientUtils(object):
         milestone: str = None,
         partNumber: int = None,
         contentFormat: str = None,
-        version: str = None,
-        hashType: str = "MD5",
-        unit_test: bool = False,
-        wfInstanceId: str = None,
-        sessionDir: str = None,
+        version: str = None
     ):
         # validate file exists
         url = os.path.join(self.baseUrl, "file-exists")
@@ -266,7 +264,7 @@ class ClientUtils(object):
             url, params=parameters, headers=self.headerD, timeout=None
         )
         if response.status_code != 200:
-            logger.info(f"error - requested file does not exist {parameters}")
+            logger.info("error - requested file does not exist %s", parameters)
             return {"status_code": response.status_code, "content": None}
         # return absolute file path on server
         url = os.path.join(self.baseUrl, "file-path")
@@ -287,10 +285,7 @@ class ClientUtils(object):
         milestone: str = "",
         partNumber: int = 1,
         contentFormat: str = None,
-        version: str = "next",
-        hashType: str = "MD5",
-        wfInstanceId: str = None,
-        sessionDir: str = None,
+        version: str = "next"
     ):
         if not repoType or not depId or not contentType or not contentFormat:
             return {"status_code": 404, "content": None}
@@ -301,7 +296,7 @@ class ClientUtils(object):
         if path and os.path.exists(path):
             # treat as web request for simplicity
             return {"status_code": 200, "filePath": path}
-        logger.exception("error - path not found %s" % path)
+        logger.exception("error - path not found %s", path)
         return {"status_code": 404, "filePath": None}
 
     def listDir(self, repoType: str, depId: str) -> dict:
@@ -328,7 +323,7 @@ class ClientUtils(object):
         url = os.path.join(
             self.baseUrl, f"dir-exists?repositoryType={repositoryType}&depId={depId}"
         )
-        response = requests.get(url, headers=self.headerD)
+        response = requests.get(url, headers=self.headerD, timeout=None)
         return {"status_code": response.status_code}
 
     def copyFile(
@@ -371,7 +366,7 @@ class ClientUtils(object):
             "overwrite": overwrite,
         }
         url = os.path.join(self.baseUrl, "copy-file")
-        response = requests.post(url, data=mD, headers=self.headerD)
+        response = requests.post(url, data=mD, headers=self.headerD, timeout=None)
         return {"status_code": response.status_code}
 
     def copyDir(
@@ -394,7 +389,7 @@ class ClientUtils(object):
             "overwrite": overwrite,
         }
         url = os.path.join(self.baseUrl, "copy-dir")
-        response = requests.post(url, data=mD, headers=self.headerD)
+        response = requests.post(url, data=mD, headers=self.headerD, timeout=None)
         return {"status_code": response.status_code}
 
     def moveFile(
@@ -437,25 +432,25 @@ class ClientUtils(object):
             "overwrite": overwrite,
         }
         url = os.path.join(self.baseUrl, "move-file")
-        response = requests.post(url, data=mD, headers=self.headerD)
+        response = requests.post(url, data=mD, headers=self.headerD, timeout=None)
         return {"status_code": response.status_code}
 
     def compressDir(self, repositoryType, depId):
         mD = {"repositoryType": repositoryType, "depId": depId}
         url = os.path.join(self.baseUrl, "compress-dir")
-        response = requests.post(url, data=mD, headers=self.headerD)
+        response = requests.post(url, data=mD, headers=self.headerD, timeout=None)
         return {"status_code": response.status_code}
 
     def compressDirPath(self, dirPath):
         mD = {"dirPath": dirPath}
         url = os.path.join(self.baseUrl, "compress-dir-path")
-        response = requests.post(url, data=mD, headers=self.headerD)
+        response = requests.post(url, data=mD, headers=self.headerD, timeout=None)
         return {"status_code": response.status_code}
 
     def decompressDir(self, repositoryType, depId):
         mD = {"repositoryType": repositoryType, "depId": depId}
         url = os.path.join(self.baseUrl, "decompress-dir")
-        response = requests.post(url, data=mD, headers=self.headerD)
+        response = requests.post(url, data=mD, headers=self.headerD, timeout=None)
         return {"status_code": response.status_code}
 
     def nextVersion(
@@ -470,7 +465,7 @@ class ClientUtils(object):
             "contentFormat": contentFormat,
         }
         url = os.path.join(self.baseUrl, "next-version")
-        response = requests.get(url, params=mD, headers=self.headerD)
+        response = requests.get(url, params=mD, headers=self.headerD, timeout=None)
         if response.status_code == 200:
             result = response.json()
             return {"status_code": response.status_code, "version": result["version"]}
@@ -489,7 +484,7 @@ class ClientUtils(object):
             "contentFormat": contentFormat,
         }
         url = os.path.join(self.baseUrl, "latest-version")
-        response = requests.get(url, params=mD, headers=self.headerD)
+        response = requests.get(url, params=mD, headers=self.headerD, timeout=None)
         if response.status_code == 200:
             result = response.json()
             return {"status_code": response.status_code, "version": result["version"]}
@@ -516,7 +511,7 @@ class ClientUtils(object):
             "version": version,
         }
         url = os.path.join(self.baseUrl, "file-exists")
-        response = requests.get(url, params=mD, headers=self.headerD)
+        response = requests.get(url, params=mD, headers=self.headerD, timeout=None)
         return {"status_code": response.status_code}
 
     def fileSize(
@@ -539,7 +534,7 @@ class ClientUtils(object):
             "version": version,
         }
         url = os.path.join(self.baseUrl, "file-size")
-        response = requests.get(url, params=mD, headers=self.headerD)
+        response = requests.get(url, params=mD, headers=self.headerD, timeout=None)
         if response.status_code == 200:
             result = response.json()
             return {"status_code": response.status_code, "fileSize": result["fileSize"]}

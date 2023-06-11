@@ -23,9 +23,7 @@ import typing
 
 from fastapi import HTTPException
 from rcsb.utils.io.FileUtil import FileUtil
-from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathProvider import PathProvider
-from rcsb.app.file.Definitions import Definitions
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,15 +35,6 @@ logger = logging.getLogger()
 class IoUtility(object):
     def __init__(self):
         self.__pathP = PathProvider()
-        self.__cP = ConfigProvider()
-        self.__dP = Definitions()
-        self.__repositoryDirPath = self.__cP.get("REPOSITORY_DIR_PATH")
-        self.__sessionDirPath = self.__cP.get("SESSION_DIR_PATH")
-        self.__sharedLockDirPath = self.__cP.get("SHARED_LOCK_PATH")
-        self.__milestoneList = self.__dP.milestoneList
-        self.__repoTypeList = self.__dP.repoTypeList
-        self.__contentTypeInfoD = self.__dP.contentTypeD
-        self.__fileFormatExtensionD = self.__dP.fileFormatExtD
 
     async def copyFile(
         self,

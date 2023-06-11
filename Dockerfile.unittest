@@ -5,6 +5,17 @@
 ##
 FROM python:3.9-slim as image-compile
 
+#
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION
+
+#
+ARG USER_ID
+ARG GROUP_ID
+RUN addgroup --gid $GROUP_ID ubuntu
+RUN adduser  --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID ubuntu
+
 WORKDIR /app/
 
 # copy requirements file (should include selected versions of uvicorn gunicorn)

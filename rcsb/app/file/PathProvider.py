@@ -44,7 +44,8 @@ class PathProvider(object):
         dirPath = None
         try:
             repoPath = self.getRepositoryDirPath(repositoryType)
-            dirPath = os.path.join(repoPath, depId)
+            if repoPath:
+                dirPath = os.path.join(repoPath, depId)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
         return dirPath
@@ -64,25 +65,26 @@ class PathProvider(object):
         path = None
         try:
             repoPath = self.getRepositoryDirPath(repositoryType)
-            fileName = (
-                self.getBaseFileName(
-                    depId, contentType, milestone, partNumber, contentFormat
+            if repoPath:
+                fileName = (
+                    self.getBaseFileName(
+                        depId, contentType, milestone, partNumber, contentFormat
+                    )
+                    + ".V"
                 )
-                + ".V"
-            )
-            if fileName:
-                filePath = os.path.join(repoPath, depId, fileName)
-                versionNumber = self.getVersion(
-                    repositoryType,
-                    depId,
-                    contentType,
-                    milestone,
-                    partNumber,
-                    contentFormat,
-                    version,
-                )
-                if versionNumber:
-                    path = "%s%d" % (filePath, versionNumber)
+                if fileName:
+                    filePath = os.path.join(repoPath, depId, fileName)
+                    versionNumber = self.getVersion(
+                        repositoryType,
+                        depId,
+                        contentType,
+                        milestone,
+                        partNumber,
+                        contentFormat,
+                        version,
+                    )
+                    if versionNumber:
+                        path = "%s%d" % (filePath, versionNumber)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
         return path
@@ -94,8 +96,7 @@ class PathProvider(object):
         contentType: str = "model",
         milestone: str = None,
         partNumber: str = "1",
-        contentFormat: str = "pdbx",
-        version: str = "next",
+        contentFormat: str = "pdbx"
     ) -> typing.Optional[int]:
         version = "next"
         return self.getVersion(
@@ -115,8 +116,7 @@ class PathProvider(object):
         contentType: str = "model",
         milestone: str = None,
         partNumber: str = "1",
-        contentFormat: str = "pdbx",
-        version: str = "next",
+        contentFormat: str = "pdbx"
     ) -> typing.Optional[int]:
         version = "latest"
         return self.getVersion(
@@ -147,41 +147,43 @@ class PathProvider(object):
             else:
                 fTupL = []
                 repoPath = self.getRepositoryDirPath(repositoryType)
-                fnBase = (
-                    self.getBaseFileName(
-                        depId, contentType, milestone, partNumber, contentFormat
+                if repoPath:
+                    fnBase = (
+                        self.getBaseFileName(
+                            depId, contentType, milestone, partNumber, contentFormat
+                        )
+                        + ".V"
                     )
-                    + ".V"
-                )
-                filePattern = os.path.join(repoPath, depId, fnBase)
-                for pth in glob.iglob(filePattern + "*"):
-                    vNo = int(pth.split(".")[-1][1:])
-                    fTupL.append((pth, vNo))
-                if len(fTupL) == 0:
-                    if version == "next":
-                        return 1
-                    else:
-                        return None
-                elif len(fTupL) == 1:
-                    if version in ["first", "last", "latest"]:
-                        return 1
-                    elif version == "next":
-                        return 2
-                    else:
-                        return None
-                else:
-                    # - sort in descending version order -
-                    fTupL.sort(key=lambda tup: tup[1], reverse=True)
-                    if version == "next":
-                        return fTupL[0][1] + 1
-                    elif version in ["last", "latest"]:
-                        return fTupL[0][1]
-                    elif version in ["prev", "previous"]:
-                        return fTupL[1][1]
-                    elif version == "first":
-                        return fTupL[-1][1]
-                    elif version == "second":
-                        return fTupL[-2][1]
+                    if fnBase:
+                        filePattern = os.path.join(repoPath, depId, fnBase)
+                        for pth in glob.iglob(filePattern + "*"):
+                            vNo = int(pth.split(".")[-1][1:])
+                            fTupL.append((pth, vNo))
+                        if len(fTupL) == 0:
+                            if version == "next":
+                                return 1
+                            else:
+                                return None
+                        elif len(fTupL) == 1:
+                            if version in ["first", "last", "latest"]:
+                                return 1
+                            elif version == "next":
+                                return 2
+                            else:
+                                return None
+                        else:
+                            # - sort in descending version order -
+                            fTupL.sort(key=lambda tup: tup[1], reverse=True)
+                            if version == "next":
+                                return fTupL[0][1] + 1
+                            elif version in ["last", "latest"]:
+                                return fTupL[0][1]
+                            elif version in ["prev", "previous"]:
+                                return fTupL[1][1]
+                            elif version == "first":
+                                return fTupL[-1][1]
+                            elif version == "second":
+                                return fTupL[-2][1]
         except Exception as e:
             logger.exception("Failing with %s", str(e))
         return None
@@ -197,9 +199,9 @@ class PathProvider(object):
     ) -> typing.Optional[str]:
         if not depId or not contentType or not contentFormat:
             return None
-        if self.__contentTypeInfoD[contentType]:
+        if contentType in self.__contentTypeInfoD:
             typ = self.__contentTypeInfoD[contentType][1]
-        if self.__fileFormatExtensionD[contentFormat]:
+        if contentFormat in self.__fileFormatExtensionD:
             frmt = self.__fileFormatExtensionD[contentFormat]
         if not typ or not frmt:
             return None
@@ -247,7 +249,7 @@ class PathProvider(object):
         dirList = []
         try:
             dirPath = self.getDirPath(repositoryType, depId)
-            if not os.path.exists(dirPath):
+            if not dirPath or not os.path.exists(dirPath):
                 return None
             dirList = os.listdir(dirPath)
         except Exception as e:

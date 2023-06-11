@@ -10,11 +10,9 @@ import shutil
 import logging
 import time
 from copy import deepcopy
-
 import math
 from fastapi.testclient import TestClient
 from rcsb.app.file.UploadUtility import UploadUtility
-
 from rcsb.app.file.main import app
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken

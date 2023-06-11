@@ -13,6 +13,8 @@ import subprocess
 import logging
 import os
 import platform
+import time
+
 import resource
 import unittest
 import shutil
@@ -45,6 +47,7 @@ class ClientTests(unittest.TestCase):
             stdout=subprocess.DEVNULL,
             stderr=subprocess.STDOUT,
         )
+        time.sleep(5)
 
     # comment out if running gunicorn or uvicorn
     # runs only once
@@ -85,7 +88,6 @@ class ClientTests(unittest.TestCase):
         self.__repositoryFile4 = os.path.join(
             self.__unitTestFolder2, "D_1000000001", "D_1000000001_model_P1.cif.V1"
         )
-        # os.makedirs(os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True)
         if not os.path.exists(self.__repositoryFile1):
             os.makedirs(
                 os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True
@@ -288,6 +290,7 @@ class ClientTests(unittest.TestCase):
             self.assertTrue(response["status_code"] == 200)
         except Exception as e:
             logger.info(f"exception {str(e)}")
+            self.fail()
 
         version = 2
         try:
@@ -308,6 +311,7 @@ class ClientTests(unittest.TestCase):
             self.assertTrue(response["status_code"] == 404)
         except Exception as e:
             logger.info(f"exception {str(e)}")
+            self.fail()
 
     def testChunkDownload(self):
         logger.info("test chunk download")
@@ -324,29 +328,28 @@ class ClientTests(unittest.TestCase):
         contentFormat = "pdbx"
         version = 1
 
-        chunkSize = self.__chunkSize
+        chunkSize = self.__chunkSize // 2
         chunkIndex = 0
 
-        try:
-            response = self.__cU.download(
-                repositoryType,
-                depId,
-                contentType,
-                milestone,
-                partNumber,
-                contentFormat,
-                version,
-                downloadFolderPath,
-                allowOverwrite,
-            )
-            logger.info(
-                f"{PathProvider().getFileName(depId,contentType,milestone,partNumber,contentFormat,version)} 200 = {response['status_code']}"
-            )
-            self.assertTrue(response["status_code"] == 200)
-            fileSize = os.path.getsize(self.__downloadFile)
-            self.assertTrue(fileSize == self.__chunkSize)
-        except Exception as e:
-            logger.info(f"exception {str(e)}")
+        response = self.__cU.download(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+            downloadFolderPath,
+            allowOverwrite,
+            chunkSize,
+            chunkIndex
+        )
+        logger.info(
+            f"{PathProvider().getFileName(depId,contentType,milestone,partNumber,contentFormat,version)} 200 = {response['status_code']}"
+        )
+        self.assertTrue(response["status_code"] == 200, "error - status code %d" % response["status_code"])
+        fileSize = os.path.getsize(self.__downloadFile)
+        self.assertTrue(fileSize == chunkSize, "error - file size %d chunk size %d" % (fileSize, chunkSize))
 
     def testListDir(self):
         logger.info("test list dir")
@@ -694,7 +697,7 @@ class ClientTests(unittest.TestCase):
             }
             response = self.__cU.nextVersion(**mD)
             logger.info("file status response %r", response["status_code"])
-            self.assertTrue(response["status_code"] == 200)
+            self.assertTrue(response["status_code"] == 200, "error - status code %s" % response["status_code"])
             self.assertTrue(
                 int(response["version"]) == 2,
                 "error - returned wrong file version %s" % response["version"],
@@ -715,7 +718,7 @@ class ClientTests(unittest.TestCase):
             }
             response = self.__cU.latestVersion(**mD)
             logger.info("file status response %r", response["status_code"])
-            self.assertTrue(response["status_code"] == 200)
+            self.assertTrue(response["status_code"] == 200, "error - status code %s" % response["status_code"])
             self.assertTrue(
                 int(response["version"]) == 1,
                 "error - returned wrong file version %s" % response["version"],
@@ -810,5 +813,5 @@ def client_tests():
 
 
 if __name__ == "__main__":
-    runner = unittest.TextTestRunner(failfast=True)
+    runner = unittest.TextTestRunner()
     runner.run(client_tests())

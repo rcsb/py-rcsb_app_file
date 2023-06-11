@@ -79,7 +79,7 @@ async def nextVersion(
     contentFormat: str = Query(...),
 ):
     version = PathProvider().getNextVersion(
-        repositoryType, depId, contentType, milestone, partNumber, contentFormat, "next"
+        repositoryType, depId, contentType, milestone, partNumber, contentFormat
     )
     if version:
         return {"version": version}
@@ -101,8 +101,7 @@ async def latestVersion(
         contentType,
         milestone,
         partNumber,
-        contentFormat,
-        "latest",
+        contentFormat
     )
     if version:
         return {"version": version}

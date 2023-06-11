@@ -60,7 +60,6 @@ async def getUploadParameters(
     allowOverwrite: bool = Query(default=True),
     resumable: bool = Query(default=False),
 ):
-    ret = None
     try:
         ret = await UploadUtility().getUploadParameters(
             repositoryType,
@@ -74,11 +73,6 @@ async def getUploadParameters(
             resumable,
         )
     except HTTPException as exc:
-        # ret = {
-        #     "success": False,
-        #     "statusCode": exc.status_code,
-        #     "statsMessage": f"error in upload parameters {exc.detail}",
-        # }
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
     return ret
 

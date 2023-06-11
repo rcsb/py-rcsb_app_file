@@ -8,10 +8,8 @@ import os
 import shutil
 import logging
 import time
-
 from fastapi.testclient import TestClient
 from rcsb.app.file.DownloadUtility import DownloadUtility
-
 from rcsb.app.file.main import app
 from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
@@ -108,8 +106,7 @@ class DownloadTest(unittest.TestCase):
                     return None
                 self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
                 resp = response.status_code
-
-        return resp
+                return resp
 
     def testGetMimeType(self):
         utility = DownloadUtility()

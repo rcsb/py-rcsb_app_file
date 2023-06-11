@@ -76,7 +76,7 @@ class DownloadUtility(object):
                     status_code=404,
                     detail="Request file path does not exist %s" % filePath,
                 )
-            if hashType:
+            if hashType and not (chunkSize is not None and chunkIndex is not None):
                 hD = CryptUtils().getFileHash(filePath, hashType.name)
                 hashDigest = hD["hashDigest"]
                 tD = {"rcsb_hash_type": hashType.name, "rcsb_hexdigest": hashDigest}

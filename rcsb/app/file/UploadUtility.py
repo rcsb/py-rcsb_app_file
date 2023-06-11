@@ -124,7 +124,7 @@ class UploadUtility(object):
                 detail="Error - could not make file path from parameters",
             )
         if os.path.exists(outPath) and not allowOverwrite:
-            logging.error(
+            logger.exception(
                 "Error 400 - encountered existing file - overwrite prohibited"
             )
             raise HTTPException(

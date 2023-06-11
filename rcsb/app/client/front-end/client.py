@@ -5,122 +5,52 @@ import gzip
 from concurrent.futures import ThreadPoolExecutor
 import time
 import argparse
-from rcsb.app.file.JWTAuthToken import JWTAuthToken
-from rcsb.app.file.ConfigProvider import ConfigProvider
-from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.client.ClientUtils import ClientUtils
 
-"""
-author James Smith 2023
-"""
-
-cP = ConfigProvider()
-cP.getConfig()
-
-""" modifiable variables
-"""
-base_url = cP.get("SERVER_HOST_AND_PORT")
-maxChunkSize = cP.get("CHUNK_SIZE")
-hashType = cP.get("HASH_TYPE")
-""" do not alter from here
-"""
-subject = cP.get("JWT_SUBJECT")
-ioU = IoUtility()
-cU = ClientUtils()
-headerD = {
-    "Authorization": "Bearer "
-    + JWTAuthToken().createToken({}, subject)
-}
-RESUMABLE = False
-COMPRESS = False
-DECOMPRESS = False
-OVERWRITE = False
-uploadIds = []
-uploadResults = []
-uploadTexts = []
-downloadResults = []
-signature = """
-    --------------------------------------------------------
-             FILE ACCESS AND DEPOSITION APPLICATION
-    --------------------------------------------------------
-"""
+# author James Smith 2023
 
 
 def upload(mD):
-    global COMPRESS
-    global DECOMPRESS
-    global RESUMABLE
-    global OVERWRITE
-    global cU
-    readFilePath = mD["filePath"]
-    respositoryType = mD["repositoryType"]
-    depId = mD["depId"]
-    contentType = mD["contentType"]
-    milestone = mD["milestone"]
-    partNumber = mD["partNumber"]
-    contentFormat = mD["contentFormat"]
-    version = mD["version"]
-    if not readFilePath or not repositoryType or not depId or not contentType or not partNumber or not contentFormat or not version:
-        print("error - missing values")
-        sys.exit()
-    if not os.path.exists(readFilePath):
-        sys.exit(f"error - file does not exist: {readFilePath}")
-    if milestone.lower() == "none":
-        milestone = ""
     # compress, then hash, then upload
     if COMPRESS:
-        tempPath = readFilePath + ".gz"
-        with open(readFilePath, "rb") as r:
+        tempPath = mD["readFilePath"] + ".gz"
+        with open(mD["readFilePath"], "rb") as r:
             with gzip.open(tempPath, "wb") as w:
                 w.write(r.read())
-        readFilePath = tempPath
+        mD["filePath"] = tempPath
     # upload
-    response = cU.upload(readFilePath, respositoryType, depId, contentType, milestone, partNumber, contentFormat, version, DECOMPRESS, OVERWRITE, RESUMABLE)
+    response = ClientUtils().upload(**mD)
     if not response:
         print("error in upload")
         return None
-    return response
-
-
-def download(downloadFolderPath, downloadDict):
-    global headerD
-    global maxChunkSize
-    global COMPRESS
-    global DECOMPRESS
-    global SEQUENTIAL
-    global OVERWRITE
-    global cU
-    repositoryType = downloadDict["repositoryType"]
-    depId = downloadDict["depId"]
-    contentType = downloadDict["contentType"]
-    milestone = downloadDict["milestone"]
-    partNumber = downloadDict["partNumber"]
-    contentFormat = downloadDict["contentFormat"]
-    version = downloadDict["version"]
-    hashType = downloadDict["hashType"]
-    allowOverwrite = downloadDict["allowOverwrite"]
-    if not os.path.exists(downloadFolderPath):
-        print(f"error - download folder does not exist - {downloadFolderPath}")
-        return None
-    response = cU.download(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, downloadFolderPath, allowOverwrite)
-    if response and response["status_code"]:
+    elif "status_code" in response:
         return response["status_code"]
     else:
         return None
 
-def listDir(repoType, depId):
-    global cU
-    dirList = cU.listDir(repoType, depId)
-    print(dirList)
-    dirList = dirList["content"]
-    if dirList and len(dirList) > 0:
-        print("\n")
-        print(f"{repoType} {depId}")
-        for fi in sorted(dirList):
-            print(f"\t{fi}")
-        print("\n")
+
+def download(d):
+    response = ClientUtils().download(**d)
+    if response and "status_code" in response:
+        return response["status_code"]
     else:
-        print("\nerror - not found\n")
+        return None
+
+
+def listDir(r, d):
+    response = ClientUtils().listDir(r, d)
+    if response and "dirList" in response and "status_code" in response and response["status_code"] == 200:
+        dirList = response["dirList"]
+        print(dirList)
+        if len(dirList) > 0:
+            print("\n")
+            print(f"{repoType} {depId}")
+            for fi in sorted(dirList):
+                print(f"\t{fi}")
+            print("\n")
+        else:
+            print("\nerror - not found\n")
+
 
 def description():
     print()
@@ -130,21 +60,89 @@ def description():
 
 if __name__ == "__main__":
     t1 = time.perf_counter()
+
+    RESUMABLE = False
+    COMPRESS = False
+    DECOMPRESS = False
+    OVERWRITE = False
+    uploadIds = []
+    uploadResults = []
+    uploadTexts = []
+    downloadResults = []
+    signature = """
+        --------------------------------------------------------
+                 FILE ACCESS AND DEPOSITION APPLICATION
+        --------------------------------------------------------
+    """
+
     if len(sys.argv) <= 1:
         description()
         sys.exit("error - please run with -h for instructions")
-    parser = argparse.ArgumentParser(description=signature, formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument("-u", "--upload", nargs=8, action="append",
-                        metavar=("file-path", "repo-type", "dep-id", "content-type", "milestone", "part-number", "content-format", "version"),
-                        help="***** multiple uploads allowed *****")
-    parser.add_argument("-d", "--download", nargs=8, action="append",
-                        metavar=("folder-path", "repo-type", "dep-id", "content-type", "milestone", "part-number", "content-format", "version"),
-                        help="***** multiple downloads allowed *****")
-    parser.add_argument("-l", "--list", nargs=2, metavar=("repository-type", "dep-id"), help="***** list contents of requested directory *****")
-    parser.add_argument("-r", "--resumable", action="store_true", help="***** upload resumable sequential chunks *****")
-    parser.add_argument("-o", "--overwrite", action="store_true", help="***** overwrite files with same name *****")
-    parser.add_argument("-z", "--zip", action="store_true", help="***** zip files prior to upload *****")
-    parser.add_argument("-x", "--expand", action="store_true", help="***** unzip files after upload *****")
+    parser = argparse.ArgumentParser(
+        description=signature, formatter_class=argparse.RawTextHelpFormatter
+    )
+    parser.add_argument(
+        "-u",
+        "--upload",
+        nargs=8,
+        action="append",
+        metavar=(
+            "file-path",
+            "repo-type",
+            "dep-id",
+            "content-type",
+            "milestone",
+            "part-number",
+            "content-format",
+            "version",
+        ),
+        help="***** multiple uploads allowed *****",
+    )
+    parser.add_argument(
+        "-d",
+        "--download",
+        nargs=8,
+        action="append",
+        metavar=(
+            "folder-path",
+            "repo-type",
+            "dep-id",
+            "content-type",
+            "milestone",
+            "part-number",
+            "content-format",
+            "version",
+        ),
+        help="***** multiple downloads allowed *****",
+    )
+    parser.add_argument(
+        "-l",
+        "--list",
+        nargs=2,
+        metavar=("repository-type", "dep-id"),
+        help="***** list contents of requested directory *****",
+    )
+    parser.add_argument(
+        "-r",
+        "--resumable",
+        action="store_true",
+        help="***** upload resumable sequential chunks *****",
+    )
+    parser.add_argument(
+        "-o",
+        "--overwrite",
+        action="store_true",
+        help="***** overwrite files with same name *****",
+    )
+    parser.add_argument(
+        "-z", "--zip", action="store_true", help="***** zip files prior to upload *****"
+    )
+    parser.add_argument(
+        "-x",
+        "--expand",
+        action="store_true",
+        help="***** unzip files after upload *****",
+    )
     args = parser.parse_args()
     uploads = []
     uploadIds = []
@@ -176,7 +174,7 @@ if __name__ == "__main__":
             version = arglist[7]
             uploads.append(
                 {
-                    "filePath": filePath,
+                    "sourceFilePath": filePath,
                     "repositoryType": repositoryType,
                     "depId": depId,
                     "contentType": contentType,
@@ -184,6 +182,9 @@ if __name__ == "__main__":
                     "partNumber": partNumber,
                     "contentFormat": contentFormat,
                     "version": version,
+                    "decompress": DECOMPRESS,
+                    "allowOverwrite": OVERWRITE,
+                    "resumable": RESUMABLE
                 }
             )
     if args.download:
@@ -200,7 +201,6 @@ if __name__ == "__main__":
             partNumber = arglist[5]
             contentFormat = arglist[6]
             version = arglist[7]
-            allowOverwrite = OVERWRITE
             downloadDict = {
                 "repositoryType": repositoryType,
                 "depId": depId,
@@ -209,10 +209,10 @@ if __name__ == "__main__":
                 "partNumber": partNumber,
                 "contentFormat": contentFormat,
                 "version": str(version),
-                "hashType": hashType,
-                "allowOverwrite": allowOverwrite
+                "downloadFolder": downloadFolderPath,
+                "allowOverwrite": OVERWRITE
             }
-            downloads.append((downloadFolderPath, downloadDict))
+            downloads.append(downloadDict)
     if len(uploads) > 0:
         # upload concurrent files sequential chunks
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -220,14 +220,16 @@ if __name__ == "__main__":
             results = []
             for future in concurrent.futures.as_completed(futures):
                 results.append(future.result())
-            for response in results:
-                if response:
-                    uploadResults.append(response["status_code"])
+            for status_code in results:
+                if status_code:
+                    uploadResults.append(status_code)
                 else:
                     uploadResults.append(None)
     if len(downloads) > 0:
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(download, tpl[0], tpl[1]): tpl for tpl in downloads}
+            futures = {
+                executor.submit(download, d): d for d in downloads
+            }
             results = []
             for future in concurrent.futures.as_completed(futures):
                 results.append(future.result())
@@ -244,7 +246,5 @@ if __name__ == "__main__":
         repoType = arglist[0]
         depId = arglist[1]
         listDir(repoType, depId)
-
-
 
     print("time %.2f seconds" % (time.perf_counter() - t1))

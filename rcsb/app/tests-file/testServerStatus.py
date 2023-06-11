@@ -19,7 +19,6 @@ __license__ = "Apache 2.0"
 
 import logging
 import platform
-import pprint
 import resource
 import time
 import unittest
