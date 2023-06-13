@@ -17,12 +17,13 @@ logger = logging.getLogger()
 
 
 class PathProvider(object):
-    def __init__(self):
-        self.__cP = ConfigProvider()
-        self.__dP = Definitions()
+    def __init__(self, cP=None):
+        self.__cP = cP if cP else ConfigProvider()
         self.__repositoryDirPath = self.__cP.get("REPOSITORY_DIR_PATH")
         self.__sessionDirPath = self.__cP.get("SESSION_DIR_PATH")
         self.__sharedLockDirPath = self.__cP.get("SHARED_LOCK_PATH")
+
+        self.__dP = Definitions()
         self.__milestoneList = self.__dP.milestoneList
         self.__repoTypeList = self.__dP.repoTypeList
         self.__contentTypeInfoD = self.__dP.contentTypeD
@@ -61,7 +62,7 @@ class PathProvider(object):
         milestone: str,
         partNumber: str,
         contentFormat: str,
-        version: str
+        version: str,
     ) -> typing.Optional[str]:
         path = None
         try:
@@ -97,7 +98,7 @@ class PathProvider(object):
         contentType: str = "model",
         milestone: str = None,
         partNumber: str = "1",
-        contentFormat: str = "pdbx"
+        contentFormat: str = "pdbx",
     ) -> typing.Optional[int]:
         version = "next"
         return self.getVersion(
@@ -117,7 +118,7 @@ class PathProvider(object):
         contentType: str = "model",
         milestone: str = None,
         partNumber: str = "1",
-        contentFormat: str = "pdbx"
+        contentFormat: str = "pdbx",
     ) -> typing.Optional[int]:
         version = "latest"
         return self.getVersion(
@@ -194,12 +195,13 @@ class PathProvider(object):
         self,
         depId: str = None,
         contentType: str = None,
-        milestone: str = None,
+        milestone: str = "",
         partNumber: int = 1,
         contentFormat: str = None,
     ) -> typing.Optional[str]:
         if not depId or not contentType or not contentFormat:
             return None
+        typ = frmt = None
         if contentType in self.__contentTypeInfoD:
             typ = self.__contentTypeInfoD[contentType][1]
         if contentFormat in self.__fileFormatExtensionD:
@@ -208,6 +210,27 @@ class PathProvider(object):
             return None
         mst = self.__validateMilestone(milestone)
         return f"{depId}_{typ}{mst}_P{partNumber}.{frmt}"
+
+    # returns file name with version provided (without changing version)
+    # validates numeric version
+    # used for downloads
+    def getFileName(
+        self,
+        depId: str,
+        contentType: str,
+        milestone: str,
+        partNumber: str,
+        contentFormat: str,
+        version: int,
+    ) -> typing.Optional[str]:
+        if str(version).isdigit():
+            return "%s.V%s" % (
+                self.getBaseFileName(
+                    depId, contentType, milestone, partNumber, contentFormat
+                ),
+                version,
+            )
+        return None
 
     # functions that validate parameters that form a file path
 
@@ -243,27 +266,6 @@ class PathProvider(object):
             return "-" + milestone
         return ""
 
-    # returns file name with version provided (without changing version)
-    # validates numeric version
-    # used for downloads
-    def getFileName(
-        self,
-        depId: str,
-        contentType: str,
-        milestone: str,
-        partNumber: str,
-        contentFormat: str,
-        version: int,
-    ) -> typing.Optional[str]:
-        if str(version).isdigit():
-            return "%s.V%s" % (
-                self.getBaseFileName(
-                    depId, contentType, milestone, partNumber, contentFormat
-                ),
-                version,
-            )
-        return None
-
     # functions that just use PathProvider, so they should be placed in same file
 
     async def listDir(self, repositoryType: str, depId: str) -> list:
@@ -273,7 +275,9 @@ class PathProvider(object):
         if not os.path.exists(dirPath):
             raise HTTPException(status_code=404, detail="file not found")
         if not os.path.isdir(dirPath):
-            raise HTTPException(status_code=404, detail="path was a file, not a directory")
+            raise HTTPException(
+                status_code=404, detail="path was a file, not a directory"
+            )
         dirList = os.listdir(dirPath)
         return dirList
 
@@ -287,8 +291,7 @@ class PathProvider(object):
         contentFormat,
         version,
     ) -> typing.Optional[int]:
-        pathP = PathProvider()
-        filePath = pathP.getVersionedPath(
+        filePath = self.getVersionedPath(
             repositoryType,
             depId,
             contentType,

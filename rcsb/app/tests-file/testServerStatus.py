@@ -22,8 +22,6 @@ import platform
 import resource
 import time
 import unittest
-
-
 from fastapi.testclient import TestClient
 from rcsb.app.file import __version__
 from rcsb.app.file.main import app

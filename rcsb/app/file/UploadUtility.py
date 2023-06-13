@@ -27,7 +27,6 @@ from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.file.KvSqlite import KvSqlite
 from rcsb.app.file.KvRedis import KvRedis
-from rcsb.app.file.Definitions import Definitions
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,18 +40,7 @@ logger = logging.getLogger()
 
 class UploadUtility(object):
     def __init__(self, cP: typing.Type[ConfigProvider] = None):
-        self.__cP = cP if cP else ConfigProvider()
-        if self.__cP.get("KV_MODE") == "sqlite":
-            self.__kV = KvSqlite(self.__cP)
-        elif self.__cP.get("KV_MODE") == "redis":
-            self.__kV = KvRedis(self.__cP)
-        self.__repositoryPath = self.__cP.get("REPOSITORY_DIR_PATH")
-        self.__defaultFilePermissions = self.__cP.get("DEFAULT_FILE_PERMISSIONS")
-
-        self.__pathP = PathProvider()
-        self.__dP = Definitions()
-        self.__contentTypeInfoD = self.__dP.contentTypeD
-        self.__fileFormatExtensionD = self.__dP.fileFormatExtD
+        self.cP = cP if cP else ConfigProvider()
 
     async def getUploadParameters(
         self,
@@ -67,12 +55,13 @@ class UploadUtility(object):
         resumable: bool,
     ):
         # get save file path
-        if not self.__pathP.checkContentTypeFormat(contentType, contentFormat):
+        pP = PathProvider(self.cP)
+        if not pP.checkContentTypeFormat(contentType, contentFormat):
             logging.error("Error 400 - bad content type and/or format")
             raise HTTPException(
                 status_code=400, detail="Error - bad content type and/or format"
             )
-        outPath = self.__pathP.getVersionedPath(
+        outPath = pP.getVersionedPath(
             repositoryType=repositoryType,
             depId=depId,
             contentType=contentType,
@@ -96,9 +85,11 @@ class UploadUtility(object):
                 detail="Encountered existing file - overwrite prohibited",
             )
         dirPath, _ = os.path.split(outPath)
-        os.makedirs(dirPath, mode=self.__defaultFilePermissions, exist_ok=True)
-        if outPath.startswith(self.__repositoryPath):
-            outPath = outPath.replace(self.__repositoryPath, "")
+        defaultFilePermissions = self.cP.get("DEFAULT_FILE_PERMISSIONS")
+        repositoryPath = self.cP.get("REPOSITORY_DIR_PATH")
+        os.makedirs(dirPath, mode=defaultFilePermissions, exist_ok=True)
+        if outPath.startswith(repositoryPath):
+            outPath = outPath.replace(repositoryPath, "")
             outPath = outPath[1:]
         else:
             raise HTTPException(
@@ -115,6 +106,7 @@ class UploadUtility(object):
                 partNumber=partNumber,
                 contentFormat=contentFormat,
                 version=version,
+                pP=pP,
             )
         if not uploadId:
             uploadId = self.getNewUploadId()
@@ -153,7 +145,8 @@ class UploadUtility(object):
         # other
         resumable: bool,
     ):
-        filePath = os.path.join(self.__repositoryPath, filePath)
+        repositoryPath = self.cP.get("REPOSITORY_DIR_PATH")
+        filePath = os.path.join(repositoryPath, filePath)
         if resumable:
             repositoryType = os.path.basename(
                 os.path.dirname(os.path.dirname(filePath))
@@ -162,9 +155,13 @@ class UploadUtility(object):
             logKey = self.getPremadeLogKey(repositoryType, filePath)
             # on first chunk upload, set chunk size, record uid in log table
             if chunkIndex == 0:
-                self.__kV.setSession(key, "chunkSize", chunkSize)
-                self.__kV.setLog(logKey, uploadId)
-                self.__kV.setSession(
+                if self.cP.get("KV_MODE") == "sqlite":
+                    kV = KvSqlite(self.cP)
+                elif self.cP.get("KV_MODE") == "redis":
+                    kV = KvRedis(self.cP)
+                kV.setSession(key, "chunkSize", chunkSize)
+                kV.setLog(logKey, uploadId)
+                kV.setSession(
                     key,
                     "timestamp",
                     int(
@@ -269,8 +266,11 @@ class UploadUtility(object):
         partNumber: int = 1,
         contentFormat: str = "pdbx",
         version: str = "next",
+        pP=None,
     ):
-        filename = self.__pathP.getVersionedPath(
+        if not pP:
+            pP = PathProvider(self.cP)
+        filename = pP.getVersionedPath(
             repositoryType=repositoryType,
             depId=depId,
             contentType=contentType,
@@ -305,6 +305,8 @@ class UploadUtility(object):
         partNumber: int = 1,
         contentFormat: str = "pdbx",
         version: str = "next",
+        pP=None,
+        kV=None,
     ):
         filename = self.getPrimaryLogKey(
             repositoryType=repositoryType,
@@ -314,25 +316,33 @@ class UploadUtility(object):
             partNumber=partNumber,
             contentFormat=contentFormat,
             version=version,
+            pP=pP,
         )
-        uploadId = self.__kV.getLog(filename)
+        if kV:
+            pass
+        elif self.cP.get("KV_MODE") == "sqlite":
+            kV = KvSqlite(self.cP)
+        elif self.cP.get("KV_MODE") == "redis":
+            kV = KvRedis(self.cP)
+        uploadId = kV.getLog(filename)
         if not uploadId:
             # not a resumed upload
             return None
         # remove expired entries
-        timestamp = int(self.__kV.getSession(uploadId, "timestamp"))
+        timestamp = int(kV.getSession(uploadId, "timestamp"))
         now = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))
         duration = now - timestamp
-        max_duration = self.__cP.get("KV_MAX_SECONDS")
+        max_duration = self.cP.get("KV_MAX_SECONDS")
         if duration > max_duration:
             await self.removeExpiredEntry(
                 uploadId=uploadId,
                 fileName=filename,
                 depId=depId,
                 repositoryType=repositoryType,
+                kV=kV,
+                pP=pP,
             )
             return None
-
         # returns uploadId or None
         return uploadId
 
@@ -344,15 +354,25 @@ class UploadUtility(object):
         fileName: str = None,
         depId: str = None,
         repositoryType: str = None,
+        kV=None,
+        pP=None,
     ):
+        if kV:
+            pass
+        elif self.cP.get("KV_MODE") == "sqlite":
+            kV = KvSqlite(self.cP)
+        elif self.cP.get("KV_MODE") == "redis":
+            kV = KvRedis(self.cP)
         # remove expired entry and temp files
-        self.__kV.clearSessionKey(uploadId)
+        kV.clearSessionKey(uploadId)
         # still must remove log table entry (key = file parameters)
-        if self.__cP.get("KV_MODE") == "sqlite":
-            self.__kV.clearLogVal(uploadId)
-        elif self.__cP.get("KV_MODE") == "redis":
-            self.__kV.clearLog(fileName)
-        dirPath = self.__pathP.getDirPath(repositoryType, depId)
+        if self.cP.get("KV_MODE") == "sqlite":
+            kV.clearLogVal(uploadId)
+        elif self.cP.get("KV_MODE") == "redis":
+            kV.clearLog(fileName)
+        if not pP:
+            pP = PathProvider(self.cP)
+        dirPath = pP.getDirPath(repositoryType, depId)
         try:
             tempFile = self.getTempFilePath(uploadId, dirPath)
             os.unlink(tempFile)
@@ -361,34 +381,58 @@ class UploadUtility(object):
             pass
 
     # returns entire dictionary of session table entry
-    async def getSession(self, uploadId: str):
-        return self.__kV.getKey(uploadId, self.__kV.sessionTable)
+    async def getSession(self, uploadId: str, kV=None):
+        if kV:
+            pass
+        elif self.cP.get("KV_MODE") == "sqlite":
+            kV = KvSqlite(self.cP)
+        elif self.cP.get("KV_MODE") == "redis":
+            kV = KvRedis(self.cP)
+        return kV.getKey(uploadId, kV.sessionTable)
 
     # clear one entry from session table
-    async def clearUploadId(self, uid: str):
+    async def clearUploadId(self, uid: str, kV=None):
+        if kV:
+            pass
+        elif self.cP.get("KV_MODE") == "sqlite":
+            kV = KvSqlite(self.cP)
+        elif self.cP.get("KV_MODE") == "redis":
+            kV = KvRedis(self.cP)
         response = None
         try:
-            response = self.__kV.clearSessionKey(uid)
+            response = kV.clearSessionKey(uid)
         except Exception:
             return False
         return response
 
     # clear one entry from session table and corresponding entry from log table
-    def clearSession(self, uid: str, logKey: str):
+    def clearSession(self, uid: str, logKey: str, kV=None):
         response = True
+        if kV:
+            pass
+        elif self.cP.get("KV_MODE") == "sqlite":
+            kV = KvSqlite(self.cP)
+        elif self.cP.get("KV_MODE") == "redis":
+            kV = KvRedis(self.cP)
         try:
-            res = self.__kV.clearSessionKey(uid)
+            res = kV.clearSessionKey(uid)
             if not res:
                 response = False
-            if self.__cP.get("KV_MODE") == "sqlite":
-                self.__kV.clearLogVal(uid)
-            elif self.__cP.get("KV_MODE") == "redis":
-                self.__kV.clearLog(logKey)
+            if self.cP.get("KV_MODE") == "sqlite":
+                kV.clearLogVal(uid)
+            elif self.cP.get("KV_MODE") == "redis":
+                kV.clearLog(logKey)
         except Exception:
             return False
         return response
 
     # clear entire database
-    async def clearKv(self):
-        self.__kV.clearTable(self.__kV.sessionTable)
-        self.__kV.clearTable(self.__kV.logTable)
+    async def clearKv(self, kV=None):
+        if kV:
+            pass
+        elif self.cP.get("KV_MODE") == "sqlite":
+            kV = KvSqlite(self.cP)
+        elif self.cP.get("KV_MODE") == "redis":
+            kV = KvRedis(self.cP)
+        kV.clearTable(kV.sessionTable)
+        kV.clearTable(kV.logTable)

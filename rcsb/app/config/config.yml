@@ -10,7 +10,6 @@ configuration:
   SURPLUS_PROCESSORS: 1
   # paths to mounted or local folders
   # relative paths within the repository will work when running the app from within the repository
-  # absolute paths must not be simply root, i.e. / , since that is reserved for running in Docker containers
   REPOSITORY_DIR_PATH: rcsb/app/tests-file/data/repository
   PDBX_REPOSITORY: rcsb/app/tests-file/data/mmcif
   SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks

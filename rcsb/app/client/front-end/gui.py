@@ -7,14 +7,16 @@ import gzip
 from PIL import ImageTk, Image
 import math
 import time
+from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.client.ClientUtils import ClientUtils
 from rcsb.app.file.Definitions import Definitions
+from rcsb.app.file.IoUtility import IoUtility
+
 
 # author James Smith 2023
 
 
 class Gui(tk.Frame):
-
     def __init__(self, master):
         super().__init__(master)
         # master.geometry("500x500")
@@ -340,10 +342,8 @@ class Gui(tk.Frame):
                 with gzip.open(tempPath, "wb") as w:
                     w.write(r.read())
             readFilePath = tempPath
-        # upload chunks sequentially
-        self.upload_status.set("uploading...")
-        response = self.__cU.upload(
-            readFilePath,
+        # get upload parameters
+        response = self.__cU.getUploadParameters(
             repositoryType,
             depId,
             contentType,
@@ -351,18 +351,51 @@ class Gui(tk.Frame):
             partNumber,
             contentFormat,
             version,
-            DECOMPRESS,
             allowOverwrite,
             resumable,
         )
-        if response and "status_code" in response:
-            if response["status_code"] == 200:
-                status = 100
-                self.upload_status.set(f"{status}%")
-                self.master.update()
-            print(response["status_code"])
-        else:
-            print("error in upload %r" % response)
+        if not response or response["status_code"] != 200:
+            print("error in get upload parameters %r" % response)
+            return
+        saveFilePath = response["filePath"]
+        chunkIndex = response["chunkIndex"]
+        uploadId = response["uploadId"]
+        # compress (externally), then hash, then upload
+        # hash
+        hashType = self.__cU.cP.get("HASH_TYPE")
+        fullTestHash = IoUtility().getHashDigest(readFilePath, hashType=hashType)
+        # compute expected chunks
+        fileSize = os.path.getsize(readFilePath)
+        chunkSize = self.__cU.cP.get("CHUNK_SIZE")
+        expectedChunks = 1
+        if chunkSize < fileSize:
+            expectedChunks = math.ceil(fileSize / chunkSize)
+        # upload chunks sequentially
+        mD = {
+            # chunk parameters
+            "chunkSize": chunkSize,
+            "chunkIndex": chunkIndex,
+            "expectedChunks": expectedChunks,
+            # upload file parameters
+            "uploadId": uploadId,
+            "hashType": hashType,
+            "hashDigest": fullTestHash,
+            # save file parameters
+            "saveFilePath": saveFilePath,
+            "decompress": DECOMPRESS,
+            "allowOverwrite": allowOverwrite,
+            "resumable": resumable,
+        }
+        self.upload_status.set("0%")
+        for index in range(chunkIndex, expectedChunks):
+            mD["chunkIndex"] = index
+            status_code = self.__cU.uploadChunk(readFilePath, fileSize, **mD)
+            if not status_code == 200:
+                print("error in upload %r" % response)
+                break
+            percentage = ((index + 1) / expectedChunks) * 100
+            self.upload_status.set("%.0f%%" % percentage)
+            self.master.update()
         print(f"time {time.perf_counter() - t1} s")
 
     def download(self):
@@ -396,6 +429,25 @@ class Gui(tk.Frame):
         if milestone.lower() == "none":
             milestone = ""
 
+        # compute expected chunks
+        response = self.__cU.fileSize(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+        )
+        if not response or response["status_code"] != 200:
+            print("error computing file size")
+            return
+        fileSize = int(response["fileSize"])
+        chunkSize = self.__cU.cP.get("CHUNK_SIZE")
+        expectedChunks = 1
+        if chunkSize < fileSize:
+            expectedChunks = math.ceil(fileSize / chunkSize)
+
         response = self.__cU.download(
             repositoryType,
             depId,
@@ -406,13 +458,42 @@ class Gui(tk.Frame):
             version,
             folderPath,
             allowOverwrite,
+            None,
+            None,
+            True,
         )
-        if response and "status_code" in response:
-            if response["status_code"] == 200:
-                status = math.ceil(100)
-                self.download_status.set(f"{status}%")
-                self.master.update()
-            print(f"response {response['status_code']}")
+        if response and response["status_code"] == 200:
+            response = response["response"]
+            # write to file
+            downloadFilePath = os.path.join(
+                folderPath,
+                PathProvider().getFileName(
+                    depId, contentType, milestone, partNumber, contentFormat, version
+                ),
+            )
+            with open(downloadFilePath, "ab") as ofh:
+                index = 0
+                for chunk in response.iter_content(chunk_size=chunkSize):
+                    if chunk:
+                        ofh.write(chunk)
+                        index += 1
+                        percentage = (index / expectedChunks) * 100
+                        self.download_status.set("%.0f%%" % percentage)
+                        self.master.update()
+            # validate hash
+            if (
+                "rcsb_hash_type" in response.headers
+                and "rcsb_hexdigest" in response.headers
+            ):
+                rspHashType = response.headers["rcsb_hash_type"]
+                rspHashDigest = response.headers["rcsb_hexdigest"]
+                hashDigest = IoUtility().getHashDigest(
+                    downloadFilePath, hashType=rspHashType
+                )
+                if not hashDigest == rspHashDigest:
+                    print("error - hash comparison failed")
+                    return None
+
         print(f"time {time.perf_counter() - t1} s")
 
     def listDir(self):

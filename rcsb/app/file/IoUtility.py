@@ -33,15 +33,15 @@ logger = logging.getLogger()
 
 
 class IoUtility(object):
-    def __init__(self):
-        self.__pathP = PathProvider()
+    def __init__(self, pP=None):
+        self.__pP = pP if pP else PathProvider()
 
     def checkHash(self, pth: str, hashDigest: str, hashType: str) -> bool:
         tHash = self.getHashDigest(pth, hashType)
         return tHash == hashDigest
 
     def getHashDigest(
-        self, filePath: str, hashType: str = "SHA1", blockSize: int = 65536
+        self, filePath: str, hashType: str = "MD5", blockSize: int = 65536
     ) -> typing.Optional[str]:
         if hashType not in ["MD5", "SHA1", "SHA256"]:
             return None
@@ -81,9 +81,9 @@ class IoUtility(object):
         contentFormatTarget: str,
         versionTarget: str,
         #
-        overwrite: bool
+        overwrite: bool,
     ):
-        filePathSource = self.__pathP.getVersionedPath(
+        filePathSource = self.__pP.getVersionedPath(
             repositoryTypeSource,
             depIdSource,
             contentTypeSource,
@@ -92,7 +92,7 @@ class IoUtility(object):
             contentFormatSource,
             versionSource,
         )
-        filePathTarget = self.__pathP.getVersionedPath(
+        filePathTarget = self.__pP.getVersionedPath(
             repositoryTypeTarget,
             depIdTarget,
             contentTypeTarget,
@@ -102,11 +102,18 @@ class IoUtility(object):
             versionTarget,
         )
         if not filePathSource or not filePathTarget:
-            raise HTTPException(status_code=400, detail="error - source or target filepath not defined")
+            raise HTTPException(
+                status_code=400, detail="error - source or target filepath not defined"
+            )
         if not os.path.exists(filePathSource):
-            raise HTTPException(status_code=404, detail="error - file not found %s" % filePathSource)
+            raise HTTPException(
+                status_code=404, detail="error - file not found %s" % filePathSource
+            )
         if os.path.exists(filePathTarget) and not overwrite:
-            raise HTTPException(status_code=403, detail="error - file already exists %s" % filePathTarget)
+            raise HTTPException(
+                status_code=403,
+                detail="error - file already exists %s" % filePathTarget,
+            )
         if not os.path.exists(os.path.dirname(filePathTarget)):
             os.makedirs(os.path.dirname(filePathTarget))
         logging.info("copying %s to %s", filePathSource, filePathTarget)
@@ -120,17 +127,24 @@ class IoUtility(object):
         repositoryTypeTarget: str,
         depIdTarget: str,
         #
-        overwrite: bool
+        overwrite: bool,
     ):
-        source_path = PathProvider().getDirPath(repositoryTypeSource, depIdSource)
-        target_path = PathProvider().getDirPath(repositoryTypeTarget, depIdTarget)
+        source_path = self.__pP.getDirPath(repositoryTypeSource, depIdSource)
+        target_path = self.__pP.getDirPath(repositoryTypeTarget, depIdTarget)
         if not source_path or not target_path:
-            raise HTTPException(status_code=400, detail="error - source path or target path not defined")
+            raise HTTPException(
+                status_code=400, detail="error - source path or target path not defined"
+            )
         if not os.path.exists(source_path):
-            raise HTTPException(status_code=404, detail="error - source path does not exist")
+            raise HTTPException(
+                status_code=404, detail="error - source path does not exist"
+            )
         if os.path.exists(target_path):
             if not overwrite:
-                raise HTTPException(status_code=403, detail="error - directory already exists %s" % target_path)
+                raise HTTPException(
+                    status_code=403,
+                    detail="error - directory already exists %s" % target_path,
+                )
             else:
                 shutil.rmtree(target_path)
         logger.info("copying %s to %s", source_path, target_path)
@@ -156,7 +170,7 @@ class IoUtility(object):
         #
         overwrite: bool,
     ):
-        filePathSource = self.__pathP.getVersionedPath(
+        filePathSource = self.__pP.getVersionedPath(
             repositoryTypeSource,
             depIdSource,
             contentTypeSource,
@@ -165,7 +179,7 @@ class IoUtility(object):
             contentFormatSource,
             versionSource,
         )
-        filePathTarget = self.__pathP.getVersionedPath(
+        filePathTarget = self.__pP.getVersionedPath(
             repositoryTypeTarget,
             depIdTarget,
             contentTypeTarget,
@@ -175,12 +189,20 @@ class IoUtility(object):
             versionTarget,
         )
         if not filePathSource or not filePathTarget:
-            raise HTTPException(status_code=400, detail="Source or target filepath not defined")
+            raise HTTPException(
+                status_code=400, detail="Source or target filepath not defined"
+            )
         if not os.path.exists(filePathSource):
-            raise HTTPException(status_code=404, detail="error - file does not exist %s" % filePathSource)
+            raise HTTPException(
+                status_code=404,
+                detail="error - file does not exist %s" % filePathSource,
+            )
         if os.path.exists(filePathTarget):
             if not overwrite:
-                raise HTTPException(status_code=403, detail="error - file already exists %s" % filePathTarget)
+                raise HTTPException(
+                    status_code=403,
+                    detail="error - file already exists %s" % filePathTarget,
+                )
             else:
                 logger.info("removing %s", filePathTarget)
                 os.unlink(filePathTarget)
@@ -190,51 +212,67 @@ class IoUtility(object):
         shutil.move(filePathSource, filePathTarget)
 
     async def compressDir(self, repositoryType: str, depId: str):
-        dirPath = self.__pathP.getDirPath(repositoryType, depId)
+        dirPath = self.__pP.getDirPath(repositoryType, depId)
         if not dirPath:
-            raise HTTPException(status_code=400, detail="error - could not form dir path")
+            raise HTTPException(
+                status_code=400, detail="error - could not form dir path"
+            )
         if not os.path.exists(dirPath):
-            raise HTTPException(status_code=404, detail="error - path not found %s" % dirPath)
+            raise HTTPException(
+                status_code=404, detail="error - path not found %s" % dirPath
+            )
         compressPath = os.path.abspath(dirPath) + ".tar.gz"
         if os.path.exists(compressPath):
-            raise HTTPException(status_code=403, detail="error - requested path already exists %s" % compressPath)
+            raise HTTPException(
+                status_code=403,
+                detail="error - requested path already exists %s" % compressPath,
+            )
         if FileUtil().bundleTarfile(compressPath, [os.path.abspath(dirPath)]):
             shutil.rmtree(dirPath)
             if os.path.exists(dirPath):
-                logger.error(
-                    "unable to remove dirPath %s after compression", dirPath
-                )
+                logger.error("unable to remove dirPath %s after compression", dirPath)
 
     async def compressDirPath(self, dirPath: str):
         """Compress directory at given dirPath, as opposed to standard input parameters."""
         if not os.path.exists(dirPath):
-            raise HTTPException(status_code=404, detail="error - path not found %s" % dirPath)
+            raise HTTPException(
+                status_code=404, detail="error - path not found %s" % dirPath
+            )
         compressPath = os.path.abspath(dirPath) + ".tar.gz"
         if os.path.exists(compressPath):
-            raise HTTPException(status_code=403, detail="error - requested path already exists %s" % compressPath)
+            raise HTTPException(
+                status_code=403,
+                detail="error - requested path already exists %s" % compressPath,
+            )
         if FileUtil().bundleTarfile(compressPath, [os.path.abspath(dirPath)]):
             shutil.rmtree(dirPath)
             if os.path.exists(dirPath):
-                logger.error(
-                    "unable to remove dirPath %s after compression", dirPath
-                )
+                logger.error("unable to remove dirPath %s after compression", dirPath)
         else:
-            raise HTTPException(status_code=400, detail="error - failed to compress directory")
+            raise HTTPException(
+                status_code=400, detail="error - failed to compress directory"
+            )
 
     async def decompressDir(self, repositoryType: str, depId: str):
-        dirPath = self.__pathP.getDirPath(repositoryType, depId)
+        dirPath = self.__pP.getDirPath(repositoryType, depId)
         if not dirPath:
-            raise HTTPException(status_code=400, detail="error - could not form dir path")
+            raise HTTPException(
+                status_code=400, detail="error - could not form dir path"
+            )
         if os.path.exists(dirPath):
-            raise HTTPException(status_code=403, detail="error - path already exists %s" % dirPath)
+            raise HTTPException(
+                status_code=403, detail="error - path already exists %s" % dirPath
+            )
         decompressPath = os.path.abspath(dirPath) + ".tar.gz"
         if not os.path.exists(decompressPath):
-            raise HTTPException(status_code=404, detail="error - path not found %s" % decompressPath)
-        if FileUtil().unbundleTarfile(decompressPath, os.path.abspath(os.path.dirname(dirPath))):
+            raise HTTPException(
+                status_code=404, detail="error - path not found %s" % decompressPath
+            )
+        if FileUtil().unbundleTarfile(
+            decompressPath, os.path.abspath(os.path.dirname(dirPath))
+        ):
             os.unlink(decompressPath)
             if os.path.exists(decompressPath):
-                logger.error(
-                    "unable to remove dirPath %s after compression", dirPath
-                )
+                logger.error("unable to remove dirPath %s after compression", dirPath)
         else:
             raise HTTPException(status_code=400, detail="error - decompression failed")

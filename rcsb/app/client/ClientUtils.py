@@ -10,7 +10,7 @@
 """
 functions
 
-upload, download
+upload, get-upload-parameters, upload-chunk, download, get-hash
 get-file-path-local, get-file-path-remote, dir-exists, list-dir
 copy-file, copy-dir, move-file, compress-dir, compress-dir-path, decompress-dir
 latest version, next version,
@@ -57,7 +57,7 @@ class ClientUtils(object):
         self.repoTypeList = self.dP.repoTypeList
         self.milestoneList = self.dP.milestoneList
 
-    # file parameter is complete file
+    # if file parameter is complete file
 
     def upload(
         self,
@@ -174,6 +174,137 @@ class ClientUtils(object):
 
         return {"status_code": response.status_code}
 
+    # if file parameter is one chunk
+
+    def getUploadParameters(
+        self,
+        repositoryType,
+        depId,
+        contentType,
+        milestone,
+        partNumber,
+        contentFormat,
+        version,
+        allowOverwrite,
+        resumable,
+    ) -> dict:
+        saveFilePath = None
+        chunkIndex = 0
+        uploadId = None
+        parameters = {
+            "repositoryType": repositoryType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+            "version": version,
+            "allowOverwrite": allowOverwrite,
+            "resumable": resumable,
+        }
+        url = os.path.join(self.baseUrl, "getUploadParameters")
+        response = requests.get(
+            url, params=parameters, headers=self.headerD, timeout=None
+        )
+        if response.status_code == 200:
+            logger.info("upload parameters - response %d", response.status_code)
+            result = json.loads(response.text)
+            if result:
+                saveFilePath = result["filePath"]
+                chunkIndex = int(result["chunkIndex"])
+                uploadId = result["uploadId"]
+                if chunkIndex > 0:
+                    logger.info("detected upload with chunk index %s", chunkIndex)
+        if not saveFilePath:
+            logger.error("Error %d - no file path was formed", response.status_code)
+            return {
+                "status_code": response.status_code,
+                "filePath": None,
+                "chunkIndex": None,
+                "uploadId": None,
+            }
+        if not uploadId:
+            logger.error("Error %d - no upload id was formed", response.status_code)
+            return {
+                "status_code": response.status_code,
+                "filePath": None,
+                "chunkIndex": None,
+                "uploadId": None,
+            }
+        return {
+            "status_code": response.status_code,
+            "filePath": saveFilePath,
+            "chunkIndex": chunkIndex,
+            "uploadId": uploadId,
+        }
+
+    def uploadChunk(
+        self,
+        sourceFilePath: str,
+        fileSize: int,
+        # chunk parameters
+        chunkSize: int,
+        chunkIndex: int,
+        expectedChunks: int,
+        # upload file parameters
+        uploadId: str,
+        hashType: str,
+        hashDigest: str,
+        # save file parameters
+        saveFilePath: str,
+        decompress: bool,
+        allowOverwrite: bool,
+        resumable: bool,
+    ) -> int:
+        # validate input
+        if not os.path.exists(sourceFilePath):
+            logger.error("File does not exist: %r", sourceFilePath)
+            return None
+        offset = chunkIndex * chunkSize
+        with open(sourceFilePath, "rb") as of:
+            of.seek(offset)
+            url = os.path.join(self.baseUrl, "upload")
+            packetSize = min(
+                fileSize - offset,
+                int(self.chunkSize),
+            )
+            logger.debug(
+                "packet size %s chunk %s expected %s",
+                packetSize,
+                chunkIndex,
+                expectedChunks,
+            )
+            mD = {
+                # chunk parameters
+                "chunkSize": chunkSize,
+                "chunkIndex": chunkIndex,
+                "expectedChunks": expectedChunks,
+                # upload file parameters
+                "uploadId": uploadId,
+                "hashType": hashType,
+                "hashDigest": hashDigest,
+                # save file parameters
+                "filePath": saveFilePath,
+                "decompress": decompress,
+                "allowOverwrite": allowOverwrite,
+                "resumable": resumable,
+            }
+            response = requests.post(
+                url,
+                data=mD,
+                headers=self.headerD,
+                files={"chunk": of.read(packetSize)},
+                stream=True,
+                timeout=None,
+            )
+            if response.status_code != 200:
+                logger.error(
+                    "Status code %r with text %r ...terminating",
+                    response.status_code,
+                    response.text,
+                )
+        return response.status_code
+
     def download(
         self,
         repositoryType: str,
@@ -187,8 +318,8 @@ class ClientUtils(object):
         allowOverwrite: bool = False,
         chunkSize: typing.Optional[int] = None,
         chunkIndex: typing.Optional[int] = None,
+        returnFile: bool = False,
     ) -> dict:
-
         # validate input
         if not downloadFolder or not os.path.exists(downloadFolder):
             logger.error("Download folder does not exist")
@@ -222,21 +353,47 @@ class ClientUtils(object):
             downloadUrl, headers=self.headerD, timeout=None, stream=True
         )
         if response and response.status_code == 200:
+            if returnFile:
+                return {"status_code": response.status_code, "response": response}
             # write to file
             with open(downloadFilePath, "ab") as ofh:
                 for chunk in response.iter_content(chunk_size=self.chunkSize):
                     if chunk:
                         ofh.write(chunk)
             # validate hash
-            if "rcsb_hash_type" in response.headers and "rcsb_hexdigest" in response.headers:
+            if (
+                "rcsb_hash_type" in response.headers
+                and "rcsb_hexdigest" in response.headers
+            ):
                 rspHashType = response.headers["rcsb_hash_type"]
                 rspHashDigest = response.headers["rcsb_hexdigest"]
-                hashDigest = IoUtility().getHashDigest(downloadFilePath, hashType=rspHashType)
+                hashDigest = IoUtility().getHashDigest(
+                    downloadFilePath, hashType=rspHashType
+                )
                 if not hashDigest == rspHashDigest:
                     logger.error("Hash comparison failed")
                     return None
 
         return {"status_code": response.status_code}
+
+    def getHashDigest(
+        self,
+        repositoryType: str = None,
+        depId: str = None,
+        contentType: str = None,
+        milestone: str = None,
+        partNumber: int = None,
+        contentFormat: str = None,
+        version: str = None,
+    ):
+        query = f"repositoryType={repositoryType}&depId={depId}&contentType={contentType}&milestone={milestone}&partNumber={partNumber}&contentFormat={contentFormat}&version={version}"
+        url = os.path.join(self.baseUrl, "get-hash?%s" % query)
+        response = requests.get(url, headers=self.headerD, timeout=None)
+        if response.status_code != 200:
+            return {"status_code": response.status_code, "hashDigest": None}
+        d = response.json()
+        hashDigest = d["hashDigest"]
+        return {"status_code": response.status_code, "hashDigest": hashDigest}
 
     def getFilePathRemote(
         self,
@@ -246,7 +403,7 @@ class ClientUtils(object):
         milestone: str = None,
         partNumber: int = None,
         contentFormat: str = None,
-        version: str = None
+        version: str = None,
     ) -> dict:
         # validate file exists
         url = os.path.join(self.baseUrl, "file-exists")
@@ -284,7 +441,7 @@ class ClientUtils(object):
         milestone: str = "",
         partNumber: int = 1,
         contentFormat: str = None,
-        version: str = "next"
+        version: str = "next",
     ) -> dict:
         if not repoType or not depId or not contentType or not contentFormat:
             return {"status_code": 404, "content": None}

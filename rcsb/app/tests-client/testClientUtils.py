@@ -14,13 +14,9 @@ import logging
 import os
 import platform
 import time
-
 import resource
 import unittest
 import shutil
-
-# requires server
-
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.utils.io.LogUtil import StructFormatter
@@ -36,6 +32,7 @@ root_handler = logger.handlers[0]
 root_handler.setFormatter(StructFormatter(fmt=None, mask=None))
 logger.setLevel(logging.INFO)
 
+# requires server
 
 class ClientTests(unittest.TestCase):
     # comment out if running gunicorn or uvicorn
@@ -308,7 +305,7 @@ class ClientTests(unittest.TestCase):
             logger.info(
                 f"{PathProvider().getFileName(depId,contentType,milestone,partNumber,contentFormat,version)} 404 = {response['status_code']}"
             )
-            self.assertTrue(response["status_code"] == 404)
+            self.assertTrue(response["status_code"] == 404, "error - status code %d" % response["status_code"])
         except Exception as e:
             logger.info(f"exception {str(e)}")
             self.fail()
@@ -741,7 +738,7 @@ class ClientTests(unittest.TestCase):
                 "version": 1,
             }
             response = self.__cU.fileExists(**mD)
-            self.assertTrue(response["status_code"] == 200)
+            self.assertTrue(response["status_code"] == 200, "error - status code %d" % response["status_code"])
             logger.info("file status response %r", response["status_code"])
             # test response 404
             mD = {
@@ -754,7 +751,7 @@ class ClientTests(unittest.TestCase):
                 "version": 1,
             }
             response = self.__cU.fileExists(**mD)
-            self.assertTrue(response["status_code"] == 404)
+            self.assertTrue(response["status_code"] == 404, "error - status code %d" % response["status_code"])
             logger.info("file status response %r", response["status_code"])
         except Exception as e:
             logger.exception("Failing with %s", str(e))

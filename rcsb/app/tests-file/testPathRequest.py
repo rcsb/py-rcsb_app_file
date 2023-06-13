@@ -35,7 +35,7 @@ logger.setLevel(logging.INFO)
 class PathRequestTests(unittest.TestCase):
 
     def setUp(self):
-        self.pathP = PathProvider()
+        self.__pP = PathProvider()
         self.__cP = ConfigProvider()
 
         self.__configFilePath = self.__cP.getConfigFilePath()
@@ -285,7 +285,7 @@ class PathRequestTests(unittest.TestCase):
         validCombinationList = [("model", "pdbx"), ("map-model-fsc", "xml")]
         for contentType in contentTypeList:
             for contentFormat in contentFormatList:
-                result = PathProvider().checkContentTypeFormat(contentType, contentFormat)
+                result = self.__pP.checkContentTypeFormat(contentType, contentFormat)
                 if (contentType, contentFormat) in validCombinationList:
                     self.assertTrue(result, "error - result false for %s %s" % (contentType, contentFormat))
                 else:

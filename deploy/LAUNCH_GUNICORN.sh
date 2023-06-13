@@ -18,10 +18,12 @@ HERE=`cd $(dirname $0) && pwd`
 TOPDIR=`dirname $HERE`
 
 # determine whether running container
-if [ $TOPDIR == "/" ]
+CONTAINER=0
+if [[ $# -gt 0 && $1 == "container" ]] # or $TOPDIR == "/"
 then
   # docker
   cd '/app'
+  CONTAINER=1
 else
   # non-docker
   cd $TOPDIR
@@ -37,7 +39,7 @@ echo $UPTIME_START > $TOPDIR/uptime.txt
 
 # determine whether running docker
 DIR=$TOPDIR
-if [ $TOPDIR == "/" ]
+if [ $CONTAINER -eq 1 ]
 then
   DIR='/app'
 fi

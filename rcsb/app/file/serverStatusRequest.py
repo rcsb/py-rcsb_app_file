@@ -84,7 +84,6 @@ def serverStatus():
 
 @router.get("/", tags=["status"])
 def rootServerStatus():
-
     return {"msg": "Service is up!"}
 
 

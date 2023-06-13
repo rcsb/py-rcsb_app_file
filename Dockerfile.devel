@@ -54,4 +54,4 @@ RUN chmod +x /app/LAUNCH_GUNICORN.sh
 EXPOSE 8000
 
 # Launch the service
-CMD ["/app/LAUNCH_GUNICORN.sh"]
+CMD ["/app/LAUNCH_GUNICORN.sh", "container"]
