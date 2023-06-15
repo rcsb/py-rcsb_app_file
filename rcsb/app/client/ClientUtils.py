@@ -322,7 +322,7 @@ class ClientUtils(object):
     ) -> dict:
         # validate input
         if not downloadFolder or not os.path.exists(downloadFolder):
-            logger.error("Download folder does not exist")
+            logger.error("Download folder does not exist %r", downloadFolder)
             return None
 
         # form paths

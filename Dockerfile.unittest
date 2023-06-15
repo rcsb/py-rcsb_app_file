@@ -16,6 +16,17 @@ ARG GROUP_ID
 RUN addgroup --gid $GROUP_ID ubuntu
 RUN adduser  --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID ubuntu
 
+# Build-time metadata as defined at http://label-schema.org
+LABEL org.label-schema.build-date=$BUILD_DATE \
+    org.label-schema.name="myfile" \
+    org.label-schema.description="Example RCSB file service web app" \
+    org.label-schema.url="https://github.com/rcsb/py-rcsb_app_file.git" \
+    org.label-schema.vcs-ref=$VCS_REF \
+    org.label-schema.vcs-url="https://github.com/rcsb/py-rcsb_app_file.git" \
+    org.label-schema.vendor="RCSB" \
+    org.label-schema.version=$VERSION \
+    org.label-schema.schema-version="1.0"
+
 WORKDIR /app/
 
 # copy requirements file (should include selected versions of uvicorn gunicorn)

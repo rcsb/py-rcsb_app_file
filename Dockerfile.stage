@@ -1,5 +1,5 @@
 ##
-# File: Dockerfile.devel
+# File: Dockerfile.stage
 # Date: 10-Aug-2021
 #       Build a development environment for file service application.
 #       (includes dependencies to build mmCIF package from source)
