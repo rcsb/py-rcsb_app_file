@@ -1,9 +1,12 @@
+# file - KvConnection.py
+# author - James Smith 2023
+
 import sqlite3
 import logging
 from fastapi.exceptions import HTTPException
 
 
-class KvConnection:
+class KvConnection(object):
     def __init__(self, filepath, sessionTable, logTable):
         self.filePath = filepath
         self.sessionTable = sessionTable

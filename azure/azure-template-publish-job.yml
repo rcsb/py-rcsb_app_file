@@ -14,13 +14,10 @@ parameters:
 jobs:
   - job: ${{ format('publish_{0}_{1}', parameters.tox, parameters.os) }}
     pool:
-      ${{ if eq(parameters.os, 'macos') }}:
-        vmImage: "macOS-10.15"
       ${{ if eq(parameters.os, 'linux') }}:
         vmImage: "ubuntu-20.04"
     dependsOn:
       - ${{ format('build_test_{0}_{1}', parameters.tox, parameters.os) }}
-      - ${{ format('build_test_{0}_{1}', 'test_coverage', parameters.os) }}
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
     #
     steps:
@@ -29,9 +26,6 @@ jobs:
           versionSpec: ${{ parameters.python }}
           addToPath: true
         displayName: setup python
-      #
-      #- checkout: self
-      #  submodules: true
       #
       - download: current
         artifact: ${{ format('sw_{0}_{1}', parameters.tox,  parameters.os) }}
@@ -55,8 +49,4 @@ jobs:
           - script: twine upload --verbose --skip-existing -r pypi  --config-file $(pypicred.secureFilePath) $(Pipeline.Workspace)/${{ format('sw_u_{0}_{1}', parameters.tox, parameters.os) }}/*
             displayName: "Linux upload sdist and source wheel to PyPi ..."
             continueOnError: true
-      #
-      - ${{ if startsWith(parameters.os, 'macos') }}:
-          - script: twine upload --verbose --skip-existing -r pypi  --config-file $(pypicred.secureFilePath) $(Pipeline.Workspace)/${{ format('sw_{0}_{1}', parameters.tox, parameters.os) }}/*
-            displayName: "Mac upload sdist and binary wheel to PyPi ..."
-            continueOnError: true
+

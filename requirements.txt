@@ -1,5 +1,5 @@
 gunicorn >= 20.0.4
-# fastapi require pydantic and starlete
+# fastapi require pydantic and starlette
 fastapi >= 0.68
 python-multipart>=0.0.5
 # --

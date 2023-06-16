@@ -17,21 +17,19 @@ __license__ = "Apache 2.0"
 
 import datetime
 import logging
-import os
 import typing
-import rcsb.app.config.setConfig  # noqa: F401 pylint: disable=W0611
+from rcsb.app.config.setConfig import getConfig
 from rcsb.utils.config.ConfigUtil import ConfigUtil
-from rcsb.utils.io.SingletonClass import SingletonClass
 
 logger = logging.getLogger(__name__)
 
 
-class ConfigProvider(SingletonClass):
+class ConfigProvider(object):
     """Accessors for configuration details."""
 
     def __init__(self, configFilePath: typing.Optional[str] = None):
         # ---
-        self.__configFilePath = configFilePath if configFilePath else os.environ.get("CONFIG_FILE")
+        self.__configFilePath = configFilePath if configFilePath else getConfig()
         self.__configD = None
         # ---
 

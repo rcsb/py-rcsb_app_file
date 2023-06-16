@@ -10,13 +10,12 @@ __license__ = "Apache 2.0"
 
 
 import logging
-from enum import Enum
 from typing import Optional
 from fastapi import APIRouter, Query, File, Form, HTTPException, UploadFile, Depends
 from pydantic import BaseModel  # pylint: disable=no-name-in-module
 from pydantic import Field
 from rcsb.app.file.ConfigProvider import ConfigProvider
-from rcsb.app.file.IoUtils import IoUtils
+from rcsb.app.file.UploadUtility import UploadUtility
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 
 logger = logging.getLogger(__name__)
@@ -30,40 +29,35 @@ else:
     router = APIRouter(tags=["upload"])
 
 
-class HashType(str, Enum):
-    MD5 = "MD5"
-    SHA1 = "SHA1"
-    SHA256 = "SHA256"
-
-
 class UploadResult(BaseModel):
-    success: bool = Field(
-        None, title="Success status", description="Success status", example=True
+    filePath: str = Field(
+        None,
+        title="file path",
+        description="relative file path",
+        example="deposit/D_000_model_P1.cif.V1",
     )
-    statusCode: int = Field(
-        None, title="HTTP status code", description="HTTP status code", example=200
+    chunkIndex: int = Field(
+        None, title="chunk index", description="chunk index", example=0
     )
-    statusMessage: str = Field(
-        None, title="Status message", description="Status message", example="Success"
+    uploadId: str = Field(
+        None, title="upload id", description="upload id", example="A1101A10101E"
     )
 
 
-@router.get("/getUploadParameters")
+@router.get("/getUploadParameters", response_model=UploadResult)
 async def getUploadParameters(
     repositoryType: str = Query(...),
     depId: str = Query(...),
     contentType: str = Query(...),
-    milestone: Optional[str] = Query(default="next"),
+    milestone: Optional[str] = Query(default=""),
     partNumber: int = Query(...),
     contentFormat: str = Query(...),
     version: str = Query(default="next"),
     allowOverwrite: bool = Query(default=True),
-    # hashDigest: str = Query(default=None),
     resumable: bool = Query(default=False),
 ):
-    ret = None
     try:
-        ret = await IoUtils(ConfigProvider()).getUploadParameters(
+        return await UploadUtility().getUploadParameters(
             repositoryType,
             depId,
             contentType,
@@ -72,21 +66,14 @@ async def getUploadParameters(
             contentFormat,
             version,
             allowOverwrite,
-            # hashDigest,
             resumable,
         )
     except HTTPException as exc:
-        ret = {
-            "success": False,
-            "statusCode": exc.status_code,
-            "statsMessage": f"error in upload parameters {exc.detail}",
-        }
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
-    return ret
 
 
 # upload chunked file
-@router.post("/upload", response_model=UploadResult)
+@router.post("/upload", status_code=200)
 async def upload(
     # chunk parameters
     chunk: UploadFile = File(...),
@@ -104,11 +91,9 @@ async def upload(
     # other
     resumable: bool = Form(False),
 ):
-    ret = None
+    # return status
     try:
-        cP = ConfigProvider()
-        iU = IoUtils(cP)
-        ret = await iU.upload(
+        return await UploadUtility().upload(
             # chunk parameters
             chunk=chunk.file,
             chunkSize=chunkSize,
@@ -125,26 +110,16 @@ async def upload(
             resumable=resumable,
         )
     except HTTPException as exc:
-        ret = {
-            "success": False,
-            "statusCode": exc.status_code,
-            "statusMessage": f"error in upload {exc.detail}",
-        }
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
-    return ret
 
 
 # clear kv entries from one user
 @router.post("/clearSession")
 async def clearSession(uploadIds: list = Form(...)):
-    cP = ConfigProvider()
-    ioU = IoUtils(cP)
-    return await ioU.clearSession(uploadIds, None)
+    return await UploadUtility().clearSession(uploadIds, None)
 
 
 # purge kv before testing
 @router.post("/clearKv")
 async def clearKv():
-    cP = ConfigProvider()
-    ioU = IoUtils(cP)
-    return await ioU.clearKv()
+    return await UploadUtility().clearKv()

@@ -9,8 +9,8 @@
 			async function handleform() {
               window.event.preventDefault();
               let base_url = "http://0.0.0.0:8000";
-              let upload_parameters_url = `${base_url}/file-v2/getUploadParameters/`;
-              let sequential_chunk_url = `${base_url}/file-v2/upload/`;
+              let upload_parameters_url = `${base_url}/getUploadParameters/`;
+              let sequential_chunk_url = `${base_url}/upload/`;
               let jwt_token = '';
               let file = document.getElementsByName('uploadFile')[0].files[0];
               let fileName = file.name;
@@ -154,7 +154,7 @@
 	</head>
 	<body>
 		<div>
-		<form action="http://0.0.0.0:8000/file-v2/upload" method="POST" enctype="multipart/form-data" onsubmit="return handleform();">
+		<form action="http://0.0.0.0:8000/upload" method="POST" enctype="multipart/form-data" onsubmit="return handleform();">
 			<label>Upload file</label>
 			<input type="file" name="uploadFile">
             <label>Repository type</label>

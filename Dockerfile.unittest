@@ -5,22 +5,21 @@
 ##
 FROM python:3.9-slim as image-compile
 
-LABEL maintainer="John Westbrook <jdwestbrook@gmail.com>"
-# Build-time metadata as defined at http://label-schema.org
 #
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION
+
 #
 ARG USER_ID
 ARG GROUP_ID
 RUN addgroup --gid $GROUP_ID ubuntu
 RUN adduser  --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID ubuntu
 
-#
+# Build-time metadata as defined at http://label-schema.org
 LABEL org.label-schema.build-date=$BUILD_DATE \
     org.label-schema.name="myfile" \
-    org.label-schema.description="Example file for RCSB web service" \
+    org.label-schema.description="Example RCSB file service web app" \
     org.label-schema.url="https://github.com/rcsb/py-rcsb_app_file.git" \
     org.label-schema.vcs-ref=$VCS_REF \
     org.label-schema.vcs-url="https://github.com/rcsb/py-rcsb_app_file.git" \
@@ -48,18 +47,10 @@ COPY ./setup.py /app/setup.py
 COPY ./setup.cfg /app/setup.cfg
 COPY ./pylintrc /app/pylintrc
 
-COPY ./deploy/launch.sh /app/launch.sh
-RUN chmod +x /app/launch.sh
-
-COPY ./deploy/gunicorn_conf.py /app/gunicorn_conf.py
-
-RUN chown -R ubuntu /app
+COPY ./deploy/LAUNCH_GUNICORN.sh /app/LAUNCH_GUNICORN.sh
+RUN chmod +x /app/LAUNCH_GUNICORN.sh
 
 EXPOSE 8000
-USER ubuntu
-
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
 
 # Run test suite
 CMD ["tox"]

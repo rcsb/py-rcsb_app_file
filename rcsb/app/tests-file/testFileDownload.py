@@ -1,3 +1,6 @@
+# file - testFileDownload.py
+# author - James Smith 2023
+
 import re
 import sys
 import unittest
@@ -5,10 +8,10 @@ import os
 import shutil
 import logging
 import time
-
 from fastapi.testclient import TestClient
+from rcsb.app.file.DownloadUtility import DownloadUtility
+from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.file.main import app
-from rcsb.utils.io.CryptUtils import CryptUtils
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
@@ -78,7 +81,7 @@ class DownloadTest(unittest.TestCase):
         logging.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
 
     def testSimpleDownload(self):
-        downloadUrlPrefix = os.path.join(self.__baseUrl, "file-v1", "download")
+        downloadUrlPrefix = os.path.join(self.__baseUrl, "download")
         downloadUrl = (
             f"{downloadUrlPrefix}?repositoryType={self.__repositoryType}&depId={self.__depId}&contentType={self.__contentType}&milestone={self.__milestone}"
             f"&partNumber={self.__partNumber}&contentFormat={self.__contentFormat}&version={self.__version}&hashType={self.__hashType}"
@@ -94,21 +97,40 @@ class DownloadTest(unittest.TestCase):
                     ofh.write(response.content)
                 rspHashType = response.headers["rcsb_hash_type"]
                 rspHashDigest = response.headers["rcsb_hexdigest"]
-                thD = CryptUtils().getFileHash(
+                hashDigest = IoUtility().getHashDigest(
                     self.__downloadFile, hashType=rspHashType
                 )
-                self.assertTrue(thD["hashDigest"] == rspHashDigest, f"error - hash comparison failed")
-                if not thD["hashDigest"] == rspHashDigest:
+                self.assertTrue(hashDigest == rspHashDigest, f"error - hash comparison failed")
+                if not hashDigest == rspHashDigest:
                     logging.error("Hash comparison failed")
                     return None
                 self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
                 resp = response.status_code
+                return resp
 
-        return resp
+    def testGetMimeType(self):
+        utility = DownloadUtility()
+        mimeTypeList = ["cif", "pdf", "xml", "json", "txt", "pic", "other"]
+        for mimeType in mimeTypeList:
+            if mimeType == "cif":
+                self.assertEqual(utility.getMimeType(mimeType), "chemical/x-mmcif")
+            if mimeType == "pdf":
+                self.assertEqual(utility.getMimeType(mimeType), "application/pdf")
+            if mimeType == "xml":
+                self.assertEqual(utility.getMimeType(mimeType), "application/xml")
+            if mimeType == "json":
+                self.assertEqual(utility.getMimeType(mimeType), "application/json")
+            if mimeType == "txt":
+                self.assertEqual(utility.getMimeType(mimeType), "text/plain")
+            if mimeType == "pic":
+                self.assertEqual(utility.getMimeType(mimeType), "application/python-pickle")
+            if mimeType == "other":
+                self.assertEqual(utility.getMimeType(mimeType), "text/plain")
 
 def download_tests():
     suite = unittest.TestSuite()
     suite.addTest(DownloadTest("testSimpleDownload"))
+    suite.addTest(DownloadTest("testGetMimeType"))
     return suite
 
 if __name__ == "__main__":

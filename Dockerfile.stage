@@ -1,33 +1,10 @@
 ##
-# File: Dockerfile.devel
+# File: Dockerfile.stage
 # Date: 10-Aug-2021
 #       Build a development environment for file service application.
 #       (includes dependencies to build mmCIF package from source)
 ##
 FROM python:3.9-slim as image-compile
-
-LABEL maintainer="John Westbrook <jdwestbrook@gmail.com>"
-#
-ARG BUILD_DATE
-ARG VCS_REF
-ARG VERSION
-
-#
-ARG USER_ID
-ARG GROUP_ID
-RUN addgroup --gid $GROUP_ID ubuntu
-RUN adduser  --disabled-password --gecos '' --uid $USER_ID --gid $GROUP_ID ubuntu
-
-# Build-time metadata as defined at http://label-schema.org
-LABEL org.label-schema.build-date=$BUILD_DATE \
-    org.label-schema.name="myfile" \
-    org.label-schema.description="Example RCSB file service web app" \
-    org.label-schema.url="https://github.com/rcsb/py-rcsb_app_file.git" \
-    org.label-schema.vcs-ref=$VCS_REF \
-    org.label-schema.vcs-url="https://github.com/rcsb/py-rcsb_app_file.git" \
-    org.label-schema.vendor="RCSB" \
-    org.label-schema.version=$VERSION \
-    org.label-schema.schema-version="1.0"
 
 WORKDIR /app/
 
@@ -45,21 +22,10 @@ RUN set -eux \
     && rm -rf /root/.cache/pip
 
 COPY ./rcsb /app/rcsb
-COPY ./deploy/gunicorn_conf.py /app/gunicorn_conf.py
-#
-COPY ./deploy/launch.sh /app/launch.sh
-RUN chmod +x /app/launch.sh
-COPY ./deploy/entryPoint.sh /app/entryPoint.sh
-RUN chmod +x /app/entryPoint.sh
-
-RUN chown -R ubuntu /app
+COPY ./deploy/LAUNCH_GUNICORN.sh /app/LAUNCH_GUNICORN.sh
+RUN chmod +x /app/LAUNCH_GUNICORN.sh
 
 EXPOSE 8000
-USER ubuntu
-
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
 
 # Launch the service
-ENTRYPOINT ["/usr/bin/tini", "--", "/app/entryPoint.sh"]
-CMD ["/app/launch.sh"]
+CMD ["/app/LAUNCH_GUNICORN.sh", "container"]

@@ -1,8 +1,7 @@
-import os
+# file - setConfig.py
+# author - James Smith 2023
 
-HERE = os.path.abspath(os.path.dirname(__file__))
-CONFIG_FILE = os.path.join(HERE, "config.yml")
-os.environ["CONFIG_FILE"] = os.environ.get("CONFIG_FILE", CONFIG_FILE)
+import os
 
 def getConfig():
     dirPath = os.path.abspath(os.path.dirname(__file__))

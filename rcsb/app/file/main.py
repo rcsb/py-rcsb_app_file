@@ -1,7 +1,7 @@
 ##
 # File: main.py
 # Date: 11-Aug-2020
-#
+# Updates - James Smith 2023
 # Template/skeleton web service application
 #
 ##
@@ -15,10 +15,10 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from . import ConfigProvider
-from . import LogFilterUtils
-from . import downloadRequest  # This triggers JWTAuthBearer
-from . import serverStatus
+from . import downloadRequest
+from . import serverStatusRequest
 from . import uploadRequest
+from . import ioRequest
 from . import pathRequest
 
 logger = logging.getLogger()
@@ -33,10 +33,6 @@ formatter = logging.Formatter("%(asctime)s [%(process)d] [%(levelname)s] [%(modu
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 logger.propagate = True
-# Apply logging filters -
-lu = LogFilterUtils.LogFilterUtils()
-lu.addFilters()
-# ---
 
 app = FastAPI()
 app.add_middleware(
@@ -64,20 +60,22 @@ def shutdownEvent():
 
 app.include_router(
     uploadRequest.router,
-    prefix="/file-v2",
 )
 
 
 app.include_router(
     downloadRequest.router,
-    prefix="/file-v1",
 )
 
 
 app.include_router(
-    pathRequest.router,
-    prefix="/file-v1",
+    ioRequest.router,
 )
 
+app.include_router(
+    pathRequest.router
+)
 
-app.include_router(serverStatus.router)
+app.include_router(
+    serverStatusRequest.router
+)

@@ -6,69 +6,58 @@
 
 ### Installation
 
-Download the library source software from the project repository:
-
-```
-
-git clone https://github.com/rcsb/py-rcsb_app_file.git
-
-```
-
-Optionally, run test suite (Python 3.9) using
-[setuptools](https://setuptools.readthedocs.io/en/latest/) or
-[tox](http://tox.readthedocs.io/en/latest/example/platform.html):
-
-```
-python setup.py test
-
-or simply run
-
-tox
-```
-
 Installation is via the program [pip](https://pypi.python.org/pypi/pip).
 
 ```
 pip3 install rcsb.app.file
 
-or from the local repository directory:
+```
 
+Or, download the library source software from the project repository:
+
+```
+git clone https://github.com/rcsb/py-rcsb_app_file.git
+
+```
+
+then install from the local repository directory:
+
+```
 pip3 install .
+
 ```
 
 # Configuration 
 
 Edit variables in rcsb/app/config/config.yml.
 
-In particular, edit paths (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY).
+In particular, edit paths (REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY, SESSION_DIR_PATH, ).
 
 Also edit SERVER_HOST_AND_PORT.
-
-Other files may require configuration.
-
-Edit url in LAUNCH_GUNICORN.sh or port in Dockerfile.stage if necessary.
 
 Edit url variables to match server url in example-upload.html, example-download.html, and example-list.html.
 
 # Endpoints and forwarding
 
+To view documentation, run a server, then visit localhost:8000/docs.
+
 The repository has one upload endpoint, one download endpoint, and one list-directory endpoint, among others.
 
-To upload a file in chunks, use the 'file-v2/upload' endpoint.
+To upload a file in chunks, use the '/upload' endpoint.
 
-To upload the entire file in one request, configure the parameters to treat the file as one chunk.
+To upload the entire file in one request, set the chunk size parameter equal to the file size.
 
-Upload requires some setup by invoking the 'file-v2/getUploadParameters' endpoint first, then passing the results as parameters.
+Upload requires some setup by invoking the '/getUploadParameters' endpoint first, then passing the results as parameters.
 
 To maintain sequential order, the client must wait for each response before sending the next chunk.
 
-The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in IoUtils.
+The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in IoUtility.
 
-The download endpoint is found at 'file-v1/download'.
+The download endpoint is found at '/download'.
 
-The list directory endpoint is found at 'file-v1/list-dir'.
+The list directory endpoint is found at '/list-dir'.
 
-To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in IoUtils.py.
+To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in various Utility or Provider files.
 
 # Uploads and downloads
 
@@ -101,9 +90,23 @@ python3 client.py
 
 Should hashing be performed before or after compression/decompression? From the client side, the API first compresses, then hashes the complete file, then uploads. From the server side, the API saves, then hashes the complete file, then decompresses.
 
-# Testing and deployment
+# Testing
 
-Testing is easiest without Docker and using a Sqlite database.
+If you don't have Redis on your local machine, testing is still possible with a Sqlite database.
+
+Run test suite (Python 3.9) using
+[setuptools](https://setuptools.readthedocs.io/en/latest/) or
+[tox](http://tox.readthedocs.io/en/latest/example/platform.html):
+
+```
+python3 setup.py test
+
+or simply run
+
+tox
+```
+
+# Deployment
 
 For production, use a Docker container with a Redis database.
 
@@ -113,7 +116,7 @@ Production with multiple servers will require all servers to coordinate through 
 
 Since one server could host Redis while others don't, the docker instances could be run differently, or the config files set differently, on each server.
 
-Also, multiple servers must connect to a single file system for deposition.
+Also, multiple servers must connect to a single mounted file system for deposition.
 
 # Deployment on local server without docker
 
@@ -306,7 +309,7 @@ exit
 In directory that contains `Dockerfile.stage`:
 ```
 
-docker build --build-arg USER_ID=<user_id> --build-arg GROUP_ID=<group_id> -t fileapp -f Dockerfile.stage .
+docker build -t fileapp -f Dockerfile.stage .
 
 ```
 

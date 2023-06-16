@@ -4,21 +4,30 @@
 # Config file for File Access API server
 ---
 configuration:
+  # server host and port must start with http:// or https:// e.g. http://0.0.0.0:8000
+  SERVER_HOST_AND_PORT: http://0.0.0.0:8000
+  # reserve extra processors that will be used by, for example, a redis server on same machine
+  SURPLUS_PROCESSORS: 1
+  # paths to mounted or local folders
+  # relative paths within the repository will work when running the app from within the repository
+  REPOSITORY_DIR_PATH: rcsb/app/tests-file/data/repository
+  PDBX_REPOSITORY: rcsb/app/tests-file/data/mmcif
+  SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks
+  SESSION_DIR_PATH: rcsb/app/tests-file/data/sessions
+  # database parameters
+  KV_MODE: sqlite # redis or sqlite
+  REDIS_HOST: localhost # localhost, redis, or url
+  KV_SESSION_TABLE_NAME: sessions
+  KV_LOG_TABLE_NAME: log
+  KV_MAX_SECONDS: 14400 # redis only
+  KV_FILE_PATH: ./kv.sqlite # sqlite only
+  # file parameters
+  CHUNK_SIZE: 8388608 # bytes
+  HASH_TYPE: MD5
+  DEFAULT_FILE_PERMISSIONS: 0o777 # example 0o755 ... Docker will not save or read if permissions too strict
+  # jwt token parameters
   JWT_SUBJECT: aTestSubject
   JWT_ALGORITHM: HS256
   JWT_SECRET: aTestSecret
   JWT_DURATION: 300
   JWT_DISABLE: True
-  SESSION_DIR_PATH: rcsb/app/tests-file/data/sessions
-  REPOSITORY_DIR_PATH: rcsb/app/tests-file/data/repository
-  SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks
-  PDBX_REPOSITORY: rcsb/app/tests-file/data/mmcif
-  KV_MODE: sqlite
-  REDIS_HOST: localhost
-  KV_SESSION_TABLE_NAME: sessions
-  KV_LOG_TABLE_NAME: log
-  KV_MAX_SECONDS: 14400
-  KV_FILE_PATH: ./kv.sqlite
-  SERVER_HOST_AND_PORT: http://0.0.0.0:8000
-  CHUNK_SIZE: 8388608
-  HASH_TYPE: MD5
