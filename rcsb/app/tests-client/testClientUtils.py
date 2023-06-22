@@ -160,6 +160,7 @@ class ClientTests(unittest.TestCase):
         milestone = ""
         contentFormat = "pdbx"
         version = 1
+        fileExtension = None
 
         try:
             # return 200
@@ -176,8 +177,9 @@ class ClientTests(unittest.TestCase):
                 contentFormat,
                 version,
                 decompress,
+                fileExtension,
                 allowOverwrite,
-                resumable,
+                resumable
             )
             logger.info(
                 f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}"
@@ -196,8 +198,9 @@ class ClientTests(unittest.TestCase):
                 contentFormat,
                 version,
                 decompress,
+                fileExtension,
                 allowOverwrite,
-                resumable,
+                resumable
             )
             logger.info(
                 f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}"
@@ -217,8 +220,9 @@ class ClientTests(unittest.TestCase):
                 contentFormat,
                 version,
                 decompress,
+                fileExtension,
                 allowOverwrite,
-                resumable,
+                resumable
             )
             logger.info(
                 f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}"
@@ -228,6 +232,7 @@ class ClientTests(unittest.TestCase):
             # return 200 (decompress gzip file)
             partNumber = 3
             decompress = True
+            fileExtension = ".gz"
             allowOverwrite = True
             response = self.__cU.upload(
                 self.__testFileGzipPath,
@@ -239,8 +244,9 @@ class ClientTests(unittest.TestCase):
                 contentFormat,
                 version,
                 decompress,
+                fileExtension,
                 allowOverwrite,
-                resumable,
+                resumable
             )
             logger.info(
                 f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}"

@@ -69,9 +69,10 @@ class ClientUtils(object):
         partNumber,
         contentFormat,
         version,
-        decompress,
-        allowOverwrite,
-        resumable,
+        decompress=False,
+        fileExtension=None,
+        allowOverwrite=False,
+        resumable=False
     ) -> dict:
         # validate input
         if not os.path.exists(sourceFilePath):
@@ -134,6 +135,7 @@ class ClientUtils(object):
             # save file parameters
             "filePath": saveFilePath,
             "decompress": decompress,
+            "fileExtension": os.path.splitext(sourceFilePath)[1],
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
         }
@@ -159,8 +161,7 @@ class ClientUtils(object):
                     data=deepcopy(mD),
                     headers=self.headerD,
                     files={"chunk": of.read(packetSize)},
-                    stream=True,
-                    timeout=None,
+                    timeout=None
                 )
 
                 if response.status_code != 200:
@@ -252,9 +253,10 @@ class ClientUtils(object):
         hashDigest: str,
         # save file parameters
         saveFilePath: str,
-        decompress: bool,
-        allowOverwrite: bool,
-        resumable: bool,
+        decompress: bool = False,
+        fileExtension: str = None,
+        allowOverwrite: bool = False,
+        resumable: bool = False
     ) -> int:
         # validate input
         if not os.path.exists(sourceFilePath):
@@ -286,16 +288,16 @@ class ClientUtils(object):
                 # save file parameters
                 "filePath": saveFilePath,
                 "decompress": decompress,
+                "fileExtension": os.path.splitext(sourceFilePath)[1],
                 "allowOverwrite": allowOverwrite,
-                "resumable": resumable,
+                "resumable": resumable
             }
             response = requests.post(
                 url,
                 data=mD,
                 headers=self.headerD,
                 files={"chunk": of.read(packetSize)},
-                stream=True,
-                timeout=None,
+                timeout=None
             )
             if response.status_code != 200:
                 logger.error(

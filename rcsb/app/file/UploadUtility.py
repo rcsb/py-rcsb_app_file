@@ -27,6 +27,7 @@ from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.file.KvSqlite import KvSqlite
 from rcsb.app.file.KvRedis import KvRedis
+from rcsb.utils.io.FileUtil import FileUtil
 
 logging.basicConfig(
     level=logging.INFO,
@@ -141,6 +142,7 @@ class UploadUtility(object):
         # save file parameters
         filePath: str,
         decompress: bool,
+        fileExtension: str,
         allowOverwrite: bool,
         # other
         resumable: bool,
@@ -224,11 +226,17 @@ class UploadUtility(object):
                 if os.path.exists(tempPath):
                     os.unlink(tempPath)
                 # decompress
-                if decompress:
-                    with gzip.open(filePath, "rb") as r:
-                        with open(tempPath, "wb") as w:
-                            w.write(r.read())
-                    os.replace(tempPath, filePath)
+                if decompress and fileExtension:
+                    if fileExtension.startswith("."):
+                        fileExtension = fileExtension[1:]
+                    if fileExtension.find(".") < 0:
+                        compressedFilePath = "%s.%s" % (filePath, fileExtension)
+                        os.replace(filePath, compressedFilePath)
+                        resultPath = FileUtil().uncompress(compressedFilePath, os.path.dirname(filePath))
+                        os.unlink(compressedFilePath)
+                    else:
+                        os.unlink(filePath)
+                        raise HTTPException(status_code=400, detail="error - double file extension - could not decompress")
                 # clear database
                 if resumable:
                     self.clearSession(key, logKey)

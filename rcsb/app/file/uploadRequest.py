@@ -87,9 +87,10 @@ async def upload(
     # save file parameters
     filePath: str = Form(...),
     decompress: bool = Form(False),
+    fileExtension: str = Form(None),
     allowOverwrite: bool = Form(False),
     # other
-    resumable: bool = Form(False),
+    resumable: bool = Form(False)
 ):
     # return status
     try:
@@ -106,8 +107,9 @@ async def upload(
             # save file parameters
             filePath=filePath,
             decompress=decompress,
+            fileExtension=fileExtension,
             allowOverwrite=allowOverwrite,
-            resumable=resumable,
+            resumable=resumable
         )
     except HTTPException as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)

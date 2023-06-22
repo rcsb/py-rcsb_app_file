@@ -149,6 +149,7 @@ class UploadTest(unittest.TestCase):
             # save file parameters
             "filePath": saveFilePath,
             "decompress": False,
+            "fileExtension": None,
             "allowOverwrite": False,
             "resumable": False
         }
@@ -250,6 +251,7 @@ class UploadTest(unittest.TestCase):
             # save file parameters
             "filePath": saveFilePath,
             "decompress": False,
+            "fileExtension": None,
             "allowOverwrite": True,
             "resumable": False
         }

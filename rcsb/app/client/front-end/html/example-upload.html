@@ -77,6 +77,7 @@
                 var chunkOffset = chunkIndex * chunkSize;
                 var hashType = "MD5";
                 let decompress = document.getElementsByName('decompress')[0].checked;
+                let fileExtension = fileName.substring(fileName.lastIndexOf("."));
                 let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
                 // console.log(`chunk index ${chunkIndex} expected ${expectedChunks} for ${fileName} ${uploadId} ${filePath}`)
                 readChunks(chunkIndex, chunkOffset, resumable);
@@ -114,6 +115,7 @@
                   // save file parameters
                   formdata.append("filePath", filePath);
                   formdata.append("decompress", decompress);
+                  formdata.append("fileExtension", fileExtension);
                   formdata.append("allowOverwrite", allowOverwrite);
                   formdata.append("resumable", resumable);
                   fetch(sequential_chunk_url, {
