@@ -15,6 +15,7 @@ get-file-path-local, get-file-path-remote, dir-exists, list-dir
 copy-file, copy-dir, move-file, compress-dir, compress-dir-path, decompress-dir
 latest version, next version,
 file-size, file-exists
+get-file-object
 
 """
 
@@ -30,6 +31,7 @@ import math
 import json
 import requests
 import typing
+from contextlib import contextmanager
 from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
@@ -72,12 +74,13 @@ class ClientUtils(object):
         decompress=False,
         fileExtension=None,
         allowOverwrite=False,
-        resumable=False
+        resumable=False,
     ) -> dict:
         # validate input
         if not os.path.exists(sourceFilePath):
             logger.error("File does not exist: %r", sourceFilePath)
             return None
+        fileExtension = os.path.splitext(sourceFilePath)[1]
         # compress (externally), then hash, then upload
         # hash
         fullTestHash = IoUtility().getHashDigest(sourceFilePath, hashType=self.hashType)
@@ -135,7 +138,7 @@ class ClientUtils(object):
             # save file parameters
             "filePath": saveFilePath,
             "decompress": decompress,
-            "fileExtension": os.path.splitext(sourceFilePath)[1],
+            "fileExtension": fileExtension,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
         }
@@ -161,7 +164,7 @@ class ClientUtils(object):
                     data=deepcopy(mD),
                     headers=self.headerD,
                     files={"chunk": of.read(packetSize)},
-                    timeout=None
+                    timeout=None,
                 )
 
                 if response.status_code != 200:
@@ -256,12 +259,13 @@ class ClientUtils(object):
         decompress: bool = False,
         fileExtension: str = None,
         allowOverwrite: bool = False,
-        resumable: bool = False
+        resumable: bool = False,
     ) -> int:
         # validate input
         if not os.path.exists(sourceFilePath):
             logger.error("File does not exist: %r", sourceFilePath)
             return None
+        fileExtension = os.path.splitext(sourceFilePath)[1]
         offset = chunkIndex * chunkSize
         with open(sourceFilePath, "rb") as of:
             of.seek(offset)
@@ -288,16 +292,16 @@ class ClientUtils(object):
                 # save file parameters
                 "filePath": saveFilePath,
                 "decompress": decompress,
-                "fileExtension": os.path.splitext(sourceFilePath)[1],
+                "fileExtension": fileExtension,
                 "allowOverwrite": allowOverwrite,
-                "resumable": resumable
+                "resumable": resumable,
             }
             response = requests.post(
                 url,
                 data=mD,
                 headers=self.headerD,
                 files={"chunk": of.read(packetSize)},
-                timeout=None
+                timeout=None,
             )
             if response.status_code != 200:
                 logger.error(
@@ -321,10 +325,12 @@ class ClientUtils(object):
         chunkSize: typing.Optional[int] = None,
         chunkIndex: typing.Optional[int] = None,
         returnFile: bool = False,
-    ) -> dict:
+    ):  # returns dict or open file handle (if returnFile = True) or None
         # validate input
         if not downloadFolder or not os.path.exists(downloadFolder):
             logger.error("Download folder does not exist %r", downloadFolder)
+            if returnFile:
+                return None
             return None
 
         # form paths
@@ -335,6 +341,8 @@ class ClientUtils(object):
         if os.path.exists(downloadFilePath):
             if not allowOverwrite:
                 logger.error("File already exists: %r", downloadFilePath)
+                if returnFile:
+                    return None
                 return {"status_code": 403}
             os.remove(downloadFilePath)
 
@@ -356,7 +364,7 @@ class ClientUtils(object):
         )
         if response and response.status_code == 200:
             if returnFile:
-                return {"status_code": response.status_code, "response": response}
+                return response
             # write to file
             with open(downloadFilePath, "ab") as ofh:
                 for chunk in response.iter_content(chunk_size=self.chunkSize):
@@ -375,7 +383,9 @@ class ClientUtils(object):
                 if not hashDigest == rspHashDigest:
                     logger.error("Hash comparison failed")
                     return None
-
+        elif returnFile:
+            logger.exception("error - response 404")
+            return None
         return {"status_code": response.status_code}
 
     def getHashDigest(
@@ -698,3 +708,73 @@ class ClientUtils(object):
             return {"status_code": response.status_code, "fileSize": result["fileSize"]}
         else:
             return {"status_code": response.status_code, "fileSize": None}
+
+    @contextmanager
+    def getFileObject(
+        self,
+        repoType: str = None,
+        depId: str = None,
+        contentType: str = None,
+        milestone: str = None,
+        partNumber: int = None,
+        contentFormat: str = None,
+        version: str = None,
+        sessionDir: str = None
+    ):
+        filepath = os.path.join(
+            sessionDir,
+            PathProvider().getFileName(
+                depId, contentType, milestone, partNumber, contentFormat, version
+            ),
+        )
+        downloadFolder = sessionDir
+        allowOverwrite = True
+        returnFile = True
+        download_response = self.download(
+            repositoryType=repoType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version,
+            downloadFolder=downloadFolder,
+            allowOverwrite=allowOverwrite,
+            chunkSize=None,
+            chunkIndex=None,
+            returnFile=returnFile,
+        )
+        # returns open file handle or None
+        if download_response:
+            with open(filepath, "ab") as w:
+                for chunk in download_response.iter_content(chunk_size=self.chunkSize):
+                    if chunk:
+                        w.write(chunk)
+            with open(filepath, "ab+") as r:
+                try:
+                    yield r
+                finally:
+                    r.close()
+                    upload_response = self.upload(
+                        filepath,
+                        repoType,
+                        depId,
+                        contentType,
+                        milestone,
+                        partNumber,
+                        contentFormat,
+                        version,
+                        decompress=False,
+                        fileExtension=None,
+                        allowOverwrite=True,
+                        resumable=False,
+                    )
+                    os.unlink(filepath)
+                    if upload_response["status_code"] != 200:
+                        logger.exception(
+                            "upload error in get file object %d",
+                            upload_response["status_code"],
+                        )
+        else:
+            logger.exception("download error in get file object")
+            yield None

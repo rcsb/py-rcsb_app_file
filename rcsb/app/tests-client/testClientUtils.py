@@ -17,6 +17,7 @@ import time
 import resource
 import unittest
 import shutil
+import filecmp
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.utils.io.LogUtil import StructFormatter
@@ -33,6 +34,7 @@ root_handler.setFormatter(StructFormatter(fmt=None, mask=None))
 logger.setLevel(logging.INFO)
 
 # requires server
+
 
 class ClientTests(unittest.TestCase):
     # comment out if running gunicorn or uvicorn
@@ -64,6 +66,7 @@ class ClientTests(unittest.TestCase):
 
         self.__configFilePath = self.__cP.getConfigFilePath()
         self.__chunkSize = self.__cP.get("CHUNK_SIZE")
+        self.__fileSize = self.__chunkSize * 2
         self.__hashType = self.__cP.get("HASH_TYPE")
 
         self.__dataPath = self.__cP.get("REPOSITORY_DIR_PATH")
@@ -85,25 +88,27 @@ class ClientTests(unittest.TestCase):
         self.__repositoryFile4 = os.path.join(
             self.__unitTestFolder2, "D_1000000001", "D_1000000001_model_P1.cif.V1"
         )
+        if not os.path.exists(self.__unitTestFolder2):
+            os.makedirs(self.__unitTestFolder2)
         if not os.path.exists(self.__repositoryFile1):
             os.makedirs(
                 os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True
             )
-            nB = self.__chunkSize
+            nB = self.__fileSize
             with open(self.__repositoryFile1, "wb") as out:
                 out.write(os.urandom(nB))
         if not os.path.exists(self.__repositoryFile2):
             os.makedirs(
                 os.path.dirname(self.__repositoryFile2), mode=0o757, exist_ok=True
             )
-            nB = self.__chunkSize
+            nB = self.__fileSize
             with open(self.__repositoryFile2, "wb") as out:
                 out.write(os.urandom(nB))
         if not os.path.exists(self.__repositoryFile3):
             os.makedirs(
                 os.path.dirname(self.__repositoryFile3), mode=0o757, exist_ok=True
             )
-            nB = self.__chunkSize
+            nB = self.__fileSize
             with open(self.__repositoryFile3, "wb") as out:
                 out.write(os.urandom(nB))
 
@@ -115,7 +120,7 @@ class ClientTests(unittest.TestCase):
             os.makedirs(
                 os.path.dirname(self.__testFileDatPath), mode=0o757, exist_ok=True
             )
-            nB = self.__chunkSize * 2
+            nB = self.__fileSize
             with open(self.__testFileDatPath, "wb") as out:
                 out.write(os.urandom(nB))
         self.__testFileGzipPath = os.path.join(self.__unitTestFolder, "testFile.dat.gz")
@@ -179,7 +184,7 @@ class ClientTests(unittest.TestCase):
                 decompress,
                 fileExtension,
                 allowOverwrite,
-                resumable
+                resumable,
             )
             logger.info(
                 f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}"
@@ -200,7 +205,7 @@ class ClientTests(unittest.TestCase):
                 decompress,
                 fileExtension,
                 allowOverwrite,
-                resumable
+                resumable,
             )
             logger.info(
                 f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}"
@@ -222,7 +227,7 @@ class ClientTests(unittest.TestCase):
                 decompress,
                 fileExtension,
                 allowOverwrite,
-                resumable
+                resumable,
             )
             logger.info(
                 f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}"
@@ -246,7 +251,7 @@ class ClientTests(unittest.TestCase):
                 decompress,
                 fileExtension,
                 allowOverwrite,
-                resumable
+                resumable,
             )
             logger.info(
                 f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}"
@@ -311,7 +316,10 @@ class ClientTests(unittest.TestCase):
             logger.info(
                 f"{PathProvider().getFileName(depId,contentType,milestone,partNumber,contentFormat,version)} 404 = {response['status_code']}"
             )
-            self.assertTrue(response["status_code"] == 404, "error - status code %d" % response["status_code"])
+            self.assertTrue(
+                response["status_code"] == 404,
+                "error - status code %d" % response["status_code"],
+            )
         except Exception as e:
             logger.info(f"exception {str(e)}")
             self.fail()
@@ -331,7 +339,7 @@ class ClientTests(unittest.TestCase):
         contentFormat = "pdbx"
         version = 1
 
-        chunkSize = self.__chunkSize // 2
+        chunkSize = self.__chunkSize
         chunkIndex = 0
 
         response = self.__cU.download(
@@ -345,14 +353,20 @@ class ClientTests(unittest.TestCase):
             downloadFolderPath,
             allowOverwrite,
             chunkSize,
-            chunkIndex
+            chunkIndex,
         )
         logger.info(
             f"{PathProvider().getFileName(depId,contentType,milestone,partNumber,contentFormat,version)} 200 = {response['status_code']}"
         )
-        self.assertTrue(response["status_code"] == 200, "error - status code %d" % response["status_code"])
+        self.assertTrue(
+            response["status_code"] == 200,
+            "error - status code %d" % response["status_code"],
+        )
         fileSize = os.path.getsize(self.__downloadFile)
-        self.assertTrue(fileSize == chunkSize, "error - file size %d chunk size %d" % (fileSize, chunkSize))
+        self.assertTrue(
+            fileSize == chunkSize,
+            "error - file size %d chunk size %d" % (fileSize, chunkSize),
+        )
 
     def testListDir(self):
         logger.info("test list dir")
@@ -700,7 +714,10 @@ class ClientTests(unittest.TestCase):
             }
             response = self.__cU.nextVersion(**mD)
             logger.info("file status response %r", response["status_code"])
-            self.assertTrue(response["status_code"] == 200, "error - status code %s" % response["status_code"])
+            self.assertTrue(
+                response["status_code"] == 200,
+                "error - status code %s" % response["status_code"],
+            )
             self.assertTrue(
                 int(response["version"]) == 2,
                 "error - returned wrong file version %s" % response["version"],
@@ -721,7 +738,10 @@ class ClientTests(unittest.TestCase):
             }
             response = self.__cU.latestVersion(**mD)
             logger.info("file status response %r", response["status_code"])
-            self.assertTrue(response["status_code"] == 200, "error - status code %s" % response["status_code"])
+            self.assertTrue(
+                response["status_code"] == 200,
+                "error - status code %s" % response["status_code"],
+            )
             self.assertTrue(
                 int(response["version"]) == 1,
                 "error - returned wrong file version %s" % response["version"],
@@ -744,7 +764,10 @@ class ClientTests(unittest.TestCase):
                 "version": 1,
             }
             response = self.__cU.fileExists(**mD)
-            self.assertTrue(response["status_code"] == 200, "error - status code %d" % response["status_code"])
+            self.assertTrue(
+                response["status_code"] == 200,
+                "error - status code %d" % response["status_code"],
+            )
             logger.info("file status response %r", response["status_code"])
             # test response 404
             mD = {
@@ -757,7 +780,10 @@ class ClientTests(unittest.TestCase):
                 "version": 1,
             }
             response = self.__cU.fileExists(**mD)
-            self.assertTrue(response["status_code"] == 404, "error - status code %d" % response["status_code"])
+            self.assertTrue(
+                response["status_code"] == 404,
+                "error - status code %d" % response["status_code"],
+            )
             logger.info("file status response %r", response["status_code"])
         except Exception as e:
             logger.exception("Failing with %s", str(e))
@@ -788,8 +814,111 @@ class ClientTests(unittest.TestCase):
         )
         fileSize = int(response["fileSize"])
         self.assertTrue(
-            fileSize == self.__chunkSize, f"error - returned wrong file size {fileSize}"
+            fileSize == self.__fileSize, f"error - returned wrong file size {fileSize}"
         )
+
+    def testFileObject(self):
+        logger.info("test file object")
+        repoType = self.__repositoryType
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = None
+        partNumber = 1
+        contentFormat = "pdbx"
+        version = 1
+        sessionDir = os.path.join(self.__unitTestFolder2)
+        self.assertTrue(
+            os.path.exists(sessionDir),
+            "error - session dir not created %s" % sessionDir,
+        )
+        # path of file after download
+        filepath = os.path.join(
+            sessionDir,
+            PathProvider().getFileName(
+                depId, contentType, milestone, partNumber, contentFormat, version
+            ),
+        )
+        logger.info("downloaded file path %s", filepath)
+        # test response success
+        with self.__cU.getFileObject(
+            repoType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+            sessionDir,
+        ) as file:
+            self.assertTrue(file is not None, f"error - null response")
+            self.assertTrue(
+                os.path.exists(filepath), f"error - file path does not exist {filepath}"
+            )
+            self.assertTrue(
+                os.path.getsize(filepath) == self.__fileSize,
+                f"error - wrong file size {os.path.getsize(filepath)}",
+            )
+            self.assertTrue(
+                filecmp.cmp(filepath, self.__repositoryFile1),
+                f"error - files differ %s %s" % (filepath, self.__repositoryFile1),
+            )
+        self.assertFalse(
+            os.path.exists(filepath), f"error - file path still exists {filepath}"
+        )
+        # test change file
+        partNumber = 1
+        version = 1
+        with self.__cU.getFileObject(
+            repoType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+            sessionDir,
+        ) as file:
+            self.assertTrue(file is not None, f"error - null response")
+            self.assertTrue(
+                os.path.exists(filepath), f"error - file path does not exist {filepath}"
+            )
+            self.assertTrue(
+                os.path.getsize(filepath) == self.__fileSize,
+                f"error - wrong file size {os.path.getsize(filepath)}",
+            )
+            self.assertTrue(
+                filecmp.cmp(filepath, self.__repositoryFile1),
+                f"error - files differ %s %s" % (filepath, self.__repositoryFile1),
+            )
+            file.write(os.urandom(self.__chunkSize))
+            self.assertTrue(
+                os.path.getsize(filepath) == self.__fileSize + self.__chunkSize,
+                f"error - wrong file size {os.path.getsize(filepath)}",
+            )
+        self.assertFalse(
+            os.path.exists(filepath), f"error - file path still exists {filepath}"
+        )
+        self.assertTrue(
+            os.path.getsize(self.__repositoryFile1)
+            == self.__fileSize + self.__chunkSize,
+            f"error - wrong file size {os.path.getsize(self.__repositoryFile1)}",
+        )
+        # test response failure
+        version = 4
+        with self.__cU.getFileObject(
+            repoType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+            sessionDir,
+        ) as file:
+            self.assertTrue(file is None, f"error - expected null response")
+            self.assertFalse(
+                os.path.exists(filepath), f"error - file path still exists {filepath}"
+            )
 
 
 def client_tests():
@@ -812,6 +941,7 @@ def client_tests():
     suite.addTest(ClientTests("testNextVersion"))
     suite.addTest(ClientTests("testFileSize"))
     suite.addTest(ClientTests("testFileExists"))
+    suite.addTest(ClientTests("testFileObject"))
     return suite
 
 

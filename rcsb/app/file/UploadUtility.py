@@ -13,7 +13,6 @@ __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
 import datetime
-import gzip
 import logging
 import os
 import typing
@@ -232,11 +231,16 @@ class UploadUtility(object):
                     if fileExtension.find(".") < 0:
                         compressedFilePath = "%s.%s" % (filePath, fileExtension)
                         os.replace(filePath, compressedFilePath)
-                        resultPath = FileUtil().uncompress(compressedFilePath, os.path.dirname(filePath))
+                        FileUtil().uncompress(
+                            compressedFilePath, os.path.dirname(filePath)
+                        )
                         os.unlink(compressedFilePath)
                     else:
                         os.unlink(filePath)
-                        raise HTTPException(status_code=400, detail="error - double file extension - could not decompress")
+                        raise HTTPException(
+                            status_code=400,
+                            detail="error - double file extension - could not decompress",
+                        )
                 # clear database
                 if resumable:
                     self.clearSession(key, logKey)
