@@ -323,15 +323,12 @@ class ClientUtils(object):
         downloadFolder: typing.Optional[str] = None,
         allowOverwrite: bool = False,
         chunkSize: typing.Optional[int] = None,
-        chunkIndex: typing.Optional[int] = None,
-        returnFile: bool = False,
-    ):  # returns dict or open file handle (if returnFile = True) or None
+        chunkIndex: typing.Optional[int] = None
+    ) -> dict:
         # validate input
         if not downloadFolder or not os.path.exists(downloadFolder):
             logger.error("Download folder does not exist %r", downloadFolder)
-            if returnFile:
-                return None
-            return None
+            return {"status_code": 404}
 
         # form paths
         fileName = PathProvider().getFileName(
@@ -339,12 +336,17 @@ class ClientUtils(object):
         )
         downloadFilePath = os.path.join(downloadFolder, fileName)
         if os.path.exists(downloadFilePath):
+            logger.exception(
+                "error - download file path already exists %s", downloadFilePath
+            )
             if not allowOverwrite:
-                logger.error("File already exists: %r", downloadFilePath)
-                if returnFile:
-                    return None
+                logger.error("error - overwrite not allowed on %r", downloadFilePath)
                 return {"status_code": 403}
-            os.remove(downloadFilePath)
+            else:
+                logger.exception("removing %s", downloadFilePath)
+            os.unlink(downloadFilePath)
+            if os.path.exists(downloadFilePath):
+                logger.exception("error - could not remove %s", downloadFilePath)
 
         # form query string
         hashType = self.hashType
@@ -363,8 +365,6 @@ class ClientUtils(object):
             downloadUrl, headers=self.headerD, timeout=None, stream=True
         )
         if response and response.status_code == 200:
-            if returnFile:
-                return response
             # write to file
             with open(downloadFilePath, "ab") as ofh:
                 for chunk in response.iter_content(chunk_size=self.chunkSize):
@@ -382,11 +382,13 @@ class ClientUtils(object):
                 )
                 if not hashDigest == rspHashDigest:
                     logger.error("Hash comparison failed")
-                    return None
-        elif returnFile:
-            logger.exception("error - response 404")
-            return None
-        return {"status_code": response.status_code}
+                    os.unlink(downloadFilePath)
+                    return {"status_code": 400}
+        return {
+            "status_code": response.status_code,
+            "file_path": downloadFilePath,
+            "file_name": fileName,
+        }
 
     def getHashDigest(
         self,
@@ -721,15 +723,14 @@ class ClientUtils(object):
         version: str = None,
         sessionDir: str = None
     ):
-        filepath = os.path.join(
+        download_file_path = os.path.join(
             sessionDir,
             PathProvider().getFileName(
                 depId, contentType, milestone, partNumber, contentFormat, version
-            ),
+            )
         )
         downloadFolder = sessionDir
-        allowOverwrite = True
-        returnFile = True
+        allowOverwrite = True  # overwrite pre-existing client file
         download_response = self.download(
             repositoryType=repoType,
             depId=depId,
@@ -741,22 +742,18 @@ class ClientUtils(object):
             downloadFolder=downloadFolder,
             allowOverwrite=allowOverwrite,
             chunkSize=None,
-            chunkIndex=None,
-            returnFile=returnFile,
+            chunkIndex=None
         )
-        # returns open file handle or None
-        if download_response:
-            with open(filepath, "ab") as w:
-                for chunk in download_response.iter_content(chunk_size=self.chunkSize):
-                    if chunk:
-                        w.write(chunk)
-            with open(filepath, "ab+") as r:
+        if download_response and download_response["status_code"] == 200:
+            # return handle for reading and writing with pointer set to end of file by default
+            # recommended - client should use file.seek prior to reading (file.seek(0)) or writing (file.seek(file.size))
+            with open(download_file_path, "ab+") as file:
                 try:
-                    yield r
+                    yield file
                 finally:
-                    r.close()
+                    file.close()
                     upload_response = self.upload(
-                        filepath,
+                        download_file_path,
                         repoType,
                         depId,
                         contentType,
@@ -767,9 +764,9 @@ class ClientUtils(object):
                         decompress=False,
                         fileExtension=None,
                         allowOverwrite=True,
-                        resumable=False,
+                        resumable=False
                     )
-                    os.unlink(filepath)
+                    os.unlink(download_file_path)
                     if upload_response["status_code"] != 200:
                         logger.exception(
                             "upload error in get file object %d",

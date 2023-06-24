@@ -108,18 +108,17 @@ def download(d):
         expectedChunks = math.ceil(fileSize / chunkSize)
     # download
     response = ClientUtils().download(
-        d["repositoryType"],
-        d["depId"],
-        d["contentType"],
-        d["milestone"],
-        d["partNumber"],
-        d["contentFormat"],
-        d["version"],
-        d["downloadFolder"],
-        d["allowOverwrite"],
-        None,
-        None,
-        True,
+        repositoryType=d["repositoryType"],
+        depId=d["depId"],
+        contentType=d["contentType"],
+        milestone=d["milestone"],
+        partNumber=d["partNumber"],
+        contentFormat=d["contentFormat"],
+        version=d["version"],
+        downloadFolder=d["downloadFolder"],
+        allowOverwrite=d["allowOverwrite"],
+        chunkSize=None,
+        chunkIndex=None
     )
     if response and response["status_code"] == 200:
         status = response["status_code"]

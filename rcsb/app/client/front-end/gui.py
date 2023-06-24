@@ -449,18 +449,17 @@ class Gui(tk.Frame):
             expectedChunks = math.ceil(fileSize / chunkSize)
 
         response = self.__cU.download(
-            repositoryType,
-            depId,
-            contentType,
-            milestone,
-            partNumber,
-            contentFormat,
-            version,
-            folderPath,
-            allowOverwrite,
-            None,
-            None,
-            True,
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version,
+            downloadFolder=folderPath,
+            allowOverwrite=allowOverwrite,
+            chunkSize=None,
+            chunkIndex=None
         )
         if response and response["status_code"] == 200:
             response = response["response"]

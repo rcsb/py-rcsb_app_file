@@ -818,7 +818,6 @@ class ClientTests(unittest.TestCase):
         )
 
     def testFileObject(self):
-        logger.info("test file object")
         repoType = self.__repositoryType
         depId = "D_1000000001"
         contentType = "model"
@@ -826,99 +825,260 @@ class ClientTests(unittest.TestCase):
         partNumber = 1
         contentFormat = "pdbx"
         version = 1
-        sessionDir = os.path.join(self.__unitTestFolder2)
-        self.assertTrue(
-            os.path.exists(sessionDir),
-            "error - session dir not created %s" % sessionDir,
-        )
+        sessionDir = self.__unitTestFolder2
         # path of file after download
-        filepath = os.path.join(
+        download_file_path = os.path.join(
             sessionDir,
             PathProvider().getFileName(
                 depId, contentType, milestone, partNumber, contentFormat, version
             ),
         )
-        logger.info("downloaded file path %s", filepath)
-        # test response success
-        with self.__cU.getFileObject(
-            repoType,
-            depId,
-            contentType,
-            milestone,
-            partNumber,
-            contentFormat,
-            version,
-            sessionDir,
-        ) as file:
-            self.assertTrue(file is not None, f"error - null response")
+        logger.info("downloaded file path %s", download_file_path)
+
+        def reset():
+            logger.info("test file object")
+            # reset self.__repositoryFile1 to original size
+            if not os.path.exists(os.path.dirname(self.__repositoryFile1)):
+                os.makedirs(
+                    os.path.dirname(self.__repositoryFile1), mode=0o757, exist_ok=True
+                )
+            if os.path.exists(self.__repositoryFile1):
+                os.unlink(self.__repositoryFile1)
+            nB = self.__fileSize
+            with open(self.__repositoryFile1, "wb") as out:
+                out.write(os.urandom(nB))
             self.assertTrue(
-                os.path.exists(filepath), f"error - file path does not exist {filepath}"
+                os.path.exists(sessionDir),
+                "error - session dir not created %s" % sessionDir,
             )
             self.assertTrue(
-                os.path.getsize(filepath) == self.__fileSize,
-                f"error - wrong file size {os.path.getsize(filepath)}",
+                os.path.getsize(self.__repositoryFile1) == self.__fileSize,
+                f"error - file size {os.path.getsize(self.__repositoryFile1)}",
             )
-            self.assertTrue(
-                filecmp.cmp(filepath, self.__repositoryFile1),
-                f"error - files differ %s %s" % (filepath, self.__repositoryFile1),
-            )
-        self.assertFalse(
-            os.path.exists(filepath), f"error - file path still exists {filepath}"
-        )
-        # test change file
-        partNumber = 1
-        version = 1
-        with self.__cU.getFileObject(
-            repoType,
-            depId,
-            contentType,
-            milestone,
-            partNumber,
-            contentFormat,
-            version,
-            sessionDir,
-        ) as file:
-            self.assertTrue(file is not None, f"error - null response")
-            self.assertTrue(
-                os.path.exists(filepath), f"error - file path does not exist {filepath}"
-            )
-            self.assertTrue(
-                os.path.getsize(filepath) == self.__fileSize,
-                f"error - wrong file size {os.path.getsize(filepath)}",
-            )
-            self.assertTrue(
-                filecmp.cmp(filepath, self.__repositoryFile1),
-                f"error - files differ %s %s" % (filepath, self.__repositoryFile1),
-            )
-            file.write(os.urandom(self.__chunkSize))
-            self.assertTrue(
-                os.path.getsize(filepath) == self.__fileSize + self.__chunkSize,
-                f"error - wrong file size {os.path.getsize(filepath)}",
-            )
-        self.assertFalse(
-            os.path.exists(filepath), f"error - file path still exists {filepath}"
-        )
-        self.assertTrue(
-            os.path.getsize(self.__repositoryFile1)
-            == self.__fileSize + self.__chunkSize,
-            f"error - wrong file size {os.path.getsize(self.__repositoryFile1)}",
-        )
-        # test response failure
-        version = 4
-        with self.__cU.getFileObject(
-            repoType,
-            depId,
-            contentType,
-            milestone,
-            partNumber,
-            contentFormat,
-            version,
-            sessionDir,
-        ) as file:
-            self.assertTrue(file is None, f"error - expected null response")
+
+        def testFileObject1():
+            # test response success
+            with self.__cU.getFileObject(
+                repoType,
+                depId,
+                contentType,
+                milestone,
+                partNumber,
+                contentFormat,
+                version,
+                sessionDir
+            ) as file:
+                self.assertTrue(file is not None, f"error - null response")
+                self.assertTrue(
+                    os.path.exists(download_file_path),
+                    f"error - file path does not exist {download_file_path}",
+                )
+                self.assertTrue(
+                    os.path.getsize(download_file_path)
+                    == os.path.getsize(self.__repositoryFile1),
+                    f"error - wrong file size {os.path.getsize(download_file_path)} != {self.__fileSize}",
+                )
+                self.assertTrue(
+                    os.path.getsize(download_file_path) == self.__fileSize,
+                    f"error - wrong file size {os.path.getsize(download_file_path)} != {self.__fileSize}",
+                )
+                self.assertTrue(
+                    filecmp.cmp(download_file_path, self.__repositoryFile1),
+                    f"error - files differ %s %s"
+                    % (download_file_path, self.__repositoryFile1),
+                )
             self.assertFalse(
-                os.path.exists(filepath), f"error - file path still exists {filepath}"
+                os.path.exists(download_file_path),
+                f"error - file path still exists {download_file_path}",
             )
+
+        def testFileObject2():
+            # test read file
+            backup_file = os.path.join(sessionDir, "backup")
+            with self.__cU.getFileObject(
+                repoType,
+                depId,
+                contentType,
+                milestone,
+                partNumber,
+                contentFormat,
+                version,
+                sessionDir
+            ) as file:
+                self.assertTrue(file is not None, f"error - null response")
+                self.assertTrue(
+                    os.path.exists(download_file_path),
+                    f"error - file path does not exist {download_file_path}",
+                )
+                self.assertTrue(
+                    os.path.getsize(download_file_path) == self.__fileSize,
+                    f"error - wrong file size {os.path.getsize(download_file_path)}",
+                )
+                self.assertTrue(
+                    filecmp.cmp(download_file_path, self.__repositoryFile1),
+                    f"error - files differ %s %s"
+                    % (download_file_path, self.__repositoryFile1),
+                )
+                file.seek(0)
+                with open(backup_file, "wb") as w:
+                    w.write(file.read())
+                self.assertTrue(
+                    filecmp.cmp(backup_file, download_file_path),
+                    f"error - files differ {backup_file} {download_file_path}",
+                )
+                self.assertTrue(
+                    filecmp.cmp(backup_file, self.__repositoryFile1),
+                    f"error - files differ {backup_file} {download_file_path}",
+                )
+                self.assertFalse(
+                    filecmp.cmp(backup_file, self.__repositoryFile2),
+                    f"error - filecmp not working",
+                )
+            self.assertFalse(
+                os.path.exists(download_file_path),
+                f"error - file path still exists {download_file_path}",
+            )
+
+        def testFileObject3():
+            # test write to file
+            # create test file with size 1.5x original file
+            test_file = os.path.join(self.__unitTestFolder2, "test_file")
+            with open(self.__repositoryFile1, "rb") as r:
+                with open(test_file, "wb") as w:
+                    w.write(r.read())
+            test_chunk = os.path.join(self.__unitTestFolder2, "test_chunk")
+            with open(test_chunk, "wb") as w:
+                w.write(os.urandom(self.__chunkSize))
+            with open(test_chunk, "rb") as r:
+                with open(test_file, "ab") as w:
+                    w.write(r.read())
+            with self.__cU.getFileObject(
+                repoType,
+                depId,
+                contentType,
+                milestone,
+                partNumber,
+                contentFormat,
+                version,
+                sessionDir
+            ) as file:
+                self.assertTrue(file is not None, f"error - null response")
+                self.assertTrue(
+                    os.path.exists(download_file_path),
+                    f"error - file path does not exist {download_file_path}",
+                )
+                self.assertTrue(
+                    os.path.getsize(download_file_path) == self.__fileSize,
+                    f"error - wrong file size {os.path.getsize(download_file_path)}",
+                )
+                self.assertTrue(
+                    filecmp.cmp(download_file_path, self.__repositoryFile1),
+                    f"error - files differ %s %s"
+                    % (download_file_path, self.__repositoryFile1),
+                )
+                # seek to end of file prior to writing
+                file.seek(os.path.getsize(download_file_path))
+                # append chunk to end of file
+                with open(test_chunk, "rb") as r:
+                    file.write(r.read())
+                self.assertTrue(
+                    os.path.getsize(download_file_path)
+                    == self.__fileSize + self.__chunkSize,
+                    f"error - wrong file size {os.path.getsize(download_file_path)}",
+                )
+                # verify that chunk was written to end of file rather than start of file
+                self.assertTrue(
+                    filecmp.cmp(test_file, download_file_path),
+                    f"error - files differ {test_file} {download_file_path}",
+                )
+            self.assertFalse(
+                os.path.exists(download_file_path),
+                f"error - file path still exists {download_file_path}",
+            )
+            # assert remote file overwritten
+            self.assertTrue(
+                os.path.getsize(self.__repositoryFile1)
+                == self.__fileSize + self.__chunkSize,
+                f"error - wrong file size {os.path.getsize(self.__repositoryFile1)}",
+            )
+
+        def testFileObject4():
+            # test what happens when download file already exists (should overwrite, not append, then return handle to file with expected size)
+            file_to_overwrite = os.path.join(self.__unitTestFolder2, "overwritable")
+            with open(self.__repositoryFile1, "rb") as r:
+                with open(file_to_overwrite, "wb") as w:
+                    w.write(r.read())
+            os.replace(file_to_overwrite, download_file_path)
+            self.assertFalse(
+                os.path.exists(file_to_overwrite),
+                f"error - file path still exists {file_to_overwrite}",
+            )
+            self.assertTrue(
+                os.path.exists(download_file_path),
+                f"error - file path does not exist {download_file_path}",
+            )
+            self.assertTrue(
+                os.path.getsize(download_file_path) == self.__fileSize,
+                f"error - wrong file size {os.path.getsize(download_file_path)}",
+            )
+            with self.__cU.getFileObject(
+                repoType,
+                depId,
+                contentType,
+                milestone,
+                partNumber,
+                contentFormat,
+                version,
+                sessionDir
+            ) as file:
+                self.assertTrue(file is not None, f"error - null response")
+                self.assertTrue(
+                    os.path.exists(download_file_path),
+                    f"error - file path does not exist {download_file_path}",
+                )
+                self.assertTrue(
+                    os.path.getsize(download_file_path) == self.__fileSize,
+                    f"error - wrong file size {os.path.getsize(download_file_path)}",
+                )
+                self.assertTrue(
+                    filecmp.cmp(download_file_path, self.__repositoryFile1),
+                    f"error - files differ %s %s"
+                    % (download_file_path, self.__repositoryFile1),
+                )
+            self.assertFalse(
+                os.path.exists(download_file_path),
+                f"error - file path still exists {download_file_path}",
+            )
+
+        def testFileObject5():
+            # test response failure (file not found)
+            version = 4
+            with self.__cU.getFileObject(
+                repoType,
+                depId,
+                contentType,
+                milestone,
+                partNumber,
+                contentFormat,
+                version,
+                sessionDir
+            ) as file:
+                self.assertTrue(file is None, f"error - expected null response")
+                self.assertFalse(
+                    os.path.exists(download_file_path),
+                    f"error - file path exists {download_file_path}",
+                )
+
+        reset()
+        testFileObject1()
+        reset()
+        testFileObject2()
+        reset()
+        testFileObject3()
+        reset()
+        testFileObject4()
+        reset()
+        testFileObject5()
 
 
 def client_tests():
