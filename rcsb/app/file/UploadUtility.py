@@ -15,6 +15,7 @@ __license__ = "Apache 2.0"
 import datetime
 import logging
 import os
+import time
 import typing
 import uuid
 import aiofiles
@@ -120,7 +121,7 @@ class UploadUtility(object):
                 status = json.loads(status)
                 if "chunkSize" in status:
                     chunkSize = int(status["chunkSize"])
-                    tempPath = self.getTempFilePath(uploadId, dirPath)
+                    tempPath = self.getTempFilePath(dirPath, uploadId)
                     if os.path.exists(tempPath):
                         fileSize = os.path.getsize(tempPath)
                         uploadCount = round(fileSize / chunkSize)
@@ -148,6 +149,8 @@ class UploadUtility(object):
     ):
         repositoryPath = self.cP.get("REPOSITORY_DIR_PATH")
         filePath = os.path.join(repositoryPath, filePath)
+        key = None
+        logKey = None
         if resumable:
             repositoryType = os.path.basename(
                 os.path.dirname(os.path.dirname(filePath))
@@ -175,7 +178,9 @@ class UploadUtility(object):
         logger.debug("chunk %s of %s for %s", chunkIndex, expectedChunks, uploadId)
 
         dirPath, _ = os.path.split(filePath)
-        tempPath = self.getTempFilePath(uploadId, dirPath)
+        tempPath = self.getTempFilePath(dirPath, uploadId)
+        if chunkIndex == 0:
+            self.makePlaceholderFile(tempPath)
         contents = chunk.read()
         # empty chunk beyond loop index from client side, don't erase temp file so keep out of try block
         if contents and len(contents) <= 0:
@@ -196,10 +201,9 @@ class UploadUtility(object):
                         status_code=400, detail=f"{hashType} hash check failed"
                     )
                 # lock then save
-                lockPath = os.path.join(
-                    os.path.dirname(filePath),
-                    "." + os.path.basename(filePath) + ".lock",
-                )
+                lockPath = PathProvider().getLockPath(
+                    tempPath
+                )  # either filePath or tempPath
                 lock = FileLock(lockPath)
                 try:
                     with lock.acquire(timeout=60 * 60 * 4):
@@ -221,9 +225,6 @@ class UploadUtility(object):
                     lock.release()
                     if os.path.exists(lockPath):
                         os.unlink(lockPath)
-                # remove temp file
-                if os.path.exists(tempPath):
-                    os.unlink(tempPath)
                 # decompress
                 if decompress and fileExtension:
                     if fileExtension.startswith("."):
@@ -241,20 +242,13 @@ class UploadUtility(object):
                             status_code=400,
                             detail="error - double file extension - could not decompress",
                         )
-                # clear database
-                if resumable:
-                    self.clearSession(key, logKey)
+                # clear database and temp files
+                self.clearSession(tempPath, resumable, key, logKey)
         except HTTPException as exc:
-            if os.path.exists(tempPath):
-                os.unlink(tempPath)
-            if resumable:
-                self.clearSession(key, logKey)
+            self.clearSession(tempPath, resumable, key, logKey)
             raise HTTPException(status_code=exc.status_code, detail=exc.detail)
         except Exception as exc:
-            if os.path.exists(tempPath):
-                os.unlink(tempPath)
-            if resumable:
-                self.clearSession(key, logKey)
+            self.clearSession(tempPath, resumable, key, logKey)
             raise HTTPException(
                 status_code=400, detail=f"error in sequential upload {str(exc)}"
             )
@@ -266,8 +260,36 @@ class UploadUtility(object):
 
     # file path functions
 
-    def getTempFilePath(self, uploadId, dirPath):
-        return os.path.join(dirPath, "._" + uploadId)
+    def getTempFilePath(self, dirPath, uploadId):
+        tempPath = os.path.join(dirPath, "._" + uploadId)
+        return tempPath
+
+    def getPlaceholderFile(self, tempPath):
+        repositoryType = os.path.basename(os.path.dirname(os.path.dirname(tempPath)))
+        depId = os.path.basename(os.path.dirname(tempPath))
+        uploadId = os.path.basename(tempPath)
+        if uploadId.startswith("."):
+            uploadId = uploadId[1:]
+        if uploadId.startswith("_"):
+            uploadId = uploadId[1:]
+        placeholder = os.path.join(
+            PathProvider().getSessionDirPath(),
+            "%s_%s_%s" % (repositoryType, depId, uploadId),
+        )
+        return placeholder
+
+    def makePlaceholderFile(self, tempPath):
+        placeholder = self.getPlaceholderFile(tempPath)
+        if not os.path.exists(os.path.dirname(placeholder)):
+            os.makedirs(os.path.dirname(placeholder))
+        if not os.path.exists(placeholder):
+            with open(placeholder, "wb"):
+                os.utime(placeholder, (time.time(), time.time()))
+
+    def removePlaceholderFile(self, tempPath):
+        placeholder = self.getPlaceholderFile(tempPath)
+        if os.path.exists(placeholder):
+            os.unlink(placeholder)
 
     def getPrimaryLogKey(
         self,
@@ -320,7 +342,7 @@ class UploadUtility(object):
         pP=None,
         kV=None,
     ):
-        filename = self.getPrimaryLogKey(
+        logKey = self.getPrimaryLogKey(
             repositoryType=repositoryType,
             depId=depId,
             contentType=contentType,
@@ -336,7 +358,7 @@ class UploadUtility(object):
             kV = KvSqlite(self.cP)
         elif self.cP.get("KV_MODE") == "redis":
             kV = KvRedis(self.cP)
-        uploadId = kV.getLog(filename)
+        uploadId = kV.getLog(logKey)
         if not uploadId:
             # not a resumed upload
             return None
@@ -348,7 +370,7 @@ class UploadUtility(object):
         if duration > max_duration:
             await self.removeExpiredEntry(
                 uploadId=uploadId,
-                fileName=filename,
+                logKey=logKey,
                 depId=depId,
                 repositoryType=repositoryType,
                 kV=kV,
@@ -363,34 +385,18 @@ class UploadUtility(object):
     async def removeExpiredEntry(
         self,
         uploadId: str = None,
-        fileName: str = None,
+        logKey: str = None,
         depId: str = None,
         repositoryType: str = None,
         kV=None,
         pP=None,
     ):
-        if kV:
-            pass
-        elif self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
-        # remove expired entry and temp files
-        kV.clearSessionKey(uploadId)
-        # still must remove log table entry (key = file parameters)
-        if self.cP.get("KV_MODE") == "sqlite":
-            kV.clearLogVal(uploadId)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV.clearLog(fileName)
         if not pP:
             pP = PathProvider(self.cP)
         dirPath = pP.getDirPath(repositoryType, depId)
-        try:
-            tempFile = self.getTempFilePath(uploadId, dirPath)
-            os.unlink(tempFile)
-        except Exception:
-            # tempFile was not found
-            pass
+        tempPath = self.getTempFilePath(dirPath, uploadId)
+        resumable = True
+        self.clearSession(tempPath, resumable, uploadId, logKey, kV)
 
     # returns entire dictionary of session table entry
     async def getSession(self, uploadId: str, kV=None):
@@ -418,7 +424,21 @@ class UploadUtility(object):
         return response
 
     # clear one entry from session table and corresponding entry from log table
-    def clearSession(self, uid: str, logKey: str, kV=None):
+    def clearSession(
+        self,
+        tempPath: str,
+        resumable: bool = False,
+        uid: typing.Optional[str] = None,
+        logKey: typing.Optional[str] = None,
+        kV=None,
+    ):
+        if os.path.exists(tempPath):
+            os.unlink(tempPath)
+        self.removePlaceholderFile(tempPath)
+        if not resumable:
+            return True
+        if not uid:
+            return False
         response = True
         if kV:
             pass
@@ -427,13 +447,18 @@ class UploadUtility(object):
         elif self.cP.get("KV_MODE") == "redis":
             kV = KvRedis(self.cP)
         try:
+            # remove expired entry and temp files
             res = kV.clearSessionKey(uid)
+            # still must remove log table entry (key = file parameters)
             if not res:
                 response = False
             if self.cP.get("KV_MODE") == "sqlite":
                 kV.clearLogVal(uid)
             elif self.cP.get("KV_MODE") == "redis":
-                kV.clearLog(logKey)
+                if not logKey:
+                    response = False
+                else:
+                    kV.clearLog(logKey)
         except Exception:
             return False
         return response

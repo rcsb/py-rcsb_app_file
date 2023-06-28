@@ -337,7 +337,24 @@ class PathProvider(object):
 
     # other functions related to paths
 
-    def getFileLockPath(
+    def getLockPath(self, filePath):
+        # make lock path from either temp file path or target file path
+        repositoryType = os.path.basename(os.path.dirname(os.path.dirname(filePath)))
+        depId = os.path.basename(os.path.dirname(filePath))
+        uploadId = os.path.basename(filePath)
+        if uploadId.startswith("."):
+            uploadId = uploadId[1:]
+        if uploadId.startswith("_"):
+            uploadId = uploadId[1:]
+        if not os.path.exists(self.__sharedLockDirPath):
+            os.makedirs(self.__sharedLockDirPath)
+        lockPath = os.path.join(
+            self.__sharedLockDirPath,
+            repositoryType + "_" + depId + "_" + uploadId + ".lock",
+        )
+        return lockPath
+
+    def getLockPathFromParameters(
         self,
         depId: str,
         contentType: str,
@@ -345,16 +362,21 @@ class PathProvider(object):
         partNumber: int,
         contentFormat: str,
     ) -> str:
-        lockPath = self.getSharedLockDirPath()
+        # legacy function
+        if not os.path.exists(self.__sharedLockDirPath):
+            os.makedirs(self.__sharedLockDirPath)
+        lockPath = self.__sharedLockDirPath
         fnBase = self.getBaseFileName(
             depId, contentType, milestone, partNumber, contentFormat
         )
         return os.path.join(lockPath, fnBase + ".lock")
 
-    # functions that are not yet used
+    def getInPlaceLockPath(self, filePath):
+        # make lock path from target file path (not temp file path)
+        lockPath = os.path.join(
+            os.path.dirname(filePath), "." + os.path.basename(filePath) + ".lock"
+        )
+        return lockPath
 
     def getSessionDirPath(self) -> str:
         return self.__sessionDirPath
-
-    def getSharedLockDirPath(self) -> str:
-        return self.__sharedLockDirPath

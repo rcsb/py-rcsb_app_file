@@ -118,7 +118,12 @@ async def upload(
 # clear kv entries from one user
 @router.post("/clearSession")
 async def clearSession(uploadIds: list = Form(...)):
-    return await UploadUtility().clearSession(uploadIds, None)
+    response = True
+    for uploadId in uploadIds:
+        result = await UploadUtility().clearSession(uploadId)
+        if not result:
+            response = False
+    return {"result": response}
 
 
 # purge kv before testing

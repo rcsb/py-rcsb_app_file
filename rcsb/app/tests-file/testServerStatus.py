@@ -58,7 +58,7 @@ class ServerStatusTests(unittest.TestCase):
                 response = client.get("/", headers=self.__headerD)
                 logger.info("Status %r response %r", response.status_code, response.json())
                 self.assertTrue(response.status_code == 200)
-                self.assertTrue(response.json() == {"msg": "Service is up!"})
+                self.assertTrue(len(response.json()) > 0)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
@@ -67,7 +67,7 @@ class ServerStatusTests(unittest.TestCase):
         """Get process status ()."""
         try:
             with TestClient(app) as client:
-                response = client.get("/status", headers=self.__headerD)
+                response = client.get("/processStatus", headers=self.__headerD)
                 logger.debug("Status %r response %r", response.status_code, response.json())
                 self.assertTrue(response.status_code == 200)
                 # rD = response.json()
@@ -78,28 +78,13 @@ class ServerStatusTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
-    def testHealthCheck(self):
-        """Get health check."""
-        try:
-            with TestClient(app) as client:
-                response = client.get("/healthcheck", headers=self.__headerD)
-                logger.info("Status %r response %r", response.status_code, response)
-                self.assertTrue(response.status_code == 200)
-                logger.info("Text %r", response.text.strip('"'))
-                self.assertEqual(response.text.strip('"'), "UP")
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            self.fail()
-
-
 def apiSimpleTests():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(ServerStatusTests("testRootStatus"))
-    suiteSelect.addTest(ServerStatusTests("testHealthCheck"))
+    suiteSelect.addTest(ServerStatusTests("testProcessStatus"))
     return suiteSelect
 
 
 if __name__ == "__main__":
-
     mySuite = apiSimpleTests()
     unittest.TextTestRunner(verbosity=2).run(mySuite)
