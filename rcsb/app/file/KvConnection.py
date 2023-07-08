@@ -20,7 +20,9 @@ class KvConnection(object):
                     f"CREATE TABLE IF NOT EXISTS {self.logTable} (key,val)"
                 )
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"exception in KvConnection, {type(exc)} {exc}")
+            raise HTTPException(
+                status_code=400, detail=f"exception in KvConnection, {type(exc)} {exc}"
+            )
 
     def getConnection(self):
         connection = sqlite3.connect(self.filePath)
@@ -59,7 +61,12 @@ class KvConnection(object):
                     connection.commit()
         except Exception as exc:
             logging.warning(
-                "possible error in Kv set for table %s, %s = %s, %s %s", table, key, val, type(exc), exc
+                "possible error in Kv set for table %s, %s = %s, %s %s",
+                table,
+                key,
+                val,
+                type(exc),
+                exc,
             )
 
     def clear(self, key, table):
@@ -68,7 +75,9 @@ class KvConnection(object):
                 connection.cursor().execute(f"DELETE FROM {table} WHERE key = '{key}'")
                 connection.commit()
         except Exception as exc:
-            logging.warning("possible error in Kv clear table {table}, %s %s", type(exc), exc)
+            logging.warning(
+                "possible error in Kv clear table {table}, %s %s", type(exc), exc
+            )
 
     def deleteRowWithKey(self, key, table):
         try:

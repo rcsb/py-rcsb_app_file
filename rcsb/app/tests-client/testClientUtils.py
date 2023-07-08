@@ -189,7 +189,10 @@ class ClientTests(unittest.TestCase):
             logger.info(
                 f"{PathProvider().getVersionedPath(repositoryType, depId, contentType, milestone, partNumber, contentFormat, version)} decompress {decompress} overwrite {allowOverwrite}"
             )
-            self.assertTrue(response["status_code"] == 200)
+            self.assertTrue(
+                response["status_code"] == 200,
+                "error - status code %s" % response["status_code"],
+            )
 
             # return 200
             partNumber = 2
@@ -866,7 +869,7 @@ class ClientTests(unittest.TestCase):
                 partNumber,
                 contentFormat,
                 version,
-                sessionDir
+                sessionDir,
             ) as file:
                 self.assertTrue(file is not None, f"error - null response")
                 self.assertTrue(
@@ -903,7 +906,7 @@ class ClientTests(unittest.TestCase):
                 partNumber,
                 contentFormat,
                 version,
-                sessionDir
+                sessionDir,
             ) as file:
                 self.assertTrue(file is not None, f"error - null response")
                 self.assertTrue(
@@ -960,7 +963,7 @@ class ClientTests(unittest.TestCase):
                 partNumber,
                 contentFormat,
                 version,
-                sessionDir
+                sessionDir,
             ) as file:
                 self.assertTrue(file is not None, f"error - null response")
                 self.assertTrue(
@@ -1029,7 +1032,7 @@ class ClientTests(unittest.TestCase):
                 partNumber,
                 contentFormat,
                 version,
-                sessionDir
+                sessionDir,
             ) as file:
                 self.assertTrue(file is not None, f"error - null response")
                 self.assertTrue(
@@ -1061,7 +1064,7 @@ class ClientTests(unittest.TestCase):
                 partNumber,
                 contentFormat,
                 version,
-                sessionDir
+                sessionDir,
             ) as file:
                 self.assertTrue(file is None, f"error - expected null response")
                 self.assertFalse(

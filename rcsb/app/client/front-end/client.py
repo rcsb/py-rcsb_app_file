@@ -118,7 +118,7 @@ def download(d):
         downloadFolder=d["downloadFolder"],
         allowOverwrite=d["allowOverwrite"],
         chunkSize=None,
-        chunkIndex=None
+        chunkIndex=None,
     )
     if response and response["status_code"] == 200:
         status = response["status_code"]

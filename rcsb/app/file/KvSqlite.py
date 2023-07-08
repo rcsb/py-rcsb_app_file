@@ -13,16 +13,18 @@ class KvSqlite(object):
         self.__cP = cP
         self.filePath = self.__cP.get("KV_FILE_PATH")
         self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
-        self.logTable = self.__cP.get("KV_LOG_TABLE_NAME")
+        self.mapTable = self.__cP.get("KV_MAP_TABLE_NAME")
         # create database if not exists
         # create table if not exists
         try:
-            self.kV = KvConnection(self.filePath, self.sessionTable, self.logTable)
+            self.kV = KvConnection(self.filePath, self.sessionTable, self.mapTable)
         except Exception:
             # table already exists
             pass
         if self.kV is None:
-            raise HTTPException(status_code=400, detail="error in KvSqlite - no database")
+            raise HTTPException(
+                status_code=400, detail="error in KvSqlite - no database"
+            )
 
     def convert(self, _d):
         return str(_d)
@@ -50,7 +52,9 @@ class KvSqlite(object):
         try:
             return _d[val]
         except Exception:
-            raise HTTPException(status_code=400, detail=f"error in KV get for table {table}, {_d}")
+            raise HTTPException(
+                status_code=400, detail=f"error in KV get for table {table}, {_d}"
+            )
 
     def setSession(self, key, val, vval):
         if not key:
@@ -122,18 +126,18 @@ class KvSqlite(object):
     def clearTable(self, table):
         self.kV.clearTable(table)
 
-    def getLog(self, key):
+    def getMap(self, key):
         if not key:
             return None
-        table = self.logTable
+        table = self.mapTable
         return self.kV.get(key, table)
 
-    def setLog(self, key, val):
+    def setMap(self, key, val):
         if not key:
             return
-        table = self.logTable
+        table = self.mapTable
         self.kV.set(key, val, table)
 
-    def clearLogVal(self, val):
-        table = self.logTable
+    def clearMapVal(self, val):
+        table = self.mapTable
         self.kV.deleteRowWithVal(val, table)

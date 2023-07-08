@@ -11,7 +11,6 @@ from rcsb.app.file.KvConnection import KvConnection
 
 
 class KvConnectionTest(unittest.TestCase):
-
     def testConnection(self):
         cP = ConfigProvider()
         filePath = cP.get("KV_FILE_PATH")
@@ -22,6 +21,7 @@ class KvConnectionTest(unittest.TestCase):
         connection = kV.getConnection()
         self.assertTrue(connection is not None)
         connection.close()
+
 
 if __name__ == "__main__":
     unittest.main()

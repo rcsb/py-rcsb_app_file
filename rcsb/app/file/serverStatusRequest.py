@@ -1,7 +1,7 @@
 ##
 # File: serverStatusRequest.py
 # Date: 11-Aug-2020
-#
+# Updates: James Smith 2023
 ##
 # pylint: skip-file
 

@@ -20,7 +20,9 @@ class JWTAuthBearer(HTTPBearer):
         self.__au = JWTAuthToken()
 
     async def __call__(self, request: Request):
-        credentials: HTTPAuthorizationCredentials = await super(JWTAuthBearer, self).__call__(request)
+        credentials: HTTPAuthorizationCredentials = await super(
+            JWTAuthBearer, self
+        ).__call__(request)
         if credentials:
             if not credentials.scheme == "Bearer":
                 raise HTTPException(status_code=403, detail="Missing Bearer details")

@@ -28,7 +28,10 @@ from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file import __version__
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s",
+)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -38,14 +41,23 @@ class JTWAuthTokenTests(unittest.TestCase):
         self.__startTime = time.time()
         self.__subject = "aTestSubject"
         logger.debug("Running tests on version %s", __version__)
-        logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
+        logger.info(
+            "Starting %s at %s",
+            self.id(),
+            time.strftime("%Y %m %d %H:%M:%S", time.localtime()),
+        )
 
     def tearDown(self):
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
+        logger.info("Maximum resident memory size %.4f %s", rusageMax / 10**6, unitS)
         endTime = time.time()
-        logger.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
+        logger.info(
+            "Completed %s at %s (%.4f seconds)",
+            self.id(),
+            time.strftime("%Y %m %d %H:%M:%S", time.localtime()),
+            endTime - self.__startTime,
+        )
 
     def testJwtToken(self):
         """Test - minting and verifying JWT tokens"""
@@ -72,6 +84,5 @@ def tokenTests():
 
 
 if __name__ == "__main__":
-
     mySuite = tokenTests()
     unittest.TextTestRunner(verbosity=2).run(mySuite)

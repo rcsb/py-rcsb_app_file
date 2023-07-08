@@ -27,14 +27,26 @@ class JWTAuthToken(object):
 
     def decodeToken(self, token: str) -> dict:
         try:
-            decodedToken = jwt.decode(token, self.__jwtSecret, algorithms=[self.__jwtAlgorithm])
+            decodedToken = jwt.decode(
+                token, self.__jwtSecret, algorithms=[self.__jwtAlgorithm]
+            )
             logger.debug("Decoded (%r) %r", self.__jwtSubject, decodedToken)
-            return decodedToken if (decodedToken["exp"] >= time.time()) and (decodedToken["sub"] == self.__jwtSubject) else None
+            return (
+                decodedToken
+                if (decodedToken["exp"] >= time.time())
+                and (decodedToken["sub"] == self.__jwtSubject)
+                else None
+            )
         except Exception as e:
             logger.exception("Failing as %s", str(e))
             return None
 
-    def createToken(self, data: dict, subject: str, expiresDelta: Optional[datetime.timedelta] = None):
+    def createToken(
+        self,
+        data: dict,
+        subject: str,
+        expiresDelta: Optional[datetime.timedelta] = None,
+    ):
         payload = data.copy()
         now = datetime.datetime.utcnow()
         if expiresDelta:

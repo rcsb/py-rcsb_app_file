@@ -1,25 +1,24 @@
 # File: config.yml
 # Date: 6-Mar-2022
-#
+# Updates: James Smith 2023
 # Config file for File Access API server
 ---
 configuration:
   # server host and port must start with http:// or https:// e.g. http://0.0.0.0:8000
   SERVER_HOST_AND_PORT: http://0.0.0.0:8000
-  # reserve extra processors that will be used by, for example, a redis server on same machine
+  # reserve extra processors that will be used by, for example, redis or cron
   SURPLUS_PROCESSORS: 1
   # paths to mounted or local folders
   # relative paths within the repository will work when running the app from within the repository
   REPOSITORY_DIR_PATH: rcsb/app/tests-file/data/repository
-  PDBX_REPOSITORY: rcsb/app/tests-file/data/mmcif
   SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks
   SESSION_DIR_PATH: rcsb/app/tests-file/data/sessions
   # database parameters
   KV_MODE: sqlite # redis or sqlite
   REDIS_HOST: localhost # localhost, redis, or url
   KV_SESSION_TABLE_NAME: sessions
-  KV_LOG_TABLE_NAME: log
-  KV_MAX_SECONDS: 14400 # redis only
+  KV_MAP_TABLE_NAME: map
+  KV_MAX_SECONDS: 14400 # session duration
   KV_FILE_PATH: ./kv.sqlite # sqlite only
   # file parameters
   CHUNK_SIZE: 8388608 # bytes

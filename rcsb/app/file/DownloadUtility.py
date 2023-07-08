@@ -81,7 +81,9 @@ class DownloadUtility(object):
                     r.seek(chunkIndex * chunkSize)
                     data = r.read(chunkSize)
             except Exception:
-                raise HTTPException(status_code=500, detail="error occurred while reading file")
+                raise HTTPException(
+                    status_code=500, detail="error occurred while reading file"
+                )
             return Response(content=data, media_type="application/octet-stream")
         else:
             # return complete file

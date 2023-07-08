@@ -1,0 +1,6 @@
+# run with crontab -e (then type in last line)
+# (may need 6th parameter "root" before python3)
+# runs every 4 hours
+# with no parameter, removes only unexpired sessions (as set in config.yml kv_max_seconds)
+# test with * * * * * and parameter 0 to remove all sessions
+0 0/4 * * * python3 -m rcsb.app.file.Sessions

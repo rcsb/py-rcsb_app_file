@@ -66,8 +66,16 @@ class ConfigProvider(object):
         """Read Yml configuration file and set internal configuration dictionary"""
         ok = False
         try:
-            cfgOb = ConfigUtil(configPath=self.__configFilePath, defaultSectionName="configuration", mockTopPath=None)
-            self.__configD = {"version": 0.30, "created": datetime.datetime.now().isoformat(), "data": cfgOb.exportConfig(sectionName="configuration")}
+            cfgOb = ConfigUtil(
+                configPath=self.__configFilePath,
+                defaultSectionName="configuration",
+                mockTopPath=None,
+            )
+            self.__configD = {
+                "version": 0.30,
+                "created": datetime.datetime.now().isoformat(),
+                "data": cfgOb.exportConfig(sectionName="configuration"),
+            }
             ok = True
         except Exception as e:
             logger.exception("Failing with %s", str(e))

@@ -59,6 +59,71 @@ class ClientUtils(object):
         self.repoTypeList = self.dP.repoTypeList
         self.milestoneList = self.dP.milestoneList
 
+    @contextmanager
+    def getFileObject(
+        self,
+        repoType: str = None,
+        depId: str = None,
+        contentType: str = None,
+        milestone: str = None,
+        partNumber: int = None,
+        contentFormat: str = None,
+        version: str = None,
+        sessionDir: str = None,
+    ):
+        download_file_path = os.path.join(
+            sessionDir,
+            PathProvider().getFileName(
+                depId, contentType, milestone, partNumber, contentFormat, version
+            ),
+        )
+        downloadFolder = sessionDir
+        allowOverwrite = True  # overwrite pre-existing client file
+        download_response = self.download(
+            repositoryType=repoType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version,
+            downloadFolder=downloadFolder,
+            allowOverwrite=allowOverwrite,
+            chunkSize=None,
+            chunkIndex=None,
+        )
+        if download_response and download_response["status_code"] == 200:
+            # return handle for reading and writing with pointer set to end of file by default
+            # recommended - client should use file.seek prior to reading (file.seek(0)) or writing (file.seek(file.size))
+            with open(download_file_path, "ab+") as file:
+                try:
+                    yield file
+                finally:
+                    file.close()
+                    upload_response = self.upload(
+                        download_file_path,
+                        repoType,
+                        depId,
+                        contentType,
+                        milestone,
+                        partNumber,
+                        contentFormat,
+                        version,
+                        decompress=False,
+                        fileExtension=None,
+                        allowOverwrite=True,
+                        resumable=False,
+                    )
+                    os.unlink(download_file_path)
+                    if upload_response["status_code"] != 200:
+                        logger.exception(
+                            "upload error in get file object %d",
+                            upload_response["status_code"],
+                        )
+        else:
+            logger.exception("download error in get file object")
+            yield None
+
     # if file parameter is complete file
 
     def upload(
@@ -323,7 +388,7 @@ class ClientUtils(object):
         downloadFolder: typing.Optional[str] = None,
         allowOverwrite: bool = False,
         chunkSize: typing.Optional[int] = None,
-        chunkIndex: typing.Optional[int] = None
+        chunkIndex: typing.Optional[int] = None,
     ) -> dict:
         # validate input
         if not downloadFolder or not os.path.exists(downloadFolder):
@@ -710,68 +775,3 @@ class ClientUtils(object):
             return {"status_code": response.status_code, "fileSize": result["fileSize"]}
         else:
             return {"status_code": response.status_code, "fileSize": None}
-
-    @contextmanager
-    def getFileObject(
-        self,
-        repoType: str = None,
-        depId: str = None,
-        contentType: str = None,
-        milestone: str = None,
-        partNumber: int = None,
-        contentFormat: str = None,
-        version: str = None,
-        sessionDir: str = None
-    ):
-        download_file_path = os.path.join(
-            sessionDir,
-            PathProvider().getFileName(
-                depId, contentType, milestone, partNumber, contentFormat, version
-            )
-        )
-        downloadFolder = sessionDir
-        allowOverwrite = True  # overwrite pre-existing client file
-        download_response = self.download(
-            repositoryType=repoType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version,
-            downloadFolder=downloadFolder,
-            allowOverwrite=allowOverwrite,
-            chunkSize=None,
-            chunkIndex=None
-        )
-        if download_response and download_response["status_code"] == 200:
-            # return handle for reading and writing with pointer set to end of file by default
-            # recommended - client should use file.seek prior to reading (file.seek(0)) or writing (file.seek(file.size))
-            with open(download_file_path, "ab+") as file:
-                try:
-                    yield file
-                finally:
-                    file.close()
-                    upload_response = self.upload(
-                        download_file_path,
-                        repoType,
-                        depId,
-                        contentType,
-                        milestone,
-                        partNumber,
-                        contentFormat,
-                        version,
-                        decompress=False,
-                        fileExtension=None,
-                        allowOverwrite=True,
-                        resumable=False
-                    )
-                    os.unlink(download_file_path)
-                    if upload_response["status_code"] != 200:
-                        logger.exception(
-                            "upload error in get file object %d",
-                            upload_response["status_code"],
-                        )
-        else:
-            logger.exception("download error in get file object")
-            yield None

@@ -24,7 +24,7 @@ class Definitions(object):
         self.repoTypeList = self.getRepoTypeList()
 
     def getMilestoneList(self):
-        return ['upload', 'upload-convert', 'deposit', 'annotate', 'release', 'review']
+        return ['upload', 'upload-convert', 'deposit', 'annotate', 'release', 'review', '', None]
 
     def getRepoTypeList(self):
         return ['deposit', 'archive', 'workflow', 'session', 'onedep-deposit', 'onedep-archive', 'onedep-workflow', 'onedep-session', 'test', 'tests', 'unit-test', 'unit-tests']

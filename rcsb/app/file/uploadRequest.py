@@ -8,7 +8,6 @@ __author__ = "James Smith, Ahsan Tanweer"
 __email__ = "james.smith@rcsb.org, ahsan@ebi.ac.uk"
 __license__ = "Apache 2.0"
 
-
 import logging
 from typing import Optional
 from fastapi import APIRouter, Query, File, Form, HTTPException, UploadFile, Depends
@@ -19,7 +18,6 @@ from rcsb.app.file.UploadUtility import UploadUtility
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 
 logger = logging.getLogger(__name__)
-
 
 provider = ConfigProvider()
 jwtDisable = bool(provider.get("JWT_DISABLE"))
@@ -44,6 +42,7 @@ class UploadResult(BaseModel):
     )
 
 
+# required prior to chunked upload
 @router.get("/getUploadParameters", response_model=UploadResult)
 async def getUploadParameters(
     repositoryType: str = Query(...),
@@ -90,7 +89,7 @@ async def upload(
     fileExtension: str = Form(None),
     allowOverwrite: bool = Form(False),
     # other
-    resumable: bool = Form(False)
+    resumable: bool = Form(False),
 ):
     # return status
     try:
@@ -109,24 +108,7 @@ async def upload(
             decompress=decompress,
             fileExtension=fileExtension,
             allowOverwrite=allowOverwrite,
-            resumable=resumable
+            resumable=resumable,
         )
     except HTTPException as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
-
-
-# clear kv entries from one user
-@router.post("/clearSession")
-async def clearSession(uploadIds: list = Form(...)):
-    response = True
-    for uploadId in uploadIds:
-        result = await UploadUtility().clearSession(uploadId)
-        if not result:
-            response = False
-    return {"result": response}
-
-
-# purge kv before testing
-@router.post("/clearKv")
-async def clearKv():
-    return await UploadUtility().clearKv()

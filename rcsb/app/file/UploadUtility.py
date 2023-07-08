@@ -15,28 +15,22 @@ __license__ = "Apache 2.0"
 import datetime
 import logging
 import os
-import time
 import typing
-import uuid
 import aiofiles
-import json
 from filelock import Timeout, FileLock
 from fastapi import HTTPException
+from rcsb.app.file.Sessions import Sessions
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.IoUtility import IoUtility
-from rcsb.app.file.KvSqlite import KvSqlite
-from rcsb.app.file.KvRedis import KvRedis
 from rcsb.utils.io.FileUtil import FileUtil
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s",
 )
-logger = logging.getLogger()
 
-# functions -
-# get upload parameters, upload, check content type format, helper resumable upload functions, helper database functions
+# functions - get upload parameters, upload
 
 
 class UploadUtility(object):
@@ -55,77 +49,70 @@ class UploadUtility(object):
         allowOverwrite: bool,
         resumable: bool,
     ):
-        # get save file path
-        pP = PathProvider(self.cP)
-        if not pP.checkContentTypeFormat(contentType, contentFormat):
-            logging.error("Error 400 - bad content type and/or format")
-            raise HTTPException(
-                status_code=400, detail="Error - bad content type and/or format"
-            )
-        outPath = pP.getVersionedPath(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version,
+        if not PathProvider(self.cP).validateParameters(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+        ):
+            raise HTTPException(status_code=400, detail="invalid parameters")
+        # create session
+        uploadId = None
+        session = Sessions(
+            self.cP,
+            uploadId,
+            resumable,
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
         )
-        if not outPath:
-            logging.error("Error 400 - could not make file path from parameters")
-            raise HTTPException(
-                status_code=400,
-                detail="Error - could not make file path from parameters",
+        # get upload id
+        uploadId = session.uploadId
+        # get truncated target file path to return to client
+        # path requires prefix of repository dir path
+        try:
+            resultPath = session.getSaveFilePath(
+                repositoryType,
+                depId,
+                contentType,
+                milestone,
+                partNumber,
+                contentFormat,
+                version,
+                allowOverwrite,
             )
-        if os.path.exists(outPath) and not allowOverwrite:
-            logger.exception(
-                "Error 403 - encountered existing file - overwrite prohibited"
-            )
+        except FileExistsError:
             raise HTTPException(
                 status_code=403,
                 detail="Encountered existing file - overwrite prohibited",
             )
-        dirPath, _ = os.path.split(outPath)
-        defaultFilePermissions = self.cP.get("DEFAULT_FILE_PERMISSIONS")
-        repositoryPath = self.cP.get("REPOSITORY_DIR_PATH")
-        os.makedirs(dirPath, mode=defaultFilePermissions, exist_ok=True)
-        if outPath.startswith(repositoryPath):
-            outPath = outPath.replace(repositoryPath, "")
-            outPath = outPath[1:]
-        else:
+        except ValueError:
             raise HTTPException(
-                status_code=400, detail="Error in file path formation %s" % outPath
+                status_code=400,
+                detail="Error - could not make file path from parameters",
             )
-        # get upload id
-        uploadId = None
-        if resumable:
-            uploadId = await self.getResumedUpload(
-                repositoryType=repositoryType,
-                depId=depId,
-                contentType=contentType,
-                milestone=milestone,
-                partNumber=partNumber,
-                contentFormat=contentFormat,
-                version=version,
-                pP=pP,
-            )
-        if not uploadId:
-            uploadId = self.getNewUploadId()
+        # remove file name
+        dirPath, _ = os.path.split(resultPath)
+        # add absolute path and create dirs if necessary
+        repositoryDirPath = self.cP.get("REPOSITORY_DIR_PATH")
+        fullPath = os.path.join(repositoryDirPath, dirPath)
+        defaultFilePermissions = self.cP.get("DEFAULT_FILE_PERMISSIONS")
+        if not os.path.exists(fullPath):
+            os.makedirs(fullPath, mode=defaultFilePermissions, exist_ok=True)
         # get chunk index
         uploadCount = 0
-        if uploadId:
-            status = await self.getSession(uploadId)
-            if status:
-                status = str(status)
-                status = status.replace("'", '"')
-                status = json.loads(status)
-                if "chunkSize" in status:
-                    chunkSize = int(status["chunkSize"])
-                    tempPath = self.getTempFilePath(dirPath, uploadId)
-                    if os.path.exists(tempPath):
-                        fileSize = os.path.getsize(tempPath)
-                        uploadCount = round(fileSize / chunkSize)
-        return {"filePath": outPath, "chunkIndex": uploadCount, "uploadId": uploadId}
+        if resumable:
+            uploadCount = await session.getUploadCount(fullPath)
+            if uploadCount > 0:
+                logging.info("resuming upload on chunk %d", uploadCount)
+        return {"filePath": resultPath, "chunkIndex": uploadCount, "uploadId": uploadId}
 
     # in-place sequential chunk
     async def upload(
@@ -149,24 +136,20 @@ class UploadUtility(object):
     ):
         repositoryPath = self.cP.get("REPOSITORY_DIR_PATH")
         filePath = os.path.join(repositoryPath, filePath)
-        key = None
-        logKey = None
+        session = Sessions(self.cP, uploadId)
+        sessionKey = uploadId
+        mapKey = None
         if resumable:
             repositoryType = os.path.basename(
                 os.path.dirname(os.path.dirname(filePath))
             )
-            key = uploadId
-            logKey = self.getPremadeLogKey(repositoryType, filePath)
-            # on first chunk upload, set chunk size, record uid in log table
+            mapKey = session.getKvPreparedMapKey(repositoryType, filePath)
+            # on first chunk upload, set chunk size, record uid in map table
             if chunkIndex == 0:
-                if self.cP.get("KV_MODE") == "sqlite":
-                    kV = KvSqlite(self.cP)
-                elif self.cP.get("KV_MODE") == "redis":
-                    kV = KvRedis(self.cP)
-                kV.setSession(key, "chunkSize", chunkSize)
-                kV.setLog(logKey, uploadId)
-                kV.setSession(
-                    key,
+                await session.setKvSession(sessionKey, "chunkSize", chunkSize)
+                await session.setKvMap(mapKey, sessionKey)
+                await session.setKvSession(
+                    sessionKey,
                     "timestamp",
                     int(
                         datetime.datetime.timestamp(
@@ -175,12 +158,12 @@ class UploadUtility(object):
                     ),
                 )
 
-        logger.debug("chunk %s of %s for %s", chunkIndex, expectedChunks, uploadId)
+        # logging.info("chunk %s of %s for %s", chunkIndex, expectedChunks, uploadId)
 
         dirPath, _ = os.path.split(filePath)
-        tempPath = self.getTempFilePath(dirPath, uploadId)
+        tempPath = session.getTempFilePath(dirPath)
         if chunkIndex == 0:
-            self.makePlaceholderFile(tempPath)
+            session.makePlaceholderFile(tempPath)
         contents = chunk.read()
         # empty chunk beyond loop index from client side, don't erase temp file so keep out of try block
         if contents and len(contents) <= 0:
@@ -201,9 +184,7 @@ class UploadUtility(object):
                         status_code=400, detail=f"{hashType} hash check failed"
                     )
                 # lock then save
-                lockPath = PathProvider().getLockPath(
-                    tempPath
-                )  # either filePath or tempPath
+                lockPath = session.getLockPath(tempPath)  # either tempPath or filePath
                 lock = FileLock(lockPath)
                 try:
                     with lock.acquire(timeout=60 * 60 * 4):
@@ -230,6 +211,7 @@ class UploadUtility(object):
                     if fileExtension.startswith("."):
                         fileExtension = fileExtension[1:]
                     if fileExtension.find(".") < 0:
+                        # rename file with original file extension to enable decompression
                         compressedFilePath = "%s.%s" % (filePath, fileExtension)
                         os.replace(filePath, compressedFilePath)
                         FileUtil().uncompress(
@@ -243,233 +225,14 @@ class UploadUtility(object):
                             detail="error - double file extension - could not decompress",
                         )
                 # clear database and temp files
-                self.clearSession(tempPath, resumable, key, logKey)
+                await session.closeSession(tempPath, resumable, mapKey)
         except HTTPException as exc:
-            self.clearSession(tempPath, resumable, key, logKey)
+            await session.closeSession(tempPath, resumable, mapKey)
             raise HTTPException(status_code=exc.status_code, detail=exc.detail)
         except Exception as exc:
-            self.clearSession(tempPath, resumable, key, logKey)
+            await session.closeSession(tempPath, resumable, mapKey)
             raise HTTPException(
                 status_code=400, detail=f"error in sequential upload {str(exc)}"
             )
         finally:
             chunk.close()
-
-    def getNewUploadId(self):
-        return uuid.uuid4().hex
-
-    # file path functions
-
-    def getTempFilePath(self, dirPath, uploadId):
-        tempPath = os.path.join(dirPath, "._" + uploadId)
-        return tempPath
-
-    def getPlaceholderFile(self, tempPath):
-        repositoryType = os.path.basename(os.path.dirname(os.path.dirname(tempPath)))
-        depId = os.path.basename(os.path.dirname(tempPath))
-        uploadId = os.path.basename(tempPath)
-        if uploadId.startswith("."):
-            uploadId = uploadId[1:]
-        if uploadId.startswith("_"):
-            uploadId = uploadId[1:]
-        placeholder = os.path.join(
-            PathProvider().getSessionDirPath(),
-            "%s_%s_%s" % (repositoryType, depId, uploadId),
-        )
-        return placeholder
-
-    def makePlaceholderFile(self, tempPath):
-        placeholder = self.getPlaceholderFile(tempPath)
-        if not os.path.exists(os.path.dirname(placeholder)):
-            os.makedirs(os.path.dirname(placeholder))
-        if not os.path.exists(placeholder):
-            with open(placeholder, "wb"):
-                os.utime(placeholder, (time.time(), time.time()))
-
-    def removePlaceholderFile(self, tempPath):
-        placeholder = self.getPlaceholderFile(tempPath)
-        if os.path.exists(placeholder):
-            os.unlink(placeholder)
-
-    def getPrimaryLogKey(
-        self,
-        repositoryType: str = "archive",
-        depId: str = None,
-        contentType: str = "model",
-        milestone: str = None,
-        partNumber: int = 1,
-        contentFormat: str = "pdbx",
-        version: str = "next",
-        pP=None,
-    ):
-        if not pP:
-            pP = PathProvider(self.cP)
-        filename = pP.getVersionedPath(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version,
-        )
-        if not filename:
-            return None
-        filename = os.path.basename(filename)
-        filename = repositoryType + "_" + filename
-        return filename
-
-    def getPremadeLogKey(self, repositoryType, versionedPath):
-        # when versioned path is already found
-        if not versionedPath:
-            return None
-        filename = os.path.basename(versionedPath)
-        filename = repositoryType + "_" + filename
-        return filename
-
-    # database functions
-
-    # find upload id using file parameters
-    async def getResumedUpload(
-        self,
-        repositoryType: str = "archive",
-        depId: str = None,
-        contentType: str = "model",
-        milestone: str = None,
-        partNumber: int = 1,
-        contentFormat: str = "pdbx",
-        version: str = "next",
-        pP=None,
-        kV=None,
-    ):
-        logKey = self.getPrimaryLogKey(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version,
-            pP=pP,
-        )
-        if kV:
-            pass
-        elif self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
-        uploadId = kV.getLog(logKey)
-        if not uploadId:
-            # not a resumed upload
-            return None
-        # remove expired entries
-        timestamp = int(kV.getSession(uploadId, "timestamp"))
-        now = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))
-        duration = now - timestamp
-        max_duration = self.cP.get("KV_MAX_SECONDS")
-        if duration > max_duration:
-            await self.removeExpiredEntry(
-                uploadId=uploadId,
-                logKey=logKey,
-                depId=depId,
-                repositoryType=repositoryType,
-                kV=kV,
-                pP=pP,
-            )
-            return None
-        # returns uploadId or None
-        return uploadId
-
-    # remove an entry from session table and log table, remove corresponding hidden files
-    # does not check expiration
-    async def removeExpiredEntry(
-        self,
-        uploadId: str = None,
-        logKey: str = None,
-        depId: str = None,
-        repositoryType: str = None,
-        kV=None,
-        pP=None,
-    ):
-        if not pP:
-            pP = PathProvider(self.cP)
-        dirPath = pP.getDirPath(repositoryType, depId)
-        tempPath = self.getTempFilePath(dirPath, uploadId)
-        resumable = True
-        self.clearSession(tempPath, resumable, uploadId, logKey, kV)
-
-    # returns entire dictionary of session table entry
-    async def getSession(self, uploadId: str, kV=None):
-        if kV:
-            pass
-        elif self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
-        return kV.getKey(uploadId, kV.sessionTable)
-
-    # clear one entry from session table
-    async def clearUploadId(self, uid: str, kV=None):
-        if kV:
-            pass
-        elif self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
-        response = None
-        try:
-            response = kV.clearSessionKey(uid)
-        except Exception:
-            return False
-        return response
-
-    # clear one entry from session table and corresponding entry from log table
-    def clearSession(
-        self,
-        tempPath: str,
-        resumable: bool = False,
-        uid: typing.Optional[str] = None,
-        logKey: typing.Optional[str] = None,
-        kV=None,
-    ):
-        if os.path.exists(tempPath):
-            os.unlink(tempPath)
-        self.removePlaceholderFile(tempPath)
-        if not resumable:
-            return True
-        if not uid:
-            return False
-        response = True
-        if kV:
-            pass
-        elif self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
-        try:
-            # remove expired entry and temp files
-            res = kV.clearSessionKey(uid)
-            # still must remove log table entry (key = file parameters)
-            if not res:
-                response = False
-            if self.cP.get("KV_MODE") == "sqlite":
-                kV.clearLogVal(uid)
-            elif self.cP.get("KV_MODE") == "redis":
-                if not logKey:
-                    response = False
-                else:
-                    kV.clearLog(logKey)
-        except Exception:
-            return False
-        return response
-
-    # clear entire database
-    async def clearKv(self, kV=None):
-        if kV:
-            pass
-        elif self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
-        kV.clearTable(kV.sessionTable)
-        kV.clearTable(kV.logTable)

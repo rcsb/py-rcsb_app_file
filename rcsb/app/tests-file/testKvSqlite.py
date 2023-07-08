@@ -12,8 +12,8 @@ from rcsb.app.file.KvSqlite import KvSqlite
 
 logging.basicConfig(level=logging.INFO)
 
-class KvSqliteTest(unittest.TestCase):
 
+class KvSqliteTest(unittest.TestCase):
     def testKv(self):
         cP = ConfigProvider()
         kV = KvSqlite(cP)
@@ -21,6 +21,7 @@ class KvSqliteTest(unittest.TestCase):
         kV.setSession("test", "result", "pass")
         self.assertTrue(kV.getSession("test", "result") == "pass")
         kV.clearTable(kV.sessionTable)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -35,9 +35,7 @@ async def listDir(repositoryType: str = Query(), depId: str = Query()):
     try:
         dirList = await PathProvider().listDir(repositoryType, depId)
     except HTTPException as exc:
-        raise HTTPException(
-            status_code=exc.status_code, detail=exc.detail
-        )
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
     return {"dirList": dirList}
 
 
@@ -97,12 +95,7 @@ async def latestVersion(
     contentFormat: str = Query(...),
 ):
     version = PathProvider().getLatestVersion(
-        repositoryType,
-        depId,
-        contentType,
-        milestone,
-        partNumber,
-        contentFormat
+        repositoryType, depId, contentType, milestone, partNumber, contentFormat
     )
     if version:
         return {"version": version}

@@ -31,7 +31,7 @@ pip3 install .
 
 Edit variables in rcsb/app/config/config.yml.
 
-In particular, edit paths (REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY, SESSION_DIR_PATH, ).
+In particular, edit paths (REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, SESSION_DIR_PATH, ).
 
 Also edit SERVER_HOST_AND_PORT.
 
@@ -51,13 +51,17 @@ Upload requires some setup by invoking the '/getUploadParameters' endpoint first
 
 To maintain sequential order, the client must wait for each response before sending the next chunk.
 
-The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in IoUtility.
+The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in Sessions.py.
 
 The download endpoint is found at '/download'.
 
 The list directory endpoint is found at '/list-dir'.
 
 To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in various Utility or Provider files.
+
+Those functions may throw a fastapi.HTTPException, so you will have to enclose function calls in a try except block.
+
+A fastapi server will automatically return on those exceptions, but other servers may not. Please report all problems.
 
 # Uploads and downloads
 
@@ -116,7 +120,9 @@ Production with multiple servers will require all servers to coordinate through 
 
 Since one server could host Redis while others don't, the docker instances could be run differently, or the config files set differently, on each server.
 
-Also, multiple servers must connect to a single mounted file system for deposition.
+Multiple servers must connect to a single mounted file system for deposition.
+
+For multiple containers, paths in config.yml must point to external mounted paths, and docker requires parameters to bind the paths.
 
 # Deployment on local server without docker
 
@@ -145,7 +151,7 @@ Connect to sqlite and use SQL commands, then ctrl-d to exit
 sqlite3 path/to/kv.sqlite
 .table
 select * from sessions;
-select * from log;
+select * from map;
 
 ```
 
@@ -323,7 +329,7 @@ or, if also running a Redis container on the same machine
 
 docker run --name fileapp -p 8000:8000 --link redis-container:redis fileapp
 
-or, if mounting folders, change paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY), enable full permissions for target folder, then
+or, if mounting folders, change paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH), enable full permissions for target folder, then
 
 docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 8000:8000 fileapp
 
@@ -349,8 +355,10 @@ docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/sy
 
 For production, Redis variables are set to expire periodically. However, hidden files are not, so a cron job should be run periodically to remove lingering hidden files from the deposit or archive directories.
 
+An example cron script is in the deploy folder.
+
 After development testing with a Sqlite database, open the kv.sqlite file and delete the tables, and delete hidden files from the deposit or archives directories.
 
 After development testing with Redis, open the redis-cli and delete the variables, and delete hidden files from the deposit or archives directories.
 
-The hidden files to be deleted are those that start with the value configured in getTempFilePath, referred to above, after checking that the file modification time is beyond a specified threshold.
+Among the files to be deleted are those that start with the value configured in getTempFilePath, referred to above, after checking that the file modification time is beyond a specified threshold.

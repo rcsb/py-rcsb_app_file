@@ -28,7 +28,7 @@ class Gui(tk.Frame):
         self.uploadTab = ttk.Frame(master)
         self.downloadTab = ttk.Frame(master)
         self.listTab = ttk.Frame(master)
-        self.tabs.add(self.splashTab, text="HOME")
+        self.tabs.add(self.splashTab, text="START")
         self.tabs.add(self.uploadTab, text="UPLOAD")
         self.tabs.add(self.downloadTab, text="DOWNLOAD")
         self.tabs.add(self.listTab, text="LIST")
@@ -46,7 +46,7 @@ class Gui(tk.Frame):
         repoTypeList = dF.getRepoTypeList()
         contentTypeInfoD = dF.getContentTypeD()
         milestoneList = dF.getMilestoneList()
-        milestoneList.append("none")
+        # milestoneList.append("none")
         fileFormatExtensionD = dF.getFileFormatExtD()
 
         # UPLOADS
@@ -459,7 +459,7 @@ class Gui(tk.Frame):
             downloadFolder=folderPath,
             allowOverwrite=allowOverwrite,
             chunkSize=None,
-            chunkIndex=None
+            chunkIndex=None,
         )
         if response and response["status_code"] == 200:
             response = response["response"]

@@ -13,7 +13,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
 # functions -
-# get file name, get versioned path, get latest version, get next version, list dir, dir exists, file exists, file size, get file lock path
+# get base file name, get file name, get repository dir path, get dir path,
+# get versioned path, get version, get latest version, get next version,
+# validate parameters, check content type format, convert milestone,
+# list dir, dir exists, file exists, file size
 
 
 class PathProvider(object):
@@ -33,7 +36,49 @@ class PathProvider(object):
     # does not return absolute paths unless the repository path specified in config.yml is an absolute path
     # primarily for internal use by the file API itself
 
-    # returns relative path to repository directory / repository type (deposit, archive...)
+    # returns file name without version
+    def getBaseFileName(
+        self,
+        depId: str = None,
+        contentType: str = None,
+        milestone: str = "",
+        partNumber: int = 1,
+        contentFormat: str = None,
+    ) -> typing.Optional[str]:
+        if not depId or not contentType or not contentFormat:
+            return None
+        typ = frmt = None
+        if contentType in self.__contentTypeInfoD:
+            typ = self.__contentTypeInfoD[contentType][1]
+        if contentFormat in self.__fileFormatExtensionD:
+            frmt = self.__fileFormatExtensionD[contentFormat]
+        if not typ or not frmt:
+            return None
+        mst = self.__convertMilestone(milestone)
+        return f"{depId}_{typ}{mst}_P{partNumber}.{frmt}"
+
+    # returns file name from provided version (without changing version)
+    # validates numeric version
+    # used for downloads
+    def getFileName(
+        self,
+        depId: str,
+        contentType: str,
+        milestone: str,
+        partNumber: str,
+        contentFormat: str,
+        version: int,
+    ) -> typing.Optional[str]:
+        if str(version).isdigit():
+            return "%s.V%s" % (
+                self.getBaseFileName(
+                    depId, contentType, milestone, partNumber, contentFormat
+                ),
+                version,
+            )
+        return None
+
+    # returns relative dir path consisting of repository directory / repository type (deposit, archive...)
     def getRepositoryDirPath(self, repositoryType: str) -> typing.Optional[str]:
         if not repositoryType.lower() in self.__repoTypeList:
             return None
@@ -41,7 +86,7 @@ class PathProvider(object):
         repositoryType = repositoryType.replace("onedep-", "")
         return os.path.join(self.__repositoryDirPath, repositoryType)
 
-    # returns relative path to repository directory / repository type / deposit id (e.g. D_000)
+    # returns relative dir path consisting of repository directory / repository type / deposit id (e.g. D_000)
     def getDirPath(self, repositoryType: str, depId: str) -> typing.Optional[str]:
         dirPath = None
         try:
@@ -52,7 +97,7 @@ class PathProvider(object):
             logger.exception("Failing with %s", str(e))
         return dirPath
 
-    # returns relative path to repository directory / repository type / deposit id / file name
+    # returns file path consisting of repository directory / repository type / deposit id / file name
     # does not test file existence
     def getVersionedPath(
         self,
@@ -190,49 +235,39 @@ class PathProvider(object):
             logger.exception("Failing with %s", str(e))
         return None
 
-    # returns file name without version
-    def getBaseFileName(
-        self,
-        depId: str = None,
-        contentType: str = None,
-        milestone: str = "",
-        partNumber: int = 1,
-        contentFormat: str = None,
-    ) -> typing.Optional[str]:
-        if not depId or not contentType or not contentFormat:
-            return None
-        typ = frmt = None
-        if contentType in self.__contentTypeInfoD:
-            typ = self.__contentTypeInfoD[contentType][1]
-        if contentFormat in self.__fileFormatExtensionD:
-            frmt = self.__fileFormatExtensionD[contentFormat]
-        if not typ or not frmt:
-            return None
-        mst = self.__validateMilestone(milestone)
-        return f"{depId}_{typ}{mst}_P{partNumber}.{frmt}"
+    # functions that validate parameters that form a file path
 
-    # returns file name with version provided (without changing version)
-    # validates numeric version
-    # used for downloads
-    def getFileName(
+    def validateParameters(
         self,
+        repositoryType: str,
         depId: str,
         contentType: str,
         milestone: str,
-        partNumber: str,
+        partNumber: int,
         contentFormat: str,
-        version: int,
-    ) -> typing.Optional[str]:
-        if str(version).isdigit():
-            return "%s.V%s" % (
-                self.getBaseFileName(
-                    depId, contentType, milestone, partNumber, contentFormat
-                ),
-                version,
-            )
-        return None
-
-    # functions that validate parameters that form a file path
+        version: str,
+    ) -> bool:
+        if repositoryType not in self.__repoTypeList:
+            return False
+        if depId:
+            pass
+        if contentType not in self.__contentTypeInfoD.keys():
+            return False
+        if (
+            milestone is not None
+            and len(milestone) > 0
+            and milestone not in self.__milestoneList
+        ):
+            return False
+        if partNumber:
+            pass
+        if contentFormat not in self.__fileFormatExtensionD.keys():
+            return False
+        if not self.checkContentTypeFormat(contentType, contentFormat):
+            return False
+        if version:
+            pass
+        return True
 
     def checkContentTypeFormat(self, contentType: str, contentFormat: str) -> bool:
         # validate content parameters
@@ -252,7 +287,7 @@ class PathProvider(object):
         )
         return False
 
-    def __validateMilestone(self, milestone):
+    def __convertMilestone(self, milestone):
         """
 
         Args:
@@ -334,49 +369,3 @@ class PathProvider(object):
         if not dirPath or not os.path.exists(dirPath):
             return False
         return True
-
-    # other functions related to paths
-
-    def getLockPath(self, filePath):
-        # make lock path from either temp file path or target file path
-        repositoryType = os.path.basename(os.path.dirname(os.path.dirname(filePath)))
-        depId = os.path.basename(os.path.dirname(filePath))
-        uploadId = os.path.basename(filePath)
-        if uploadId.startswith("."):
-            uploadId = uploadId[1:]
-        if uploadId.startswith("_"):
-            uploadId = uploadId[1:]
-        if not os.path.exists(self.__sharedLockDirPath):
-            os.makedirs(self.__sharedLockDirPath)
-        lockPath = os.path.join(
-            self.__sharedLockDirPath,
-            repositoryType + "_" + depId + "_" + uploadId + ".lock",
-        )
-        return lockPath
-
-    def getLockPathFromParameters(
-        self,
-        depId: str,
-        contentType: str,
-        milestone: str,
-        partNumber: int,
-        contentFormat: str,
-    ) -> str:
-        # legacy function
-        if not os.path.exists(self.__sharedLockDirPath):
-            os.makedirs(self.__sharedLockDirPath)
-        lockPath = self.__sharedLockDirPath
-        fnBase = self.getBaseFileName(
-            depId, contentType, milestone, partNumber, contentFormat
-        )
-        return os.path.join(lockPath, fnBase + ".lock")
-
-    def getInPlaceLockPath(self, filePath):
-        # make lock path from target file path (not temp file path)
-        lockPath = os.path.join(
-            os.path.dirname(filePath), "." + os.path.basename(filePath) + ".lock"
-        )
-        return lockPath
-
-    def getSessionDirPath(self) -> str:
-        return self.__sessionDirPath
