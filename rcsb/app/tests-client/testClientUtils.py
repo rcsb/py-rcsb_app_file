@@ -14,6 +14,7 @@ import logging
 import os
 import platform
 import time
+import math
 import resource
 import unittest
 import shutil
@@ -22,6 +23,7 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.utils.io.LogUtil import StructFormatter
 from rcsb.app.client.ClientUtils import ClientUtils
+from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.file.PathProvider import PathProvider
 
 logging.basicConfig(
@@ -165,7 +167,6 @@ class ClientTests(unittest.TestCase):
         milestone = ""
         contentFormat = "pdbx"
         version = 1
-        fileExtension = None
 
         try:
             # return 200
@@ -182,7 +183,6 @@ class ClientTests(unittest.TestCase):
                 contentFormat,
                 version,
                 decompress,
-                fileExtension,
                 allowOverwrite,
                 resumable,
             )
@@ -206,7 +206,6 @@ class ClientTests(unittest.TestCase):
                 contentFormat,
                 version,
                 decompress,
-                fileExtension,
                 allowOverwrite,
                 resumable,
             )
@@ -228,7 +227,6 @@ class ClientTests(unittest.TestCase):
                 contentFormat,
                 version,
                 decompress,
-                fileExtension,
                 allowOverwrite,
                 resumable,
             )
@@ -240,7 +238,6 @@ class ClientTests(unittest.TestCase):
             # return 200 (decompress gzip file)
             partNumber = 3
             decompress = True
-            fileExtension = ".gz"
             allowOverwrite = True
             response = self.__cU.upload(
                 self.__testFileGzipPath,
@@ -252,7 +249,6 @@ class ClientTests(unittest.TestCase):
                 contentFormat,
                 version,
                 decompress,
-                fileExtension,
                 allowOverwrite,
                 resumable,
             )
@@ -266,7 +262,103 @@ class ClientTests(unittest.TestCase):
 
     def testResumableUpload(self):
         logger.info("test resumable upload")
-        self.testSimpleUpload(True)
+        self.assertTrue(os.path.exists(self.__testFileDatPath))
+
+        sourceFilePath = self.__testFileDatPath
+        repositoryType = self.__repositoryType
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = ""
+        partNumber = 1
+        contentFormat = "pdbx"
+        version = "next"
+        allowOverwrite = False
+        resumable = True
+        decompress = False
+
+        # get upload parameters
+        response = self.__cU.getUploadParameters(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+            allowOverwrite,
+            resumable,
+        )
+        self.assertTrue(
+            response and response["status_code"] == 200,
+            "error in get upload parameters %r" % response,
+        )
+        saveFilePath = response["filePath"]
+        chunkIndex = response["chunkIndex"]
+        uploadId = response["uploadId"]
+        self.assertTrue(chunkIndex == 0, "error - chunk index %s" % chunkIndex)
+        # compress (externally), then hash, then upload
+        # hash
+        hashType = self.__hashType
+        fullTestHash = IoUtility().getHashDigest(sourceFilePath, hashType=hashType)
+        # compute expected chunks
+        fileSize = os.path.getsize(sourceFilePath)
+        chunkSize = int(self.__chunkSize)
+        expectedChunks = 1
+        if chunkSize < fileSize:
+            expectedChunks = math.ceil(fileSize / chunkSize)
+
+        # upload chunks sequentially
+        mD = {
+            # chunk parameters
+            "chunkSize": chunkSize,
+            "chunkIndex": chunkIndex,
+            "expectedChunks": expectedChunks,
+            # upload file parameters
+            "uploadId": uploadId,
+            "hashType": hashType,
+            "hashDigest": fullTestHash,
+            # save file parameters
+            "saveFilePath": saveFilePath,
+            "decompress": decompress,
+            "allowOverwrite": allowOverwrite,
+            "resumable": resumable,
+        }
+        status = None
+        # upload one chunk
+        for index in range(chunkIndex, chunkIndex + 1):
+            mD["chunkIndex"] = index
+            status = self.__cU.uploadChunk(sourceFilePath, fileSize, **mD)
+            self.assertTrue(status == 200, "error in upload %r" % response)
+            logger.info("uploaded chunk %d", index)
+
+        # get resumed upload
+        response = self.__cU.getUploadParameters(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+            allowOverwrite,
+            resumable,
+        )
+        self.assertTrue(
+            response and response["status_code"] == 200,
+            "error in get upload parameters %r" % response,
+        )
+        saveFilePath = response["filePath"]
+        chunkIndex = response["chunkIndex"]
+        uploadId = response["uploadId"]
+        self.assertTrue(chunkIndex > 0, "error - chunk index %s" % chunkIndex)
+        logger.info("resumed upload on chunk %d", chunkIndex)
+
+        # upload remaining chunks
+        for index in range(chunkIndex, expectedChunks):
+            mD["chunkIndex"] = index
+            status = self.__cU.uploadChunk(sourceFilePath, fileSize, **mD)
+            self.assertTrue(status == 200, "error in upload %r" % response)
+            logger.info("uploaded remaining chunk %d", index)
 
     def testSimpleDownload(self):
         logger.info("test simple download")

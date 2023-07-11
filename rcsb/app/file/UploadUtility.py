@@ -12,7 +12,6 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
-import datetime
 import logging
 import os
 import typing
@@ -61,9 +60,8 @@ class UploadUtility(object):
             raise HTTPException(status_code=400, detail="invalid parameters")
         # create session
         uploadId = None
-        session = Sessions(
-            self.cP,
-            uploadId,
+        session = Sessions(uploadId=uploadId, cP=self.cP)
+        await session.open(
             resumable,
             repositoryType,
             depId,
@@ -136,7 +134,7 @@ class UploadUtility(object):
     ):
         repositoryPath = self.cP.get("REPOSITORY_DIR_PATH")
         filePath = os.path.join(repositoryPath, filePath)
-        session = Sessions(self.cP, uploadId)
+        session = Sessions(uploadId=uploadId, cP=self.cP)
         sessionKey = uploadId
         mapKey = None
         if resumable:
@@ -148,15 +146,6 @@ class UploadUtility(object):
             if chunkIndex == 0:
                 await session.setKvSession(sessionKey, "chunkSize", chunkSize)
                 await session.setKvMap(mapKey, sessionKey)
-                await session.setKvSession(
-                    sessionKey,
-                    "timestamp",
-                    int(
-                        datetime.datetime.timestamp(
-                            datetime.datetime.now(datetime.timezone.utc)
-                        )
-                    ),
-                )
 
         # logging.info("chunk %s of %s for %s", chunkIndex, expectedChunks, uploadId)
 
@@ -177,12 +166,13 @@ class UploadUtility(object):
                 await ofh.write(contents)
             # if last chunk
             if chunkIndex + 1 == expectedChunks:
-                if not hashDigest and hashType:
-                    raise HTTPException(status_code=400, detail="Error - missing hash")
-                if not IoUtility().checkHash(tempPath, hashDigest, hashType):
-                    raise HTTPException(
-                        status_code=400, detail=f"{hashType} hash check failed"
-                    )
+                if hashDigest and hashType:
+                    if not IoUtility().checkHash(tempPath, hashDigest, hashType):
+                        raise HTTPException(
+                            status_code=400, detail=f"{hashType} hash check failed"
+                        )
+                # else:
+                # raise HTTPException(status_code=400, detail="Error - missing hash")
                 # lock then save
                 lockPath = session.getLockPath(tempPath)  # either tempPath or filePath
                 lock = FileLock(lockPath)
@@ -225,12 +215,12 @@ class UploadUtility(object):
                             detail="error - double file extension - could not decompress",
                         )
                 # clear database and temp files
-                await session.closeSession(tempPath, resumable, mapKey)
+                await session.close(tempPath, resumable, mapKey)
         except HTTPException as exc:
-            await session.closeSession(tempPath, resumable, mapKey)
+            await session.close(tempPath, resumable, mapKey)
             raise HTTPException(status_code=exc.status_code, detail=exc.detail)
         except Exception as exc:
-            await session.closeSession(tempPath, resumable, mapKey)
+            await session.close(tempPath, resumable, mapKey)
             raise HTTPException(
                 status_code=400, detail=f"error in sequential upload {str(exc)}"
             )

@@ -2,7 +2,6 @@
 # author: James Smith 2023
 
 import asyncio
-import datetime
 import json
 import os
 import sys
@@ -24,36 +23,36 @@ logging.basicConfig(level=logging.INFO)
 
 class Sessions(object):
     # statelessly invoked once per chunk of every upload
-    def __init__(self, cP, uploadId, *args):
-        self.cP = cP if cP else ConfigProvider()
+    def __init__(self, uploadId=None, cP=None):
         self.uploadId = uploadId
-        # invoked only once per upload
-        if not self.uploadId:
-            if args:
-                (
-                    resumable,
-                    repositoryType,
-                    depId,
-                    contentType,
-                    milestone,
-                    partNumber,
-                    contentFormat,
-                    version,
-                ) = args
-                if resumable:
-                    self.uploadId = self.getResumedUpload(
-                        repositoryType,
-                        depId,
-                        contentType,
-                        milestone,
-                        partNumber,
-                        contentFormat,
-                        version,
-                    )
-                    if self.uploadId:
-                        logging.info("resuming session %s", self.uploadId)
-            if not self.uploadId:
-                self.uploadId = self.getNewUploadId()
+        self.cP = cP if cP else ConfigProvider()
+
+    # invoked only once per upload
+    async def open(
+        self,
+        resumable,
+        repositoryType,
+        depId,
+        contentType,
+        milestone,
+        partNumber,
+        contentFormat,
+        version,
+    ):
+        if resumable:
+            self.uploadId = await self.getResumedUpload(
+                repositoryType,
+                depId,
+                contentType,
+                milestone,
+                partNumber,
+                contentFormat,
+                version,
+            )
+            if self.uploadId is not None:
+                logging.info("resuming session %s", self.uploadId)
+        if self.uploadId is None:
+            self.uploadId = self.getNewUploadId()
 
     # UPLOAD HELPER FUNCTIONS
 
@@ -61,9 +60,7 @@ class Sessions(object):
         return uuid.uuid4().hex
 
     # find upload id using file parameters
-    # tasks - improve async handling
-    # cannot be async when invoked from init
-    def getResumedUpload(
+    async def getResumedUpload(
         self,
         repositoryType: str = "archive",
         depId: str = None,
@@ -73,7 +70,7 @@ class Sessions(object):
         contentFormat: str = "pdbx",
         version: str = "next",
     ):  # returns uploadId or None
-        mapKey = self.getKvPrimaryMapKey(
+        mapKey = await self.getKvPrimaryMapKey(
             repositoryType=repositoryType,
             depId=depId,
             contentType=contentType,
@@ -90,25 +87,8 @@ class Sessions(object):
             logging.exception("error - unknown kv mode %s", self.cP.get("KV_MODE"))
             return None
         uploadId = kV.getMap(mapKey)
-        if not uploadId:
+        if uploadId is None:
             # not a resumed upload
-            return None
-        # remove expired entry
-        timestamp = int(kV.getSession(uploadId, "timestamp"))
-        now = datetime.datetime.timestamp(datetime.datetime.now(datetime.timezone.utc))
-        duration = now - timestamp
-        max_duration = self.cP.get("KV_MAX_SECONDS")
-        if duration > max_duration:
-            logging.info("removing expired entry %s", uploadId)
-            asyncio.run(
-                self.removeKvExpiredEntry(
-                    mapKey=mapKey,
-                    depId=depId,
-                    repositoryType=repositoryType,
-                    kV=kV,
-                    uploadId=uploadId,
-                )
-            )
             return None
         return uploadId
 
@@ -162,7 +142,7 @@ class Sessions(object):
         return outPath
 
     # clear temp files, then clear kv session
-    async def closeSession(
+    async def close(
         self,
         tempPath: str,
         resumable: bool = False,
@@ -213,13 +193,13 @@ class Sessions(object):
 
     # returns entire dictionary of session table entry
     async def getKvSession(self, kV=None, uploadId=None):
-        if kV:
+        if kV is not None:
             pass
         elif self.cP.get("KV_MODE") == "sqlite":
             kV = KvSqlite(self.cP)
         elif self.cP.get("KV_MODE") == "redis":
             kV = KvRedis(self.cP)
-        if not uploadId:
+        if uploadId is None:
             uploadId = self.uploadId
         return kV.getKey(uploadId, kV.sessionTable)
 
@@ -237,7 +217,7 @@ class Sessions(object):
             kV = KvRedis(self.cP)
         kV.setMap(key, val)
 
-    def getKvPrimaryMapKey(
+    async def getKvPrimaryMapKey(
         self,
         repositoryType: str = "archive",
         depId: str = None,
@@ -270,24 +250,6 @@ class Sessions(object):
         filename = os.path.basename(versionedPath)
         filename = repositoryType + "_" + filename
         return filename
-
-    # remove an entry from session table and map table, remove corresponding hidden files
-    # does not check expiration
-    async def removeKvExpiredEntry(
-        self,
-        mapKey: str = None,
-        depId: str = None,
-        repositoryType: str = None,
-        kV=None,
-        uploadId: str = None,
-    ):
-        if not uploadId:
-            uploadId = self.uploadId
-        pP = PathProvider(self.cP)
-        dirPath = pP.getDirPath(repositoryType, depId)
-        tempPath = self.getTempFilePath(dirPath, uploadId)
-        resumable = True
-        await self.closeSession(tempPath, resumable, mapKey, kV)
 
     # clear one entry from session table
     async def clearKvUploadId(self, kV=None, uid=None):
@@ -323,18 +285,17 @@ class Sessions(object):
         elif self.cP.get("KV_MODE") == "redis":
             kV = KvRedis(self.cP)
         try:
-            # remove expired entry and temp files
+            # remove expired sessions entry (key = upload id)
             res = kV.clearSessionKey(uid)
-            # still must remove map table entry (key = file parameters)
+            # remove map table entry
+            # key = file parameters, val = upload id
+            # without file parameters, must find key from val
             if not res:
                 response = False
-            if self.cP.get("KV_MODE") == "sqlite":
+            if mapKey is not None:
+                kV.clearMap(mapKey)
+            else:
                 kV.clearMapVal(uid)
-            elif self.cP.get("KV_MODE") == "redis":
-                if not mapKey:
-                    response = False
-                else:
-                    kV.clearMap(mapKey)
         except Exception:
             return False
         return response
@@ -349,6 +310,24 @@ class Sessions(object):
             kV = KvRedis(self.cP)
         kV.clearTable(kV.sessionTable)
         kV.clearTable(kV.mapTable)
+
+    # remove an entry from session table and map table, remove corresponding hidden files
+    # does not check expiration
+    async def removeKvExpiredEntry(
+        self,
+        mapKey: str = None,
+        depId: str = None,
+        repositoryType: str = None,
+        kV=None,
+        uploadId: str = None,
+    ):
+        if not uploadId:
+            uploadId = self.uploadId
+        pP = PathProvider(self.cP)
+        dirPath = pP.getDirPath(repositoryType, depId)
+        tempPath = self.getTempFilePath(dirPath, uploadId)
+        resumable = True
+        await self.close(tempPath, resumable, mapKey, kV)
 
     # SESSION DIRECTORY FUNCTIONS
 
@@ -469,11 +448,8 @@ class Sessions(object):
                             logging.exception(
                                 "error - could not remove session key for %s", sessionId
                             )
-                        # still must remove map table entry (key = file parameters)
-                        if kvMode == "sqlite":
-                            kV.clearMapVal(sessionId)
-                        elif kvMode == "redis":
-                            kV.deleteMapKeyFromVal(sessionId)
+                        # remove map table entry (key = file parameters)
+                        kV.clearMapVal(sessionId)
                     except Exception:
                         pass
                     # clear lock files

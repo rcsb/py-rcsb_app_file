@@ -111,4 +111,5 @@ async def upload(
             resumable=resumable,
         )
     except HTTPException as exc:
+        logger.exception("error %d %s", exc.status_code, exc.detail)
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)

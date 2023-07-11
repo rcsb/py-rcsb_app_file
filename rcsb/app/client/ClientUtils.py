@@ -110,7 +110,6 @@ class ClientUtils(object):
                         contentFormat,
                         version,
                         decompress=False,
-                        fileExtension=None,
                         allowOverwrite=True,
                         resumable=False,
                     )
@@ -137,7 +136,6 @@ class ClientUtils(object):
         contentFormat,
         version,
         decompress=False,
-        fileExtension=None,
         allowOverwrite=False,
         resumable=False,
     ) -> dict:
@@ -145,7 +143,7 @@ class ClientUtils(object):
         if not os.path.exists(sourceFilePath):
             logger.error("File does not exist: %r", sourceFilePath)
             return None
-        fileExtension = os.path.splitext(sourceFilePath)[1]
+        fileExtension = os.path.splitext(sourceFilePath)[-1]
         # compress (externally), then hash, then upload
         # hash
         fullTestHash = IoUtility().getHashDigest(sourceFilePath, hashType=self.hashType)
@@ -330,7 +328,7 @@ class ClientUtils(object):
         if not os.path.exists(sourceFilePath):
             logger.error("File does not exist: %r", sourceFilePath)
             return None
-        fileExtension = os.path.splitext(sourceFilePath)[1]
+        fileExtension = os.path.splitext(sourceFilePath)[-1]
         offset = chunkIndex * chunkSize
         with open(sourceFilePath, "rb") as of:
             of.seek(offset)
@@ -389,29 +387,54 @@ class ClientUtils(object):
         allowOverwrite: bool = False,
         chunkSize: typing.Optional[int] = None,
         chunkIndex: typing.Optional[int] = None,
+        expectedChunks: typing.Optional[int] = None,
     ) -> dict:
         # validate input
         if not downloadFolder or not os.path.exists(downloadFolder):
             logger.error("Download folder does not exist %r", downloadFolder)
             return {"status_code": 404}
+        chunks = False
+        if (
+            chunkSize is not None
+            and chunkIndex is not None
+            and expectedChunks is not None
+        ):
+            chunks = True
 
         # form paths
         fileName = PathProvider().getFileName(
             depId, contentType, milestone, partNumber, contentFormat, version
         )
         downloadFilePath = os.path.join(downloadFolder, fileName)
+
+        # test file existence and overwrite settings
         if os.path.exists(downloadFilePath):
-            logger.exception(
-                "error - download file path already exists %s", downloadFilePath
-            )
-            if not allowOverwrite:
-                logger.error("error - overwrite not allowed on %r", downloadFilePath)
-                return {"status_code": 403}
-            else:
-                logger.exception("removing %s", downloadFilePath)
-            os.unlink(downloadFilePath)
-            if os.path.exists(downloadFilePath):
-                logger.exception("error - could not remove %s", downloadFilePath)
+            if not chunks:
+                if allowOverwrite:
+                    os.unlink(downloadFilePath)
+                    if os.path.exists(downloadFilePath):
+                        logger.exception(
+                            "error - could not remove %s", downloadFilePath
+                        )
+                else:
+                    logger.error(
+                        "error - overwrite not allowed on %s", downloadFilePath
+                    )
+                    return {"status_code": 403}
+            # for chunks, partial file will exist until completion of download
+            # however, file won't exist on first download
+            elif chunkIndex == 0:
+                if allowOverwrite:
+                    os.unlink(downloadFilePath)
+                    if os.path.exists(downloadFilePath):
+                        logger.exception(
+                            "error - could not remove %s", downloadFilePath
+                        )
+                else:
+                    logger.error(
+                        "error - overwrite not allowed on %s", downloadFilePath
+                    )
+                    return {"status_code": 403}
 
         # form query string
         hashType = self.hashType
@@ -435,20 +458,23 @@ class ClientUtils(object):
                 for chunk in response.iter_content(chunk_size=self.chunkSize):
                     if chunk:
                         ofh.write(chunk)
-            # validate hash
-            if (
-                "rcsb_hash_type" in response.headers
-                and "rcsb_hexdigest" in response.headers
-            ):
-                rspHashType = response.headers["rcsb_hash_type"]
-                rspHashDigest = response.headers["rcsb_hexdigest"]
-                hashDigest = IoUtility().getHashDigest(
-                    downloadFilePath, hashType=rspHashType
-                )
-                if not hashDigest == rspHashDigest:
-                    logger.error("Hash comparison failed")
-                    os.unlink(downloadFilePath)
-                    return {"status_code": 400}
+            # validate hash for non-chunked file or last chunk of file
+            if not chunks or chunkIndex == expectedChunks - 1:
+                # validate hash
+                if (
+                    "rcsb_hash_type" in response.headers
+                    and "rcsb_hexdigest" in response.headers
+                ):
+                    rspHashType = response.headers["rcsb_hash_type"]
+                    rspHashDigest = response.headers["rcsb_hexdigest"]
+                    hashDigest = IoUtility().getHashDigest(
+                        downloadFilePath, hashType=rspHashType
+                    )
+                    if not hashDigest == rspHashDigest:
+                        logger.error("Hash comparison failed")
+                        os.unlink(downloadFilePath)
+                        return {"status_code": 400}
+
         return {
             "status_code": response.status_code,
             "file_path": downloadFilePath,

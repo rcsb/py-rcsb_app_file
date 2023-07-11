@@ -22,11 +22,13 @@
               let resumable = document.getElementsByName('resumable')[0].checked;
               let chunkIndex = 0;
               let uploadId = null;
-              await getHashDigest(file);
+              // await getHashDigest(file);
+              await getUploadParameters().then(() => upload(file));
 
               async function getHashDigest(file){
                 var reader = new FileReader();
                 reader.addEventListener("load", async () => {
+                    // bug for some files
                     hashDigest = md5(reader.result);
                     await getUploadParameters().then(() => upload(file));
                 });
@@ -39,6 +41,9 @@
                 let depId = document.getElementsByName('depId')[0].value;
                 let contentType = document.getElementsByName('contentType')[0].value;
                 let milestone = document.getElementsByName('milestone')[0].value;
+                if(milestone.toLowerCase() == "none"){
+                    milestone = "";
+                }
                 let partNumber = document.getElementsByName('partNumber')[0].value;
                 let contentFormat = document.getElementsByName('contentFormat')[0].value;
                 let version = document.getElementsByName('version')[0].value;
@@ -79,7 +84,12 @@
                 let decompress = document.getElementsByName('decompress')[0].checked;
                 let fileExtension = fileName.substring(fileName.lastIndexOf("."));
                 let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
-                // console.log(`chunk index ${chunkIndex} expected ${expectedChunks} for ${fileName} ${uploadId} ${filePath}`)
+                console.log(`chunk index ${chunkIndex} expected ${expectedChunks} for ${fileName} ${uploadId} ${filePath}`);
+                console.log("hash digest " + hashDigest);
+                // convert javascript null to pythonic value
+                if(! hashDigest){
+                    hashDigest = "";
+                }
                 readChunks(chunkIndex, chunkOffset, resumable);
 
                 function readChunks(chunkIndex, chunkOffset) {
@@ -91,8 +101,12 @@
                     // if(chunkIndex >= 3){
                     //     return;
                     // }
-                  // console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
-                  var blob = file.slice(chunkOffset, chunkOffset + chunkSize);
+                  console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
+                  bounds = chunkOffset + chunkSize;
+                  if(bounds > fileSize){
+                      bounds = fileSize;
+                  }
+                  var blob = file.slice(chunkOffset, bounds);
                   postChunk(blob);
                 }
 

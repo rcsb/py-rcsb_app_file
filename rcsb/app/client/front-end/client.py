@@ -6,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 import argparse
 import math
-from rcsb.app.file.PathProvider import PathProvider
 from tqdm import tqdm
 from rcsb.app.client.ClientUtils import ClientUtils
 from rcsb.app.file.IoUtility import IoUtility
@@ -106,62 +105,34 @@ def download(d):
     expectedChunks = 1
     if chunkSize < fileSize:
         expectedChunks = math.ceil(fileSize / chunkSize)
+
     # download
-    response = ClientUtils().download(
-        repositoryType=d["repositoryType"],
-        depId=d["depId"],
-        contentType=d["contentType"],
-        milestone=d["milestone"],
-        partNumber=d["partNumber"],
-        contentFormat=d["contentFormat"],
-        version=d["version"],
-        downloadFolder=d["downloadFolder"],
-        allowOverwrite=d["allowOverwrite"],
-        chunkSize=None,
-        chunkIndex=None,
-    )
-    if response and response["status_code"] == 200:
-        status = response["status_code"]
-        response = response["response"]
-        # write to file
-        downloadFilePath = os.path.join(
-            d["downloadFolder"],
-            PathProvider().getFileName(
-                d["depId"],
-                d["contentType"],
-                d["milestone"],
-                d["partNumber"],
-                d["contentFormat"],
-                d["version"],
-            ),
+    statusCode = 0
+    for chunkIndex in tqdm(
+        range(0, expectedChunks), leave=False, total=expectedChunks, ascii=True
+    ):
+        response = ClientUtils().download(
+            repositoryType=d["repositoryType"],
+            depId=d["depId"],
+            contentType=d["contentType"],
+            milestone=d["milestone"],
+            partNumber=d["partNumber"],
+            contentFormat=d["contentFormat"],
+            version=d["version"],
+            downloadFolder=d["downloadFolder"],
+            allowOverwrite=d["allowOverwrite"],
+            chunkSize=chunkSize,
+            chunkIndex=chunkIndex,
+            expectedChunks=expectedChunks,
         )
-        with open(downloadFilePath, "ab") as ofh:
-            for chunk in tqdm(
-                response.iter_content(chunk_size=chunkSize),
-                leave=False,
-                total=expectedChunks,
-                desc=os.path.basename(downloadFilePath),
-                ascii=True,
-            ):
-                if chunk:
-                    ofh.write(chunk)
-        # validate hash
-        if (
-            "rcsb_hash_type" in response.headers
-            and "rcsb_hexdigest" in response.headers
-        ):
-            rspHashType = response.headers["rcsb_hash_type"]
-            rspHashDigest = response.headers["rcsb_hexdigest"]
-            hashDigest = IoUtility().getHashDigest(
-                downloadFilePath, hashType=rspHashType
-            )
-            if not hashDigest == rspHashDigest:
-                print("error - hash comparison failed")
-                return None
-        return status
-    elif "status_code" in response:
-        return response["status_code"]
-    return None
+        if response and response["status_code"] == 200:
+            statusCode = response["status_code"]
+        elif "status_code" in response:
+            print("error - %d" % response["status_code"])
+            return response["status_code"]
+        else:
+            return None
+    return statusCode
 
 
 def listDir(r, d):

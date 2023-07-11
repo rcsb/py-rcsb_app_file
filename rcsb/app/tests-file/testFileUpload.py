@@ -323,11 +323,162 @@ class UploadTest(unittest.TestCase):
                 mD["chunkIndex"] += 1
         return response
 
+    def testResumableUpload(self):
+        logging.info("test resumable upload")
+        self.assertTrue(os.path.exists(self.__dataPath))
+
+        sourceFilePath = self.__dataFile
+        fileExtension = os.path.splitext(sourceFilePath)[-1]
+        repositoryType = self.__repositoryType
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = ""
+        partNumber = 1
+        contentFormat = "pdbx"
+        version = "next"
+        allowOverwrite = False
+        resumable = True
+        decompress = False
+
+        # get upload parameters
+        client = TestClient(app)
+        url = os.path.join(self.__baseUrl, "getUploadParameters")
+        parameters = {
+            "repositoryType": repositoryType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+            "version": version,
+            "allowOverwrite": allowOverwrite,
+            "resumable": resumable,
+        }
+        response = client.get(
+            url, params=parameters, headers=self.__headerD, timeout=None
+        )
+        self.assertTrue(
+            response.status_code == 200, "error in get upload parameters %r" % response
+        )
+        response = response.json()
+        saveFilePath = response["filePath"]
+        chunkIndex = response["chunkIndex"]
+        uploadId = response["uploadId"]
+        self.assertTrue(chunkIndex == 0, "error - chunk index %s" % chunkIndex)
+        # compress (externally), then hash, then upload
+        # hash
+        hashType = self.__hashType
+        fullTestHash = IoUtility().getHashDigest(sourceFilePath, hashType=hashType)
+        # compute expected chunks
+        fileSize = os.path.getsize(sourceFilePath)
+        chunkSize = int(self.__chunkSize)
+        expectedChunks = 1
+        if chunkSize < fileSize:
+            expectedChunks = math.ceil(fileSize / chunkSize)
+
+        # upload chunks sequentially
+        mD = {
+            # chunk parameters
+            "chunkSize": chunkSize,
+            "chunkIndex": chunkIndex,
+            "expectedChunks": expectedChunks,
+            # upload file parameters
+            "uploadId": uploadId,
+            "hashType": hashType,
+            "hashDigest": fullTestHash,
+            # save file parameters
+            "filePath": saveFilePath,
+            "decompress": decompress,
+            "fileExtension": fileExtension,
+            "allowOverwrite": allowOverwrite,
+            "resumable": resumable,
+        }
+        url = os.path.join(self.__baseUrl, "upload")
+        # upload one chunk
+        with open(sourceFilePath, "rb") as r:
+            offset = chunkIndex * self.__chunkSize
+            r.seek(offset)
+            for index in range(chunkIndex, chunkIndex + 1):
+                mD["chunkIndex"] = index
+                response = client.post(
+                    url,
+                    data=mD,
+                    files={"chunk": r.read(self.__chunkSize)},
+                    headers=self.__headerD,
+                    timeout=None,
+                )
+                self.assertTrue(
+                    response.status_code == 200, "error in upload %r" % response
+                )
+                logging.info("uploaded chunk %d", index)
+
+        # get resumed upload
+        url = os.path.join(self.__baseUrl, "getUploadParameters")
+        parameters = {
+            "repositoryType": repositoryType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+            "version": version,
+            "allowOverwrite": allowOverwrite,
+            "resumable": resumable,
+        }
+        response = client.get(
+            url, params=parameters, headers=self.__headerD, timeout=None
+        )
+        self.assertTrue(
+            response.status_code == 200, "error in get upload parameters %r" % response
+        )
+        response = response.json()
+        saveFilePath = response["filePath"]
+        chunkIndex = response["chunkIndex"]
+        uploadId = response["uploadId"]
+        self.assertTrue(chunkIndex > 0, "error - chunk index %s" % chunkIndex)
+
+        # upload chunks sequentially
+        mD = {
+            # chunk parameters
+            "chunkSize": chunkSize,
+            "chunkIndex": chunkIndex,
+            "expectedChunks": expectedChunks,
+            # upload file parameters
+            "uploadId": uploadId,
+            "hashType": hashType,
+            "hashDigest": fullTestHash,
+            # save file parameters
+            "filePath": saveFilePath,
+            "decompress": decompress,
+            "fileExtension": fileExtension,
+            "allowOverwrite": allowOverwrite,
+            "resumable": resumable,
+        }
+        url = os.path.join(self.__baseUrl, "upload")
+        # upload remaining chunks
+        with open(sourceFilePath, "rb") as r:
+            offset = chunkIndex * self.__chunkSize
+            r.seek(offset)
+            for index in range(chunkIndex, expectedChunks):
+                mD["chunkIndex"] = index
+                response = client.post(
+                    url,
+                    data=mD,
+                    files={"chunk": r.read(self.__chunkSize)},
+                    headers=self.__headerD,
+                    timeout=None,
+                )
+                self.assertTrue(
+                    response.status_code == 200, "error in upload %r" % response
+                )
+                logging.info("uploaded chunk %d", index)
+
 
 def upload_tests():
     suite = unittest.TestSuite()
     suite.addTest(UploadTest("testSimpleUpload"))
     suite.addTest(UploadTest("testSimpleUpdate"))
+    suite.addTest(UploadTest("testResumableUpload"))
     return suite
 
 

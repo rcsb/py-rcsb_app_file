@@ -7,7 +7,6 @@ import gzip
 from PIL import ImageTk, Image
 import math
 import time
-from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.client.ClientUtils import ClientUtils
 from rcsb.app.file.Definitions import Definitions
 from rcsb.app.file.IoUtility import IoUtility
@@ -448,50 +447,28 @@ class Gui(tk.Frame):
         if chunkSize < fileSize:
             expectedChunks = math.ceil(fileSize / chunkSize)
 
-        response = self.__cU.download(
-            repositoryType=repositoryType,
-            depId=depId,
-            contentType=contentType,
-            milestone=milestone,
-            partNumber=partNumber,
-            contentFormat=contentFormat,
-            version=version,
-            downloadFolder=folderPath,
-            allowOverwrite=allowOverwrite,
-            chunkSize=None,
-            chunkIndex=None,
-        )
-        if response and response["status_code"] == 200:
-            response = response["response"]
-            # write to file
-            downloadFilePath = os.path.join(
-                folderPath,
-                PathProvider().getFileName(
-                    depId, contentType, milestone, partNumber, contentFormat, version
-                ),
+        for chunkIndex in range(0, expectedChunks):
+            response = self.__cU.download(
+                repositoryType=repositoryType,
+                depId=depId,
+                contentType=contentType,
+                milestone=milestone,
+                partNumber=partNumber,
+                contentFormat=contentFormat,
+                version=version,
+                downloadFolder=folderPath,
+                allowOverwrite=allowOverwrite,
+                chunkSize=chunkSize,
+                chunkIndex=chunkIndex,
+                expectedChunks=expectedChunks,
             )
-            with open(downloadFilePath, "ab") as ofh:
-                index = 0
-                for chunk in response.iter_content(chunk_size=chunkSize):
-                    if chunk:
-                        ofh.write(chunk)
-                        index += 1
-                        percentage = (index / expectedChunks) * 100
-                        self.download_status.set("%.0f%%" % percentage)
-                        self.master.update()
-            # validate hash
-            if (
-                "rcsb_hash_type" in response.headers
-                and "rcsb_hexdigest" in response.headers
-            ):
-                rspHashType = response.headers["rcsb_hash_type"]
-                rspHashDigest = response.headers["rcsb_hexdigest"]
-                hashDigest = IoUtility().getHashDigest(
-                    downloadFilePath, hashType=rspHashType
-                )
-                if not hashDigest == rspHashDigest:
-                    print("error - hash comparison failed")
-                    return None
+            if response and response["status_code"] == 200:
+                percentage = ((chunkIndex + 1) / expectedChunks) * 100
+                self.download_status.set("%.0f%%" % percentage)
+                self.master.update()
+            else:
+                print("error - %d" % response["status_code"])
+                return None
 
         print(f"time {time.perf_counter() - t1} s")
 

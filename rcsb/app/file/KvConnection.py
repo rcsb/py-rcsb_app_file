@@ -5,6 +5,8 @@ import sqlite3
 import logging
 from fastapi.exceptions import HTTPException
 
+# sqlite queries
+
 
 class KvConnection(object):
     def __init__(self, filepath, sessionTable, logTable):

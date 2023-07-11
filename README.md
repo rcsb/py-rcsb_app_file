@@ -199,6 +199,8 @@ To view Redis variables
 
 redis-cli
 KEYS *
+GET keyname
+HGETALL hashkey
 exit
 
 ```
