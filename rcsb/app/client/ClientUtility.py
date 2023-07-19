@@ -1,5 +1,5 @@
 ##
-# File:    ClientUtils.py
+# File:    ClientUtility.py
 # Author:  js
 # Date:    22-Feb-2023
 # Version: 1.0
@@ -10,12 +10,11 @@
 """
 functions
 
-upload, get-upload-parameters, upload-chunk, download, get-hash
-get-file-path-local, get-file-path-remote, dir-exists, list-dir
+get-file-object, upload, get-upload-parameters, upload-chunk, download
+get-hash-digest, get-file-path-local, get-file-path-remote, dir-exists, list-dir
 copy-file, copy-dir, move-file, compress-dir, compress-dir-path, decompress-dir
 latest version, next version,
 file-size, file-exists
-get-file-object
 
 """
 
@@ -24,6 +23,7 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
+import gzip
 import os
 import logging
 from copy import deepcopy
@@ -42,7 +42,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-class ClientUtils(object):
+class ClientUtility(object):
     def __init__(self):
         self.cP = ConfigProvider()
         self.cP.getConfig()
@@ -136,6 +136,7 @@ class ClientUtils(object):
         contentFormat,
         version,
         decompress=False,
+        fileExtension=None,
         allowOverwrite=False,
         resumable=False,
     ) -> dict:
@@ -143,7 +144,9 @@ class ClientUtils(object):
         if not os.path.exists(sourceFilePath):
             logger.error("File does not exist: %r", sourceFilePath)
             return None
-        fileExtension = os.path.splitext(sourceFilePath)[-1]
+        fileExtension = (
+            fileExtension if fileExtension else os.path.splitext(sourceFilePath)[-1]
+        )
         # compress (externally), then hash, then upload
         # hash
         fullTestHash = IoUtility().getHashDigest(sourceFilePath, hashType=self.hashType)
@@ -188,6 +191,11 @@ class ClientUtils(object):
             logger.error("Error %d - no upload id was formed", response.status_code)
             return {"status_code": response.status_code}
 
+        # if file is not already compressed, then compress each chunk
+        extractChunk = False
+        if not decompress:
+            extractChunk = True
+
         # chunk file and upload
         mD = {
             # chunk parameters
@@ -204,6 +212,7 @@ class ClientUtils(object):
             "fileExtension": fileExtension,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
+            "extractChunk": extractChunk,
         }
         offset = chunkIndex * self.chunkSize
 
@@ -211,10 +220,11 @@ class ClientUtils(object):
             of.seek(offset)
             url = os.path.join(self.baseUrl, "upload")
             for _ in range(chunkIndex, mD["expectedChunks"]):
-                packetSize = min(
-                    int(fileSize) - (int(mD["chunkIndex"]) * int(self.chunkSize)),
-                    int(self.chunkSize),
-                )
+                offset = int(mD["chunkIndex"]) * int(self.chunkSize)
+                packetSize = min(int(fileSize) - offset, int(self.chunkSize))
+                chunk = of.read(packetSize)
+                if extractChunk:
+                    chunk = gzip.compress(chunk)
                 logger.debug(
                     "packet size %s chunk %s expected %s",
                     packetSize,
@@ -226,7 +236,8 @@ class ClientUtils(object):
                     url,
                     data=deepcopy(mD),
                     headers=self.headerD,
-                    files={"chunk": of.read(packetSize)},
+                    files={"chunk": chunk},
+                    stream=True,
                     timeout=None,
                 )
 
@@ -328,7 +339,9 @@ class ClientUtils(object):
         if not os.path.exists(sourceFilePath):
             logger.error("File does not exist: %r", sourceFilePath)
             return None
-        fileExtension = os.path.splitext(sourceFilePath)[-1]
+        fileExtension = (
+            fileExtension if fileExtension else os.path.splitext(sourceFilePath)[-1]
+        )
         offset = chunkIndex * chunkSize
         with open(sourceFilePath, "rb") as of:
             of.seek(offset)
@@ -337,6 +350,11 @@ class ClientUtils(object):
                 fileSize - offset,
                 int(self.chunkSize),
             )
+            chunk = of.read(packetSize)
+            extractChunk = False
+            if not decompress:
+                chunk = gzip.compress(chunk)
+                extractChunk = True
             logger.debug(
                 "packet size %s chunk %s expected %s",
                 packetSize,
@@ -358,12 +376,14 @@ class ClientUtils(object):
                 "fileExtension": fileExtension,
                 "allowOverwrite": allowOverwrite,
                 "resumable": resumable,
+                "extractChunk": extractChunk,
             }
             response = requests.post(
                 url,
                 data=mD,
                 headers=self.headerD,
-                files={"chunk": of.read(packetSize)},
+                files={"chunk": chunk},
+                stream=True,
                 timeout=None,
             )
             if response.status_code != 200:

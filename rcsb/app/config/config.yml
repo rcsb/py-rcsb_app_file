@@ -21,7 +21,7 @@ configuration:
   KV_MAX_SECONDS: 14400 # session duration
   KV_FILE_PATH: ./kv.sqlite # sqlite only
   # file parameters
-  CHUNK_SIZE: 8388608 # bytes
+  CHUNK_SIZE: 33554432 # bytes
   HASH_TYPE: MD5
   DEFAULT_FILE_PERMISSIONS: 0o777 # example 0o755 ... Docker will not save or read if permissions too strict
   # jwt token parameters

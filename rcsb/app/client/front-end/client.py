@@ -7,7 +7,7 @@ import time
 import argparse
 import math
 from tqdm import tqdm
-from rcsb.app.client.ClientUtils import ClientUtils
+from rcsb.app.client.ClientUtility import ClientUtility
 from rcsb.app.file.IoUtility import IoUtility
 
 
@@ -15,19 +15,22 @@ from rcsb.app.file.IoUtility import IoUtility
 
 
 def upload(d):
+    client = ClientUtility()
     if not os.path.exists(d["sourceFilePath"]):
         sys.exit(f"error - file does not exist: {d['sourceFilePath']}")
     if d["milestone"].lower() == "none":
         d["milestone"] = ""
     # compress, then hash, then upload
+    decompress = d["decompress"]
     if COMPRESS:
         tempPath = d["sourceFilePath"] + ".gz"
         with open(d["sourceFilePath"], "rb") as r:
             with gzip.open(tempPath, "wb") as w:
                 w.write(r.read())
         d["sourceFilePath"] = tempPath
+        decompress = True
     # get upload parameters
-    response = ClientUtils().getUploadParameters(
+    response = client.getUploadParameters(
         d["repositoryType"],
         d["depId"],
         d["contentType"],
@@ -46,14 +49,15 @@ def upload(d):
     uploadId = response["uploadId"]
     # compress (externally), then hash, then upload
     # hash
-    hashType = ClientUtils().cP.get("HASH_TYPE")
+    hashType = client.cP.get("HASH_TYPE")
     fullTestHash = IoUtility().getHashDigest(d["sourceFilePath"], hashType=hashType)
     # compute expected chunks
     fileSize = os.path.getsize(d["sourceFilePath"])
-    chunkSize = int(ClientUtils().cP.get("CHUNK_SIZE"))
+    chunkSize = int(client.cP.get("CHUNK_SIZE"))
     expectedChunks = 1
     if chunkSize < fileSize:
         expectedChunks = math.ceil(fileSize / chunkSize)
+    fileExtension = os.path.splitext(d["sourceFilePath"])[-1]
     # upload chunks sequentially
     mD = {
         # chunk parameters
@@ -66,7 +70,8 @@ def upload(d):
         "hashDigest": fullTestHash,
         # save file parameters
         "saveFilePath": saveFilePath,
-        "decompress": d["decompress"],
+        "decompress": decompress,
+        "fileExtension": fileExtension,
         "allowOverwrite": d["allowOverwrite"],
         "resumable": d["resumable"],
     }
@@ -76,10 +81,10 @@ def upload(d):
         leave=False,
         total=expectedChunks - chunkIndex,
         desc=os.path.basename(d["sourceFilePath"]),
-        ascii=True,
+        ascii=False,
     ):
         mD["chunkIndex"] = index
-        status = ClientUtils().uploadChunk(d["sourceFilePath"], fileSize, **mD)
+        status = client.uploadChunk(d["sourceFilePath"], fileSize, **mD)
         if not status == 200:
             print("error in upload %r" % response)
             break
@@ -87,8 +92,9 @@ def upload(d):
 
 
 def download(d):
+    client = ClientUtility()
     # compute expected chunks
-    response = ClientUtils().fileSize(
+    response = client.fileSize(
         d["repositoryType"],
         d["depId"],
         d["contentType"],
@@ -101,7 +107,7 @@ def download(d):
         print("error computing file size")
         return
     fileSize = int(response["fileSize"])
-    chunkSize = ClientUtils().cP.get("CHUNK_SIZE")
+    chunkSize = client.cP.get("CHUNK_SIZE")
     expectedChunks = 1
     if chunkSize < fileSize:
         expectedChunks = math.ceil(fileSize / chunkSize)
@@ -109,9 +115,9 @@ def download(d):
     # download
     statusCode = 0
     for chunkIndex in tqdm(
-        range(0, expectedChunks), leave=False, total=expectedChunks, ascii=True
+        range(0, expectedChunks), leave=False, total=expectedChunks, ascii=False
     ):
-        response = ClientUtils().download(
+        response = client.download(
             repositoryType=d["repositoryType"],
             depId=d["depId"],
             contentType=d["contentType"],
@@ -136,7 +142,7 @@ def download(d):
 
 
 def listDir(r, d):
-    response = ClientUtils().listDir(r, d)
+    response = ClientUtility().listDir(r, d)
     if (
         response
         and "dirList" in response

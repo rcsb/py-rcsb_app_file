@@ -12,6 +12,7 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
+import gzip
 import logging
 import os
 import typing
@@ -131,6 +132,7 @@ class UploadUtility(object):
         allowOverwrite: bool,
         # other
         resumable: bool,
+        extractChunk: bool,
     ):
         repositoryPath = self.cP.get("REPOSITORY_DIR_PATH")
         filePath = os.path.join(repositoryPath, filePath)
@@ -159,6 +161,8 @@ class UploadUtility(object):
             # outside of try block an exception will exit
             chunk.close()
             raise HTTPException(status_code=400, detail="error - empty file")
+        if extractChunk:
+            contents = gzip.decompress(contents)
         try:
             # save, then hash, then decompress
             # should lock, however client must wait for each response before sending next chunk, precluding race conditions (unless multifile upload problem)

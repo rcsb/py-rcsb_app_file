@@ -7,7 +7,7 @@ import gzip
 from PIL import ImageTk, Image
 import math
 import time
-from rcsb.app.client.ClientUtils import ClientUtils
+from rcsb.app.client.ClientUtility import ClientUtility
 from rcsb.app.file.Definitions import Definitions
 from rcsb.app.file.IoUtility import IoUtility
 
@@ -20,7 +20,7 @@ class Gui(tk.Frame):
         super().__init__(master)
         # master.geometry("500x500")
         master.title("FILE ACCESS AND DEPOSITION APPLICATION")
-        self.__cU = ClientUtils()
+        self.__cU = ClientUtility()
 
         self.tabs = ttk.Notebook(master)
         self.splashTab = ttk.Frame(master)
@@ -317,6 +317,8 @@ class Gui(tk.Frame):
         readFilePath = self.file_path
         COMPRESS = self.compress.get() == 1
         DECOMPRESS = self.decompress.get() == 1
+        if COMPRESS:
+            DECOMPRESS = True
         allowOverwrite = self.allow_overwrite.get() == 1
         resumable = self.resumable.get() == 1
         if (
@@ -369,6 +371,7 @@ class Gui(tk.Frame):
         expectedChunks = 1
         if chunkSize < fileSize:
             expectedChunks = math.ceil(fileSize / chunkSize)
+        fileExtension = os.path.splitext(readFilePath)[-1]
         # upload chunks sequentially
         mD = {
             # chunk parameters
@@ -382,6 +385,7 @@ class Gui(tk.Frame):
             # save file parameters
             "saveFilePath": saveFilePath,
             "decompress": DECOMPRESS,
+            "fileExtension": fileExtension,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
         }

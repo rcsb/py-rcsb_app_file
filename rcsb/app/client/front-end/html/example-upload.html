@@ -1,10 +1,10 @@
+<!-- author James Smith -->
 <!DOCTYPE html>
 <html lang="en">
 	<head>
         <meta charset="UTF-8">
         <title>HTML UPLOAD EXAMPLE</title>
-        <!-- author James Smith -->
-        <script src = "http://www.myersdaily.org/joseph/javascript/md5.js"></script>
+<!--        <script src = "http://www.myersdaily.org/joseph/javascript/md5.js"></script>-->
 		<script type="text/javascript">
 			async function handleform() {
               window.event.preventDefault();
@@ -25,15 +25,15 @@
               // await getHashDigest(file);
               await getUploadParameters().then(() => upload(file));
 
-              async function getHashDigest(file){
-                var reader = new FileReader();
-                reader.addEventListener("load", async () => {
-                    // bug for some files
-                    hashDigest = md5(reader.result);
-                    await getUploadParameters().then(() => upload(file));
-                });
-                reader.readAsBinaryString(file);
-              }
+              // async function getHashDigest(file){
+              //   var reader = new FileReader();
+              //   reader.addEventListener("load", async () => {
+              //       // bug for some files
+              //       hashDigest = md5(reader.result);
+              //       await getUploadParameters().then(() => upload(file));
+              //   });
+              //   reader.readAsBinaryString(file);
+              // }
 
               async function getUploadParameters() {
                   // get server-side parameters
@@ -77,7 +77,7 @@
                     return;
                   }
                 var fileSize = file.size;
-                var chunkSize = 1024 * 1024 * 8; // bytes
+                var chunkSize = 1024 * 1024 * 32; // bytes
                 var expectedChunks = Math.ceil((fileSize) / chunkSize);
                 var chunkOffset = chunkIndex * chunkSize;
                 var hashType = "MD5";
@@ -103,9 +103,9 @@
                     // }
                   console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
                   bounds = chunkOffset + chunkSize;
-                  if(bounds > fileSize){
-                      bounds = fileSize;
-                  }
+                  // if(bounds > fileSize){
+                  //     bounds = fileSize;
+                  // }
                   var blob = file.slice(chunkOffset, bounds);
                   postChunk(blob);
                 }

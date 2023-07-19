@@ -1,5 +1,5 @@
 ##
-# File - testClientUtils.py
+# File - testClientUtility.py
 # Author - James Smith 2023
 #
 ##
@@ -22,7 +22,7 @@ import filecmp
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.utils.io.LogUtil import StructFormatter
-from rcsb.app.client.ClientUtils import ClientUtils
+from rcsb.app.client.ClientUtility import ClientUtility
 from rcsb.app.file.IoUtility import IoUtility
 from rcsb.app.file.PathProvider import PathProvider
 
@@ -62,7 +62,7 @@ class ClientTests(unittest.TestCase):
     def setUp(self):
         logger.info("setting up")
 
-        self.__cU = ClientUtils()
+        self.__cU = ClientUtility()
         self.__cP = ConfigProvider()
         self.__fU = FileUtil()
 
@@ -173,6 +173,7 @@ class ClientTests(unittest.TestCase):
             partNumber = 1
             decompress = False
             allowOverwrite = True
+            fileExtension = os.path.splitext(self.__testFileDatPath)[-1]
             response = self.__cU.upload(
                 self.__testFileDatPath,
                 repositoryType,
@@ -183,6 +184,7 @@ class ClientTests(unittest.TestCase):
                 contentFormat,
                 version,
                 decompress,
+                fileExtension,
                 allowOverwrite,
                 resumable,
             )
@@ -196,6 +198,7 @@ class ClientTests(unittest.TestCase):
 
             # return 200
             partNumber = 2
+            fileExtension = os.path.splitext(self.__testFileDatPath)[-1]
             response = self.__cU.upload(
                 self.__testFileDatPath,
                 repositoryType,
@@ -206,6 +209,7 @@ class ClientTests(unittest.TestCase):
                 contentFormat,
                 version,
                 decompress,
+                fileExtension,
                 allowOverwrite,
                 resumable,
             )
@@ -217,6 +221,7 @@ class ClientTests(unittest.TestCase):
             # return 403 (file already exists)
             partNumber = 1
             allowOverwrite = False
+            fileExtension = os.path.splitext(self.__testFileDatPath)[-1]
             response = self.__cU.upload(
                 self.__testFileDatPath,
                 repositoryType,
@@ -227,6 +232,7 @@ class ClientTests(unittest.TestCase):
                 contentFormat,
                 version,
                 decompress,
+                fileExtension,
                 allowOverwrite,
                 resumable,
             )
@@ -239,6 +245,7 @@ class ClientTests(unittest.TestCase):
             partNumber = 3
             decompress = True
             allowOverwrite = True
+            fileExtension = os.path.splitext(self.__testFileGzipPath)[-1]
             response = self.__cU.upload(
                 self.__testFileGzipPath,
                 repositoryType,
@@ -249,6 +256,7 @@ class ClientTests(unittest.TestCase):
                 contentFormat,
                 version,
                 decompress,
+                fileExtension,
                 allowOverwrite,
                 resumable,
             )
@@ -306,6 +314,7 @@ class ClientTests(unittest.TestCase):
         expectedChunks = 1
         if chunkSize < fileSize:
             expectedChunks = math.ceil(fileSize / chunkSize)
+        fileExtension = os.path.splitext(self.__testFileDatPath)[-1]
 
         # upload chunks sequentially
         mD = {
@@ -320,6 +329,7 @@ class ClientTests(unittest.TestCase):
             # save file parameters
             "saveFilePath": saveFilePath,
             "decompress": decompress,
+            "fileExtension": fileExtension,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
         }

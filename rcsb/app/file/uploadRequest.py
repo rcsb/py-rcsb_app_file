@@ -68,6 +68,7 @@ async def getUploadParameters(
             resumable,
         )
     except HTTPException as exc:
+        logger.exception("error %d %s", exc.status_code, exc.detail)
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
@@ -90,6 +91,7 @@ async def upload(
     allowOverwrite: bool = Form(False),
     # other
     resumable: bool = Form(False),
+    extractChunk: bool = Form(False),
 ):
     # return status
     try:
@@ -109,6 +111,7 @@ async def upload(
             fileExtension=fileExtension,
             allowOverwrite=allowOverwrite,
             resumable=resumable,
+            extractChunk=extractChunk,
         )
     except HTTPException as exc:
         logger.exception("error %d %s", exc.status_code, exc.detail)
