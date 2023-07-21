@@ -20,7 +20,7 @@ def upload(d):
         sys.exit(f"error - file does not exist: {d['sourceFilePath']}")
     if d["milestone"].lower() == "none":
         d["milestone"] = ""
-    # compress, then hash, then upload
+    # compress, then hash and compute file size parameter, then upload
     decompress = d["decompress"]
     if COMPRESS:
         tempPath = d["sourceFilePath"] + ".gz"
@@ -70,8 +70,9 @@ def upload(d):
         "hashDigest": fullTestHash,
         # save file parameters
         "saveFilePath": saveFilePath,
-        "decompress": decompress,
+        "fileSize": fileSize,
         "fileExtension": fileExtension,
+        "decompress": decompress,
         "allowOverwrite": d["allowOverwrite"],
         "resumable": d["resumable"],
     }
@@ -84,7 +85,7 @@ def upload(d):
         ascii=False,
     ):
         mD["chunkIndex"] = index
-        status = client.uploadChunk(d["sourceFilePath"], fileSize, **mD)
+        status = client.uploadChunk(d["sourceFilePath"], **mD)
         if not status == 200:
             print("error in upload %r" % response)
             break

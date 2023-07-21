@@ -361,7 +361,7 @@ class Gui(tk.Frame):
         saveFilePath = response["filePath"]
         chunkIndex = response["chunkIndex"]
         uploadId = response["uploadId"]
-        # compress (externally), then hash, then upload
+        # compress, then hash and compute file size parameter, then upload
         # hash
         hashType = self.__cU.cP.get("HASH_TYPE")
         fullTestHash = IoUtility().getHashDigest(readFilePath, hashType=hashType)
@@ -384,15 +384,16 @@ class Gui(tk.Frame):
             "hashDigest": fullTestHash,
             # save file parameters
             "saveFilePath": saveFilePath,
-            "decompress": DECOMPRESS,
+            "fileSize": fileSize,
             "fileExtension": fileExtension,
+            "decompress": DECOMPRESS,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
         }
         self.upload_status.set("0%")
         for index in range(chunkIndex, expectedChunks):
             mD["chunkIndex"] = index
-            status_code = self.__cU.uploadChunk(readFilePath, fileSize, **mD)
+            status_code = self.__cU.uploadChunk(readFilePath, **mD)
             if not status_code == 200:
                 print("error in upload %r" % response)
                 break

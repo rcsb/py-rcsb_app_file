@@ -128,8 +128,9 @@
                   formdata.append("hashDigest", hashDigest);
                   // save file parameters
                   formdata.append("filePath", filePath);
-                  formdata.append("decompress", decompress);
+                  formdata.append("fileSize", fileSize);
                   formdata.append("fileExtension", fileExtension);
+                  formdata.append("decompress", decompress);
                   formdata.append("allowOverwrite", allowOverwrite);
                   formdata.append("resumable", resumable);
                   fetch(sequential_chunk_url, {

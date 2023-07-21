@@ -101,7 +101,7 @@ class UploadTest(unittest.TestCase):
         if not os.path.exists(self.__dataFile):
             logging.error("File does not exist: %r", self.__dataFile)
             return None
-        # compress (externally), then hash, then upload
+        # compress (externally), then hash and compute file size parameter, then upload
         # hash
         fullTestHash = IoUtility().getHashDigest(
             self.__dataFile, hashType=self.__hashType
@@ -168,8 +168,9 @@ class UploadTest(unittest.TestCase):
             "hashDigest": fullTestHash,
             # save file parameters
             "filePath": saveFilePath,
-            "decompress": False,
+            "fileSize": fileSize,
             "fileExtension": None,
+            "decompress": False,
             "allowOverwrite": False,
             "resumable": False,
         }
@@ -281,8 +282,9 @@ class UploadTest(unittest.TestCase):
             "hashDigest": fullTestHash,
             # save file parameters
             "filePath": saveFilePath,
-            "decompress": False,
+            "fileSize": fileSize,
             "fileExtension": None,
+            "decompress": False,
             "allowOverwrite": True,
             "resumable": False,
         }
@@ -365,7 +367,7 @@ class UploadTest(unittest.TestCase):
         chunkIndex = response["chunkIndex"]
         uploadId = response["uploadId"]
         self.assertTrue(chunkIndex == 0, "error - chunk index %s" % chunkIndex)
-        # compress (externally), then hash, then upload
+        # compress (externally), then hash and compute file size parameter, then upload
         # hash
         hashType = self.__hashType
         fullTestHash = IoUtility().getHashDigest(sourceFilePath, hashType=hashType)
@@ -388,8 +390,9 @@ class UploadTest(unittest.TestCase):
             "hashDigest": fullTestHash,
             # save file parameters
             "filePath": saveFilePath,
-            "decompress": decompress,
+            "fileSize": fileSize,
             "fileExtension": fileExtension,
+            "decompress": decompress,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
         }
@@ -449,8 +452,9 @@ class UploadTest(unittest.TestCase):
             "hashDigest": fullTestHash,
             # save file parameters
             "filePath": saveFilePath,
-            "decompress": decompress,
+            "fileSize": fileSize,
             "fileExtension": fileExtension,
+            "decompress": decompress,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
         }

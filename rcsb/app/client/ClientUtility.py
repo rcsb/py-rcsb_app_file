@@ -147,7 +147,7 @@ class ClientUtility(object):
         fileExtension = (
             fileExtension if fileExtension else os.path.splitext(sourceFilePath)[-1]
         )
-        # compress (externally), then hash, then upload
+        # compress (externally), then hash and compute file size parameter, then upload
         # hash
         fullTestHash = IoUtility().getHashDigest(sourceFilePath, hashType=self.hashType)
         # compute expected chunks
@@ -208,8 +208,9 @@ class ClientUtility(object):
             "hashDigest": fullTestHash,
             # save file parameters
             "filePath": saveFilePath,
-            "decompress": decompress,
+            "fileSize": fileSize,
             "fileExtension": fileExtension,
+            "decompress": decompress,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
             "extractChunk": extractChunk,
@@ -319,7 +320,6 @@ class ClientUtility(object):
     def uploadChunk(
         self,
         sourceFilePath: str,
-        fileSize: int,
         # chunk parameters
         chunkSize: int,
         chunkIndex: int,
@@ -330,8 +330,9 @@ class ClientUtility(object):
         hashDigest: str,
         # save file parameters
         saveFilePath: str,
-        decompress: bool = False,
+        fileSize: int,
         fileExtension: str = None,
+        decompress: bool = False,
         allowOverwrite: bool = False,
         resumable: bool = False,
     ) -> int:
@@ -372,8 +373,9 @@ class ClientUtility(object):
                 "hashDigest": hashDigest,
                 # save file parameters
                 "filePath": saveFilePath,
-                "decompress": decompress,
+                "fileSize": fileSize,
                 "fileExtension": fileExtension,
+                "decompress": decompress,
                 "allowOverwrite": allowOverwrite,
                 "resumable": resumable,
                 "extractChunk": extractChunk,

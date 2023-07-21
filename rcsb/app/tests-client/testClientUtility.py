@@ -328,8 +328,9 @@ class ClientTests(unittest.TestCase):
             "hashDigest": fullTestHash,
             # save file parameters
             "saveFilePath": saveFilePath,
-            "decompress": decompress,
+            "fileSize": fileSize,
             "fileExtension": fileExtension,
+            "decompress": decompress,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
         }
@@ -337,7 +338,7 @@ class ClientTests(unittest.TestCase):
         # upload one chunk
         for index in range(chunkIndex, chunkIndex + 1):
             mD["chunkIndex"] = index
-            status = self.__cU.uploadChunk(sourceFilePath, fileSize, **mD)
+            status = self.__cU.uploadChunk(sourceFilePath, **mD)
             self.assertTrue(status == 200, "error in upload %r" % response)
             logger.info("uploaded chunk %d", index)
 
@@ -366,7 +367,7 @@ class ClientTests(unittest.TestCase):
         # upload remaining chunks
         for index in range(chunkIndex, expectedChunks):
             mD["chunkIndex"] = index
-            status = self.__cU.uploadChunk(sourceFilePath, fileSize, **mD)
+            status = self.__cU.uploadChunk(sourceFilePath, **mD)
             self.assertTrue(status == 200, "error in upload %r" % response)
             logger.info("uploaded remaining chunk %d", index)
 

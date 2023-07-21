@@ -86,8 +86,9 @@ async def upload(
     hashDigest: str = Form(None),
     # save file parameters
     filePath: str = Form(...),
-    decompress: bool = Form(False),
+    fileSize: int = Form(None),
     fileExtension: str = Form(None),
+    decompress: bool = Form(False),
     allowOverwrite: bool = Form(False),
     # other
     resumable: bool = Form(False),
@@ -107,8 +108,9 @@ async def upload(
             hashDigest=hashDigest,
             # save file parameters
             filePath=filePath,
-            decompress=decompress,
+            fileSize=fileSize,
             fileExtension=fileExtension,
+            decompress=decompress,
             allowOverwrite=allowOverwrite,
             resumable=resumable,
             extractChunk=extractChunk,

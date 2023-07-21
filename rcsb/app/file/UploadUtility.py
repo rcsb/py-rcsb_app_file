@@ -127,8 +127,9 @@ class UploadUtility(object):
         hashDigest: str,
         # save file parameters
         filePath: str,
-        decompress: bool,
+        fileSize: int,
         fileExtension: str,
+        decompress: bool,
         allowOverwrite: bool,
         # other
         resumable: bool,
@@ -164,7 +165,7 @@ class UploadUtility(object):
         if extractChunk:
             contents = gzip.decompress(contents)
         try:
-            # save, then hash, then decompress
+            # save, then compare hash or file size, then decompress
             # should lock, however client must wait for each response before sending next chunk, precluding race conditions (unless multifile upload problem)
             async with aiofiles.open(tempPath, "ab") as ofh:
                 await ofh.write(contents)
@@ -173,10 +174,13 @@ class UploadUtility(object):
                 if hashDigest and hashType:
                     if not IoUtility().checkHash(tempPath, hashDigest, hashType):
                         raise HTTPException(
-                            status_code=400, detail=f"{hashType} hash check failed"
+                            status_code=400, detail=f"{hashType} hash comparison failed"
                         )
-                # else:
-                # raise HTTPException(status_code=400, detail="Error - missing hash")
+                elif fileSize:
+                    if fileSize != os.path.getsize(tempPath):
+                        raise HTTPException(status_code=400, detail="Error - file size comparison failed")
+                else:
+                    raise HTTPException(status_code=400, detail="Error - no hash or file size provided")
                 # lock then save
                 lockPath = session.getLockPath(tempPath)  # either tempPath or filePath
                 lock = FileLock(lockPath)
