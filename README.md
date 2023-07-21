@@ -61,8 +61,6 @@ To skip endpoints and forward a server-side chunk or file from Python, use funct
 
 Those functions may throw a fastapi.HTTPException, so you will have to enclose function calls in a try except block.
 
-A fastapi server will automatically return on those exceptions, but other servers may not. Please report all problems.
-
 # Uploads and downloads
 
 ### HTML examples
@@ -92,7 +90,13 @@ python3 client.py
 
 ### Hashing and compression
 
-Should hashing be performed before or after compression/decompression? From the client side, the API first compresses, then hashes the complete file, then uploads. From the server side, the API saves, then hashes the complete file, then decompresses.
+Should hashing be performed before or after compression/decompression? The API performs hashing on the compressed file.
+
+For the Python client, from the client side, the API first compresses, then hashes the complete file, then uploads. From the server side, the API saves, then hashes the complete file, then decompresses.
+
+From javascript, hashing libraries are less reliable, so hashing is optional. If a hash digest is not sent as a parameter, the API defaults to file size comparison.
+
+File size is computed on the compressed file, same as the hash. Please ensure that front-end scripts compute file size in the correct order if compression is used.
 
 # Testing
 
@@ -112,17 +116,21 @@ tox
 
 # Deployment
 
-For production, use a Docker container with a Redis database.
+For production, we presume that the file system is a mounted NFS file system.
 
-Redis with Docker requires Redis in a Docker container.
+A Docker container should be used.
 
-Production with multiple servers will require all servers to coordinate through a single remote Redis server.
+To enable scale-up to multiple containers, the file system and database should be installed outside the container.
 
-Since one server could host Redis while others don't, the docker instances could be run differently, or the config files set differently, on each server.
+Set paths in config.yml so that all containers coordinate through the same paths.
 
-Multiple servers must connect to a single mounted file system for deposition.
+Note that Docker requires parameters to bind the paths.
 
-For multiple containers, paths in config.yml must point to external mounted paths, and docker requires parameters to bind the paths.
+If Redis is used, it runs best when Redis is also in a (separate) Docker container.
+
+Some sites could use multiple deposition servers, a situation comparable to multiple containers.
+
+As with containers, multiple servers will require all servers to coordinate through a single remote file system and database.
 
 # Deployment on local server without docker
 
@@ -355,12 +363,10 @@ docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/sy
 
 # Error handling
 
-For production, Redis variables are set to expire periodically. However, hidden files are not, so a cron job should be run periodically to remove lingering hidden files from the deposit or archive directories.
+For production, a cron job should be run periodically to remove lingering hidden files from the deposit or archive directories and remove Redis or Sqlite sessions.
 
 An example cron script is in the deploy folder.
 
 After development testing with a Sqlite database, open the kv.sqlite file and delete the tables, and delete hidden files from the deposit or archives directories.
 
 After development testing with Redis, open the redis-cli and delete the variables, and delete hidden files from the deposit or archives directories.
-
-Among the files to be deleted are those that start with the value configured in getTempFilePath, referred to above, after checking that the file modification time is beyond a specified threshold.
