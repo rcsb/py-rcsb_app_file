@@ -4,7 +4,7 @@
 	<head>
         <meta charset="UTF-8">
         <title>HTML UPLOAD EXAMPLE</title>
-<!--        <script src = "http://www.myersdaily.org/joseph/javascript/md5.js"></script>-->
+        <script src = "http://www.myersdaily.org/joseph/javascript/md5.js"></script>
 		<script type="text/javascript">
 			async function handleform() {
               window.event.preventDefault();
@@ -15,25 +15,11 @@
               let file = document.getElementsByName('uploadFile')[0].files[0];
               let fileName = file.name;
               console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
-              // hash file
-              // if file is a zip file, file has been compressed before hashing/upload
-              let hashDigest = null;
               let filePath = null;
               let resumable = document.getElementsByName('resumable')[0].checked;
               let chunkIndex = 0;
               let uploadId = null;
-              // await getHashDigest(file);
               await getUploadParameters().then(() => upload(file));
-
-              // async function getHashDigest(file){
-              //   var reader = new FileReader();
-              //   reader.addEventListener("load", async () => {
-              //       // bug for some files
-              //       hashDigest = md5(reader.result);
-              //       await getUploadParameters().then(() => upload(file));
-              //   });
-              //   reader.readAsBinaryString(file);
-              // }
 
               async function getUploadParameters() {
                   // get server-side parameters
@@ -80,16 +66,10 @@
                 var chunkSize = 1024 * 1024 * 32; // bytes
                 var expectedChunks = Math.ceil((fileSize) / chunkSize);
                 var chunkOffset = chunkIndex * chunkSize;
-                var hashType = "MD5";
                 let decompress = document.getElementsByName('decompress')[0].checked;
                 let fileExtension = fileName.substring(fileName.lastIndexOf("."));
                 let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
                 console.log(`chunk index ${chunkIndex} expected ${expectedChunks} for ${fileName} ${uploadId} ${filePath}`);
-                console.log("hash digest " + hashDigest);
-                // convert javascript null to pythonic value
-                if(! hashDigest){
-                    hashDigest = "";
-                }
                 readChunks(chunkIndex, chunkOffset, resumable);
 
                 function readChunks(chunkIndex, chunkOffset) {
@@ -103,9 +83,9 @@
                     // }
                   console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
                   bounds = chunkOffset + chunkSize;
-                  // if(bounds > fileSize){
-                  //     bounds = fileSize;
-                  // }
+                  if(bounds > fileSize){
+                      bounds = fileSize;
+                  }
                   var blob = file.slice(chunkOffset, bounds);
                   postChunk(blob);
                 }
@@ -124,8 +104,8 @@
                   formdata.append("expectedChunks", expectedChunks);
                   // upload file parameters
                   formdata.append("uploadId", uploadId);
-                  formdata.append("hashType", hashType);
-                  formdata.append("hashDigest", hashDigest);
+                  formdata.append("hashType", "");
+                  formdata.append("hashDigest", "");
                   // save file parameters
                   formdata.append("filePath", filePath);
                   formdata.append("fileSize", fileSize);
