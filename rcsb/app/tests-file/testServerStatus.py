@@ -72,7 +72,7 @@ class ServerStatusTests(unittest.TestCase):
         self.__headerD = {
             "Authorization": "Bearer " + JWTAuthToken().createToken({}, subject)
         }
-        self.__baseUrl = cP.get("SERVER_HOST_AND_PORT")
+        self.__baseUrl = "http://127.0.0.1:8000"  # cP.get("SERVER_HOST_AND_PORT")
 
     def tearDown(self):
         unitS = "MB" if platform.system() == "Darwin" else "GB"
@@ -91,9 +91,9 @@ class ServerStatusTests(unittest.TestCase):
         try:
             url = self.__baseUrl + "/status"
             response = requests.get(url, headers=self.__headerD, timeout=None)
-            logger.info("Status %r response %r", response.status_code, response.json())
             self.assertTrue(response.status_code == 200)
-            self.assertTrue(len(response.json()) > 0)
+            self.assertTrue(response.json() and len(response.json()) > 0)
+            logger.info("Status %r response %r", response.status_code, response.json())
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()

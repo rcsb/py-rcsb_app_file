@@ -34,9 +34,16 @@ def root():
 def serverStatus():
     # status of file app gunicorn server and remote repository file system
     status = {"server running": True}
-    status.update(getUptime())
-    status.update(getServerStorage())
-    status.update(getRedisStatus())
+    uptime = getUptime()
+    logger.info("uptime %s", uptime)
+    status.update(uptime)
+    storage = getServerStorage()
+    logger.info("storage %s", storage)
+    status.update(storage)
+    red = getRedisStatus()
+    logger.info("redis %s", red)
+    status.update(red)
+    logger.info("status %s", status)
     return status
 
 
