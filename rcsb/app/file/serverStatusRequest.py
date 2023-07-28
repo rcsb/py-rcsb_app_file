@@ -100,10 +100,10 @@ def getServerStorage():
     }
 
 
-@router.get("/processStatus", tags=["status"])
-def processStatus():
-    # status of machine that server is on
-    cP = ConfigProvider()
-    psU = ProcessStatusUtil()
-    psD = psU.getInfo()
-    return {"msg": "Status is nominal!", "version": cP.getVersion(), "status": psD}
+# @router.get("/processStatus", tags=["status"])
+# def processStatus():
+#     # status of machine that server is on
+#     cP = ConfigProvider()
+#     psU = ProcessStatusUtil()
+#     psD = psU.getInfo()
+#     return {"msg": "Status is nominal!", "version": cP.getVersion(), "status": psD}

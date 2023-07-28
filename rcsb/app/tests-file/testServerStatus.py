@@ -98,22 +98,22 @@ class ServerStatusTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
-    def testProcessStatus(self):
-        """Get process status ()."""
-        try:
-            url = self.__baseUrl + "/processStatus"
-            response = requests.get(url, headers=self.__headerD, timeout=None)
-            logger.debug("Status %r response %r", response.status_code, response.json())
-            self.assertTrue(response.status_code == 200)
-        except Exception as e:
-            logger.exception("Failing with %s", str(e))
-            self.fail()
+    # def testProcessStatus(self):
+    #     """Get process status ()."""
+    #     try:
+    #         url = self.__baseUrl + "/processStatus"
+    #         response = requests.get(url, headers=self.__headerD, timeout=None)
+    #         logger.info("Status %r response %r", response.status_code, response.json())
+    #         self.assertTrue(response.status_code == 200)
+    #     except Exception as e:
+    #         logger.exception("Failing with %s", str(e))
+    #         self.fail()
 
 
 def apiSimpleTests():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(ServerStatusTests("testRootStatus"))
-    suiteSelect.addTest(ServerStatusTests("testProcessStatus"))
+    # suiteSelect.addTest(ServerStatusTests("testProcessStatus"))
     return suiteSelect
 
 
