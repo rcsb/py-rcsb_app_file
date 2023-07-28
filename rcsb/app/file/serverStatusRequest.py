@@ -40,9 +40,9 @@ def serverStatus():
     storage = getServerStorage()
     logger.info("storage %s", storage)
     status.update(storage)
-    red = getRedisStatus()
-    logger.info("redis %s", red)
-    status.update(red)
+    # red = getRedisStatus()
+    # logger.info("redis %s", red)
+    # status.update(red)
     logger.info("status %s", status)
     return status
 

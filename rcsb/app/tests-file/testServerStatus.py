@@ -91,7 +91,7 @@ class ServerStatusTests(unittest.TestCase):
         try:
             url = self.__baseUrl + "/status"
             response = requests.get(url, headers=self.__headerD, timeout=None)
-            self.assertTrue(response.status_code == 200)
+            self.assertTrue(response.status_code == 200, "error - status code %s" % response.status_code)
             self.assertTrue(response.json() and len(response.json()) > 0)
             logger.info("Status %r response %r", response.status_code, response.json())
         except Exception as e:
