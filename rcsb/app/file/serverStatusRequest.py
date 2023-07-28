@@ -34,12 +34,12 @@ def root():
 def serverStatus():
     # status of file app gunicorn server and remote repository file system
     status = {"server running": True}
-    # uptime = getUptime()
-    # logger.info("uptime %s", uptime)
-    # status.update(uptime)
-    # storage = getServerStorage()
-    # logger.info("storage %s", storage)
-    # status.update(storage)
+    uptime = getUptime()
+    logger.info("uptime %s", uptime)
+    status.update(uptime)
+    storage = getServerStorage()
+    logger.info("storage %s", storage)
+    status.update(storage)
     # red = getRedisStatus()
     # logger.info("redis %s", red)
     # status.update(red)
@@ -107,10 +107,10 @@ def getServerStorage():
     }
 
 
-# @router.get("/processStatus", tags=["status"])
-# def processStatus():
-#     # status of machine that server is on
-#     cP = ConfigProvider()
-#     psU = ProcessStatusUtil()
-#     psD = psU.getInfo()
-#     return {"msg": "Status is nominal!", "version": cP.getVersion(), "status": psD}
+@router.get("/processStatus", tags=["status"])
+def processStatus():
+    # status of machine that server is on
+    cP = ConfigProvider()
+    psU = ProcessStatusUtil()
+    psD = psU.getInfo()
+    return {"msg": "Status is nominal!", "version": cP.getVersion(), "status": psD}

@@ -73,6 +73,11 @@ class ServerStatusTests(unittest.TestCase):
             "Authorization": "Bearer " + JWTAuthToken().createToken({}, subject)
         }
         self.__baseUrl = "http://127.0.0.1:8000"  # cP.get("SERVER_HOST_AND_PORT")
+        HERE = os.path.dirname(__file__)
+        TOPDIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
+        uptime_file = os.path.join(TOPDIR, "uptime.txt")
+        with open(uptime_file, "wb") as w:
+            w.write(b"%d" % int(time.time()))
 
     def tearDown(self):
         unitS = "MB" if platform.system() == "Darwin" else "GB"
@@ -98,16 +103,16 @@ class ServerStatusTests(unittest.TestCase):
             logger.exception("Failing with %s", str(e))
             self.fail()
 
-    # def testProcessStatus(self):
-    #     """Get process status ()."""
-    #     try:
-    #         url = self.__baseUrl + "/processStatus"
-    #         response = requests.get(url, headers=self.__headerD, timeout=None)
-    #         logger.info("Status %r response %r", response.status_code, response.json())
-    #         self.assertTrue(response.status_code == 200)
-    #     except Exception as e:
-    #         logger.exception("Failing with %s", str(e))
-    #         self.fail()
+    def testProcessStatus(self):
+        """Get process status ()."""
+        try:
+            url = self.__baseUrl + "/processStatus"
+            response = requests.get(url, headers=self.__headerD, timeout=None)
+            logger.info("Status %r response %r", response.status_code, response.json())
+            self.assertTrue(response.status_code == 200)
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
 
 
 def apiSimpleTests():
