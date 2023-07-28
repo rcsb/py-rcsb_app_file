@@ -33,7 +33,7 @@ def root():
 @router.get("/status", tags=["status"])
 def serverStatus():
     # status of file app gunicorn server and remote repository file system
-    status = {}
+    status = {"server running": True}
     status.update(getUptime())
     status.update(getServerStorage())
     status.update(getRedisStatus())
@@ -45,6 +45,7 @@ def getUptime():
     HERE = os.path.dirname(__file__)
     TOPDIR = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
     uptime_file = os.path.join(TOPDIR, "uptime.txt")
+    logger.info("HERE %s TOPDIR %s UPTIME FILE %s", HERE, TOPDIR, uptime_file)
     uptime_start = 0
     with open(uptime_file, "r") as read:
         uptime_start = float(read.read())
@@ -55,12 +56,12 @@ def getUptime():
     days = minutes / 24
     # report total uptime in either hours, minutes, or seconds (i.e. total hours, or total minutes, or total seconds)
     return {
-        "days_total": int(days),
-        "hours_total": int(hours),
-        "minutes_total": int(minutes),
-        "seconds_total": int(seconds),
-        "start": int(uptime_start),
-        "stop": int(uptime_stop),
+        "uptime days total": int(days),
+        "uptime hours total": int(hours),
+        "uptime minutes total": int(minutes),
+        "uptime seconds total": int(seconds),
+        "uptime start": int(uptime_start),
+        "uptime now": int(uptime_stop),
     }
 
 
@@ -78,7 +79,7 @@ def getRedisStatus():
         result = r.ping() == True  # noqa: E712
     except Exception:
         result = False
-    return {"redis-running": result}
+    return {"redis running": result}
 
 
 def getServerStorage():
@@ -91,11 +92,11 @@ def getServerStorage():
     disk_free = disk_usage[2]
     percent_disk_used = (disk_used / disk_total) * 100
     return {
-        "percent_ram_used": percent_ram_used,
-        "percent_disk_used": percent_disk_used,
-        "disk_total": disk_total,
-        "disk_used": disk_used,
-        "disk_free": disk_free,
+        "server percent ram used": percent_ram_used,
+        "repository percent disk used": percent_disk_used,
+        "repository disk total": disk_total,
+        "repository disk used": disk_used,
+        "repository disk free": disk_free,
     }
 
 

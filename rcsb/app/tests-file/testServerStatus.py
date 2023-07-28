@@ -18,13 +18,14 @@ __email__ = "jwest@rcsb.rutgers.edu"
 __license__ = "Apache 2.0"
 
 import logging
+import os
 import platform
+import subprocess
 import resource
 import time
 import unittest
-from fastapi.testclient import TestClient
+import requests
 from rcsb.app.file import __version__
-from rcsb.app.file.main import app
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.JWTAuthToken import JWTAuthToken
 
@@ -38,6 +39,25 @@ logger.setLevel(logging.INFO)
 
 
 class ServerStatusTests(unittest.TestCase):
+    # comment out if running gunicorn or uvicorn
+    # runs only once
+    @classmethod
+    def setUpClass(cls):
+        subprocess.Popen(
+            ["uvicorn", "rcsb.app.file.main:app"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
+        time.sleep(5)
+
+    # comment out if running gunicorn or uvicorn
+    # runs only once
+    @classmethod
+    def tearDownClass(cls):
+        os.system(
+            "pid=$(ps -e | grep uvicorn | head -n1 | awk '{print $1;}';);kill $pid;"
+        )
+
     def setUp(self):
         self.__startTime = time.time()
         #
@@ -52,6 +72,7 @@ class ServerStatusTests(unittest.TestCase):
         self.__headerD = {
             "Authorization": "Bearer " + JWTAuthToken().createToken({}, subject)
         }
+        self.__baseUrl = cP.get("SERVER_HOST_AND_PORT")
 
     def tearDown(self):
         unitS = "MB" if platform.system() == "Darwin" else "GB"
@@ -68,13 +89,11 @@ class ServerStatusTests(unittest.TestCase):
     def testRootStatus(self):
         """Get root status ()."""
         try:
-            with TestClient(app) as client:
-                response = client.get("/", headers=self.__headerD)
-                logger.info(
-                    "Status %r response %r", response.status_code, response.json()
-                )
-                self.assertTrue(response.status_code == 200)
-                self.assertTrue(len(response.json()) > 0)
+            url = self.__baseUrl + "/status"
+            response = requests.get(url, headers=self.__headerD, timeout=None)
+            logger.info("Status %r response %r", response.status_code, response.json())
+            self.assertTrue(response.status_code == 200)
+            self.assertTrue(len(response.json()) > 0)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
@@ -82,16 +101,10 @@ class ServerStatusTests(unittest.TestCase):
     def testProcessStatus(self):
         """Get process status ()."""
         try:
-            with TestClient(app) as client:
-                response = client.get("/processStatus", headers=self.__headerD)
-                logger.debug(
-                    "Status %r response %r", response.status_code, response.json()
-                )
-                self.assertTrue(response.status_code == 200)
-                # rD = response.json()
-                # self.assertGreaterEqual(rD["version"], 0.3)
-                # self.assertTrue(response.json() == {"msg": "Service is up!"})
-                # logger.debug("Process status: %s", pprint.pformat(rD, indent=3))
+            url = self.__baseUrl + "/processStatus"
+            response = requests.get(url, headers=self.__headerD, timeout=None)
+            logger.debug("Status %r response %r", response.status_code, response.json())
+            self.assertTrue(response.status_code == 200)
         except Exception as e:
             logger.exception("Failing with %s", str(e))
             self.fail()
