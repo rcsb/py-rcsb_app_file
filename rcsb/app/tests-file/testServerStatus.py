@@ -118,7 +118,7 @@ class ServerStatusTests(unittest.TestCase):
 def apiSimpleTests():
     suiteSelect = unittest.TestSuite()
     suiteSelect.addTest(ServerStatusTests("testRootStatus"))
-    # suiteSelect.addTest(ServerStatusTests("testProcessStatus"))
+    suiteSelect.addTest(ServerStatusTests("testProcessStatus"))
     return suiteSelect
 
 

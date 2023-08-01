@@ -35,15 +35,11 @@ def serverStatus():
     # status of file app gunicorn server and remote repository file system
     status = {"server running": True}
     uptime = getUptime()
-    logger.info("uptime %s", uptime)
     status.update(uptime)
     storage = getServerStorage()
-    logger.info("storage %s", storage)
     status.update(storage)
     # red = getRedisStatus()
-    # logger.info("redis %s", red)
     # status.update(red)
-    logger.info("status %s", status)
     return status
 
 
@@ -52,7 +48,6 @@ def getUptime():
     HERE = os.path.dirname(__file__)
     TOPDIR = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
     uptime_file = os.path.join(TOPDIR, "uptime.txt")
-    logger.info("HERE %s TOPDIR %s UPTIME FILE %s", HERE, TOPDIR, uptime_file)
     uptime_start = 0
     with open(uptime_file, "r") as read:
         uptime_start = float(read.read())
