@@ -8,6 +8,7 @@
 		<script type="text/javascript">
 			async function handleform() {
               window.event.preventDefault();
+              let start_time = new Date().getTime();
               let base_url = "http://0.0.0.0:8000";
               let upload_parameters_url = `${base_url}/getUploadParameters/`;
               let sequential_chunk_url = `${base_url}/upload/`;
@@ -74,7 +75,9 @@
 
                 function readChunks(chunkIndex, chunkOffset) {
                   if (chunkIndex >= expectedChunks) {
-                      console.log('upload complete');
+                      let stop_time = new Date().getTime();
+                      let elapsed_time = (stop_time - start_time) / (60 * 24);
+                      console.log(`upload complete ${elapsed_time} s`);
                       return;
                   }
                     // remove comments (then re-comment) to test resumable upload

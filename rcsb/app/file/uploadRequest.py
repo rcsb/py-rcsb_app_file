@@ -4,8 +4,8 @@
 #
 ##
 __docformat__ = "google en"
-__author__ = "James Smith, Ahsan Tanweer"
-__email__ = "james.smith@rcsb.org, ahsan@ebi.ac.uk"
+__author__ = "James Smith"
+__email__ = "james.smith@rcsb.org"
 __license__ = "Apache 2.0"
 
 import logging

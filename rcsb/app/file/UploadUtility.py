@@ -4,7 +4,7 @@
 # Date:    30-Aug-2021
 # Version: 0.001
 #
-# Updates: James Smith, Ahsan Tanweer 2023
+# Updates: James Smith
 #
 
 __docformat__ = "google en"
@@ -212,10 +212,12 @@ class UploadUtility(object):
                         # rename file with original file extension to enable decompression
                         compressedFilePath = "%s.%s" % (filePath, fileExtension)
                         os.replace(filePath, compressedFilePath)
-                        FileUtil().uncompress(
+                        outfilepath = FileUtil().uncompress(
                             compressedFilePath, os.path.dirname(filePath)
                         )
                         os.unlink(compressedFilePath)
+                        if fileExtension == "zip" and outfilepath != filePath:
+                            os.replace(outfilepath, filePath)
                     else:
                         os.unlink(filePath)
                         raise HTTPException(

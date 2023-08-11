@@ -7,12 +7,21 @@ import time
 import argparse
 import math
 from tqdm import tqdm
+from enum import Enum
+from zipfile import ZipFile
+import lzma
+import bz2
 from rcsb.app.client.ClientUtility import ClientUtility
 from rcsb.app.file.IoUtility import IoUtility
 
 
 # author James Smith 2023
 
+class Compression(Enum):
+    GZIP = "gzip"
+    LZMA = "lzma"
+    BZIP2 = "bzip2"
+    ZIP = "zip"
 
 def upload(d):
     client = ClientUtility()
@@ -20,15 +29,6 @@ def upload(d):
         sys.exit(f"error - file does not exist: {d['sourceFilePath']}")
     if d["milestone"].lower() == "none":
         d["milestone"] = ""
-    # compress, then hash and compute file size parameter, then upload
-    decompress = d["decompress"]
-    if COMPRESS:
-        tempPath = d["sourceFilePath"] + ".gz"
-        with open(d["sourceFilePath"], "rb") as r:
-            with gzip.open(tempPath, "wb") as w:
-                w.write(r.read())
-        d["sourceFilePath"] = tempPath
-        decompress = True
     # get upload parameters
     response = client.getUploadParameters(
         d["repositoryType"],
@@ -47,7 +47,34 @@ def upload(d):
     saveFilePath = response["filePath"]
     chunkIndex = response["chunkIndex"]
     uploadId = response["uploadId"]
-    # compress (externally), then hash, then upload
+    # compress, then hash and compute file size parameter, then upload
+    decompress = d["decompress"]
+    if COMPRESS:
+        decompress = True
+        if COMPRESSION == Compression.GZIP:
+            tempPath = d["sourceFilePath"] + ".gz"
+            with open(d["sourceFilePath"], "rb") as r:
+                with gzip.open(tempPath, "wb") as w:
+                    w.write(r.read())
+            d["sourceFilePath"] = tempPath
+        elif COMPRESSION == Compression.LZMA:
+            tempPath = d["sourceFilePath"] + ".gz"
+            with open(d["sourceFilePath"], "rb") as r:
+                with lzma.open(tempPath, "wb") as w:
+                    w.write(r.read())
+            d["sourceFilePath"] = tempPath
+        elif COMPRESSION == Compression.BZIP2:
+            tempPath = d["sourceFilePath"] + ".gz"
+            with open(d["sourceFilePath"], "rb") as r:
+                with bz2.open(tempPath, "wb") as w:
+                    w.write(r.read())
+            d["sourceFilePath"] = tempPath
+        elif COMPRESSION == Compression.ZIP:
+            tempPath = d["sourceFilePath"] + ".gz"
+            targetfilename = os.path.basename(saveFilePath)
+            with ZipFile(tempPath, "w") as w:
+                w.write(d["sourceFilePath"], targetfilename)
+            d["sourceFilePath"] = tempPath
     # hash
     hashType = client.cP.get("HASH_TYPE")
     fullTestHash = IoUtility().getHashDigest(d["sourceFilePath"], hashType=hashType)
@@ -58,6 +85,9 @@ def upload(d):
     if chunkSize < fileSize:
         expectedChunks = math.ceil(fileSize / chunkSize)
     fileExtension = os.path.splitext(d["sourceFilePath"])[-1]
+    extractChunk = True
+    if decompress or TEST_NO_COMPRESS:
+        extractChunk = False
     # upload chunks sequentially
     mD = {
         # chunk parameters
@@ -75,6 +105,7 @@ def upload(d):
         "decompress": decompress,
         "allowOverwrite": d["allowOverwrite"],
         "resumable": d["resumable"],
+        "extractChunk": extractChunk
     }
     status = None
     for index in tqdm(
@@ -173,8 +204,10 @@ if __name__ == "__main__":
 
     RESUMABLE = False
     COMPRESS = False
+    COMPRESSION = Compression.GZIP
     DECOMPRESS = False
     OVERWRITE = False
+    TEST_NO_COMPRESS = False
     uploadIds = []
     uploadResults = []
     uploadTexts = []
@@ -253,6 +286,12 @@ if __name__ == "__main__":
         action="store_true",
         help="***** unzip files after upload *****",
     )
+    parser.add_argument(
+        "-t",
+        "--test",
+        action="store_true",
+        help="***** test without compression *****"
+    )
     args = parser.parse_args()
     uploads = []
     uploadIds = []
@@ -266,6 +305,8 @@ if __name__ == "__main__":
         DECOMPRESS = True
     if args.overwrite:
         OVERWRITE = True
+    if args.test:
+        TEST_NO_COMPRESS = True
     if args.upload:
         for arglist in args.upload:
             if len(arglist) < 8:

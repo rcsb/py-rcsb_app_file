@@ -335,6 +335,7 @@ class ClientUtility(object):
         decompress: bool = False,
         allowOverwrite: bool = False,
         resumable: bool = False,
+        extractChunk: bool = False
     ) -> int:
         # validate input
         if not os.path.exists(sourceFilePath):
@@ -352,10 +353,10 @@ class ClientUtility(object):
                 int(self.chunkSize),
             )
             chunk = of.read(packetSize)
-            extractChunk = False
             if not decompress:
-                chunk = gzip.compress(chunk)
-                extractChunk = True
+                if extractChunk is None or extractChunk == True:
+                    chunk = gzip.compress(chunk)
+                    extractChunk = True
             logger.debug(
                 "packet size %s chunk %s expected %s",
                 packetSize,

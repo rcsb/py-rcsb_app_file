@@ -7,6 +7,10 @@ import gzip
 from PIL import ImageTk, Image
 import math
 import time
+from enum import Enum
+from zipfile import ZipFile
+import lzma
+import bz2
 from rcsb.app.client.ClientUtility import ClientUtility
 from rcsb.app.file.Definitions import Definitions
 from rcsb.app.file.IoUtility import IoUtility
@@ -14,8 +18,14 @@ from rcsb.app.file.IoUtility import IoUtility
 
 # author James Smith 2023
 
+class Compression(Enum):
+    GZIP = "gzip"
+    LZMA = "lzma"
+    BZIP2 = "bzip2"
+    ZIP = "zip"
 
 class Gui(tk.Frame):
+    COMPRESSION = Compression.ZIP
     def __init__(self, master):
         super().__init__(master)
         # master.geometry("500x500")
@@ -61,6 +71,7 @@ class Gui(tk.Frame):
         self.allow_overwrite = tk.IntVar(master)
         self.compress = tk.IntVar(master)
         self.decompress = tk.IntVar(master)
+        self.test_no_compress = tk.IntVar(master)
         self.upload_status = tk.StringVar(master)
         self.upload_status.set("0%")
         self.file_path = None
@@ -142,6 +153,11 @@ class Gui(tk.Frame):
             self.upload_group, text="decompress after upload", variable=self.decompress
         )
         self.decompressCheckbox.pack(anchor=tk.W)
+        self.upload_group.pack()
+        self.noCompressionCheckbox = ttk.Checkbutton(
+            self.upload_group, text="test without compression", variable=self.test_no_compress
+        )
+        self.noCompressionCheckbox.pack(anchor=tk.W)
         self.upload_group.pack()
 
         self.uploadButton = ttk.Button(
@@ -336,13 +352,6 @@ class Gui(tk.Frame):
             sys.exit(f"error - file does not exist: {readFilePath}")
         if milestone.lower() == "none":
             milestone = ""
-        # compress, then hash, then upload
-        if COMPRESS:
-            tempPath = readFilePath + ".gz"
-            with open(readFilePath, "rb") as r:
-                with gzip.open(tempPath, "wb") as w:
-                    w.write(r.read())
-            readFilePath = tempPath
         # get upload parameters
         response = self.__cU.getUploadParameters(
             repositoryType,
@@ -362,6 +371,31 @@ class Gui(tk.Frame):
         chunkIndex = response["chunkIndex"]
         uploadId = response["uploadId"]
         # compress, then hash and compute file size parameter, then upload
+        if COMPRESS:
+            if self.COMPRESSION == Compression.GZIP:
+                tempPath = readFilePath + ".gz"
+                with open(readFilePath, "rb") as r:
+                    with gzip.open(tempPath, "wb") as w:
+                        w.write(r.read())
+                readFilePath = tempPath
+            elif self.COMPRESSION == Compression.LZMA:
+                tempPath = readFilePath + ".xz"
+                with open(readFilePath, "rb") as r:
+                    with lzma.open(tempPath, "wb") as w:
+                        w.write(r.read())
+                readFilePath = tempPath
+            elif self.COMPRESSION == Compression.BZIP2:
+                tempPath = readFilePath + ".bz2"
+                with open(readFilePath, "rb") as r:
+                    with bz2.open(tempPath, "wb") as w:
+                        w.write(r.read())
+                readFilePath = tempPath
+            elif self.COMPRESSION == Compression.ZIP:
+                tempPath = readFilePath + ".zip"
+                targetfilename = os.path.basename(saveFilePath)
+                with ZipFile(tempPath, "w") as w:
+                    w.write(readFilePath, targetfilename)
+                readFilePath = tempPath
         # hash
         hashType = self.__cU.cP.get("HASH_TYPE")
         fullTestHash = IoUtility().getHashDigest(readFilePath, hashType=hashType)
@@ -372,6 +406,9 @@ class Gui(tk.Frame):
         if chunkSize < fileSize:
             expectedChunks = math.ceil(fileSize / chunkSize)
         fileExtension = os.path.splitext(readFilePath)[-1]
+        extractChunk = True
+        if DECOMPRESS or self.test_no_compress:
+            extractChunk = False
         # upload chunks sequentially
         mD = {
             # chunk parameters
@@ -389,6 +426,7 @@ class Gui(tk.Frame):
             "decompress": DECOMPRESS,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
+            "extractChunk": extractChunk
         }
         self.upload_status.set("0%")
         for index in range(chunkIndex, expectedChunks):
