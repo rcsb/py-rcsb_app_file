@@ -3,34 +3,23 @@ from tkinter import ttk
 from tkinter.filedialog import askopenfilename, askdirectory
 import sys
 import os
-import gzip
 from PIL import ImageTk, Image
 import math
 import time
-from enum import Enum
-from zipfile import ZipFile
-import lzma
-import bz2
 from rcsb.app.client.ClientUtility import ClientUtility
 from rcsb.app.file.Definitions import Definitions
 from rcsb.app.file.IoUtility import IoUtility
-
+from rcsb.app.file.UploadUtility import UploadUtility
 
 # author James Smith 2023
 
-class Compression(Enum):
-    GZIP = "gzip"
-    LZMA = "lzma"
-    BZIP2 = "bzip2"
-    ZIP = "zip"
-
 class Gui(tk.Frame):
-    COMPRESSION = Compression.ZIP
     def __init__(self, master):
         super().__init__(master)
         # master.geometry("500x500")
         master.title("FILE ACCESS AND DEPOSITION APPLICATION")
         self.__cU = ClientUtility()
+        self._COMPRESSION = self.__cU.compressionType
 
         self.tabs = ttk.Notebook(master)
         self.splashTab = ttk.Frame(master)
@@ -72,6 +61,7 @@ class Gui(tk.Frame):
         self.compress = tk.IntVar(master)
         self.decompress = tk.IntVar(master)
         self.test_no_compress = tk.IntVar(master)
+        self.test_no_gui_update = tk.IntVar(master)
         self.upload_status = tk.StringVar(master)
         self.upload_status.set("0%")
         self.file_path = None
@@ -155,9 +145,13 @@ class Gui(tk.Frame):
         self.decompressCheckbox.pack(anchor=tk.W)
         self.upload_group.pack()
         self.noCompressionCheckbox = ttk.Checkbutton(
-            self.upload_group, text="test without compression", variable=self.test_no_compress
+            self.upload_group, text="test without compression", variable=self.test_no_compress, command=self.resetCompress
         )
         self.noCompressionCheckbox.pack(anchor=tk.W)
+        self.noGuiCheckbox = ttk.Checkbutton(
+            self.upload_group, text="test without gui update", variable=self.test_no_gui_update, command=self.resetCompress
+        )
+        self.noGuiCheckbox.pack(anchor=tk.W)
         self.upload_group.pack()
 
         self.uploadButton = ttk.Button(
@@ -313,6 +307,11 @@ class Gui(tk.Frame):
         )
         self.list_resetButton.pack()
 
+    def resetCompress(self):
+        self.compress.set(0)
+        self.decompress.set(0)
+        self.master.update()
+
     def selectFile(self):
         self.file_path = askopenfilename()
         self.fileButton.config(text="\u2713")
@@ -335,6 +334,8 @@ class Gui(tk.Frame):
         DECOMPRESS = self.decompress.get() == 1
         if COMPRESS:
             DECOMPRESS = True
+        TEST_NO_COMPRESS = self.test_no_compress.get() == 1
+        TEST_NO_GUI_UPDATE = self.test_no_gui_update.get() == 1
         allowOverwrite = self.allow_overwrite.get() == 1
         resumable = self.resumable.get() == 1
         if (
@@ -352,6 +353,24 @@ class Gui(tk.Frame):
             sys.exit(f"error - file does not exist: {readFilePath}")
         if milestone.lower() == "none":
             milestone = ""
+
+        if TEST_NO_GUI_UPDATE:
+            decompress = False
+            fileExtension = ""
+            extractChunk = True
+            response = self.__cU.upload(readFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, fileExtension, allowOverwrite, resumable, extractChunk)
+            if response:
+                status_code = response["status_code"]
+                if not status_code == 200:
+                    print("error in upload %d" % status_code)
+                else:
+                    self.upload_status.set("100%")
+                    self.master.update()
+            else:
+                print("error in upload - no response")
+            print(f"time {time.perf_counter() - t1} s")
+            return
+
         # get upload parameters
         response = self.__cU.getUploadParameters(
             repositoryType,
@@ -372,30 +391,9 @@ class Gui(tk.Frame):
         uploadId = response["uploadId"]
         # compress, then hash and compute file size parameter, then upload
         if COMPRESS:
-            if self.COMPRESSION == Compression.GZIP:
-                tempPath = readFilePath + ".gz"
-                with open(readFilePath, "rb") as r:
-                    with gzip.open(tempPath, "wb") as w:
-                        w.write(r.read())
-                readFilePath = tempPath
-            elif self.COMPRESSION == Compression.LZMA:
-                tempPath = readFilePath + ".xz"
-                with open(readFilePath, "rb") as r:
-                    with lzma.open(tempPath, "wb") as w:
-                        w.write(r.read())
-                readFilePath = tempPath
-            elif self.COMPRESSION == Compression.BZIP2:
-                tempPath = readFilePath + ".bz2"
-                with open(readFilePath, "rb") as r:
-                    with bz2.open(tempPath, "wb") as w:
-                        w.write(r.read())
-                readFilePath = tempPath
-            elif self.COMPRESSION == Compression.ZIP:
-                tempPath = readFilePath + ".zip"
-                targetfilename = os.path.basename(saveFilePath)
-                with ZipFile(tempPath, "w") as w:
-                    w.write(readFilePath, targetfilename)
-                readFilePath = tempPath
+            print("compressing file")
+            readFilePath = UploadUtility(self.__cU.cP).compressFile(readFilePath, saveFilePath, self._COMPRESSION)
+            print("new file name %s" % readFilePath)
         # hash
         hashType = self.__cU.cP.get("HASH_TYPE")
         fullTestHash = IoUtility().getHashDigest(readFilePath, hashType=hashType)
@@ -407,7 +405,7 @@ class Gui(tk.Frame):
             expectedChunks = math.ceil(fileSize / chunkSize)
         fileExtension = os.path.splitext(readFilePath)[-1]
         extractChunk = True
-        if DECOMPRESS or self.test_no_compress:
+        if DECOMPRESS or TEST_NO_COMPRESS:
             extractChunk = False
         # upload chunks sequentially
         mD = {
@@ -429,6 +427,7 @@ class Gui(tk.Frame):
             "extractChunk": extractChunk
         }
         self.upload_status.set("0%")
+        print("decompress %s extract chunk %s test no compress %s expected chunks %d" % (DECOMPRESS, extractChunk, TEST_NO_COMPRESS, expectedChunks))
         for index in range(chunkIndex, expectedChunks):
             mD["chunkIndex"] = index
             status_code = self.__cU.uploadChunk(readFilePath, **mD)
@@ -553,6 +552,9 @@ class Gui(tk.Frame):
         self.allow_overwrite.set(0)
         self.compress.set(0)
         self.decompress.set(0)
+        self.resumable.set(0)
+        self.test_no_compress.set(0)
+        self.test_no_gui_update.set(0)
 
         self.download_repo_type.set("")
         self.download_dep_id.set("")

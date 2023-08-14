@@ -23,7 +23,7 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
-import gzip
+
 import os
 import logging
 from copy import deepcopy
@@ -37,6 +37,7 @@ from rcsb.app.file.JWTAuthToken import JWTAuthToken
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.Definitions import Definitions
 from rcsb.app.file.PathProvider import PathProvider
+from rcsb.app.file.UploadUtility import UploadUtility
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -48,6 +49,7 @@ class ClientUtility(object):
         self.cP.getConfig()
         self.baseUrl = self.cP.get("SERVER_HOST_AND_PORT")
         self.chunkSize = self.cP.get("CHUNK_SIZE")
+        self.compressionType = self.cP.get("COMPRESSION_TYPE")
         self.hashType = self.cP.get("HASH_TYPE")
         subject = self.cP.get("JWT_SUBJECT")
         self.headerD = {
@@ -139,6 +141,7 @@ class ClientUtility(object):
         fileExtension=None,
         allowOverwrite=False,
         resumable=False,
+        extractChunk=True
     ) -> dict:
         # validate input
         if not os.path.exists(sourceFilePath):
@@ -191,10 +194,9 @@ class ClientUtility(object):
             logger.error("Error %d - no upload id was formed", response.status_code)
             return {"status_code": response.status_code}
 
-        # if file is not already compressed, then compress each chunk
-        extractChunk = False
-        if not decompress:
-            extractChunk = True
+        # if file is already compressed, do not compress each chunk
+        if decompress:
+            extractChunk = False
 
         # chunk file and upload
         mD = {
@@ -224,8 +226,12 @@ class ClientUtility(object):
                 offset = int(mD["chunkIndex"]) * int(self.chunkSize)
                 packetSize = min(int(fileSize) - offset, int(self.chunkSize))
                 chunk = of.read(packetSize)
-                if extractChunk:
-                    chunk = gzip.compress(chunk)
+                if extractChunk is None or extractChunk == True:
+                    extractChunk = True
+                    chunk = UploadUtility(self.cP).compressChunk(chunk, self.compressionType)
+                    if not chunk:
+                        logger.error("error - could not compress chunks")
+                        return None
                 logger.debug(
                     "packet size %s chunk %s expected %s",
                     packetSize,
@@ -355,8 +361,11 @@ class ClientUtility(object):
             chunk = of.read(packetSize)
             if not decompress:
                 if extractChunk is None or extractChunk == True:
-                    chunk = gzip.compress(chunk)
                     extractChunk = True
+                    chunk = UploadUtility(self.cP).compressChunk(chunk, self.compressionType)
+                    if not chunk:
+                        logger.error("error compressing chunk")
+                        return None
             logger.debug(
                 "packet size %s chunk %s expected %s",
                 packetSize,

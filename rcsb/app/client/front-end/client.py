@@ -1,30 +1,22 @@
 import sys
 import concurrent.futures
 import os
-import gzip
 from concurrent.futures import ThreadPoolExecutor
 import time
 import argparse
 import math
 from tqdm import tqdm
-from enum import Enum
-from zipfile import ZipFile
-import lzma
-import bz2
 from rcsb.app.client.ClientUtility import ClientUtility
 from rcsb.app.file.IoUtility import IoUtility
+from rcsb.app.file.UploadUtility import UploadUtility
 
 
 # author James Smith 2023
 
-class Compression(Enum):
-    GZIP = "gzip"
-    LZMA = "lzma"
-    BZIP2 = "bzip2"
-    ZIP = "zip"
 
 def upload(d):
     client = ClientUtility()
+    COMPRESSION = client.compressionType
     if not os.path.exists(d["sourceFilePath"]):
         sys.exit(f"error - file does not exist: {d['sourceFilePath']}")
     if d["milestone"].lower() == "none":
@@ -51,30 +43,9 @@ def upload(d):
     decompress = d["decompress"]
     if COMPRESS:
         decompress = True
-        if COMPRESSION == Compression.GZIP:
-            tempPath = d["sourceFilePath"] + ".gz"
-            with open(d["sourceFilePath"], "rb") as r:
-                with gzip.open(tempPath, "wb") as w:
-                    w.write(r.read())
-            d["sourceFilePath"] = tempPath
-        elif COMPRESSION == Compression.LZMA:
-            tempPath = d["sourceFilePath"] + ".gz"
-            with open(d["sourceFilePath"], "rb") as r:
-                with lzma.open(tempPath, "wb") as w:
-                    w.write(r.read())
-            d["sourceFilePath"] = tempPath
-        elif COMPRESSION == Compression.BZIP2:
-            tempPath = d["sourceFilePath"] + ".gz"
-            with open(d["sourceFilePath"], "rb") as r:
-                with bz2.open(tempPath, "wb") as w:
-                    w.write(r.read())
-            d["sourceFilePath"] = tempPath
-        elif COMPRESSION == Compression.ZIP:
-            tempPath = d["sourceFilePath"] + ".gz"
-            targetfilename = os.path.basename(saveFilePath)
-            with ZipFile(tempPath, "w") as w:
-                w.write(d["sourceFilePath"], targetfilename)
-            d["sourceFilePath"] = tempPath
+        print("compressing file %s size %d" % (d["sourceFilePath"], os.path.getsize(d["sourceFilePath"])))
+        d["sourceFilePath"] = UploadUtility(client.cP).compressFile(d["sourceFilePath"], saveFilePath, COMPRESSION)
+        print("new file name %s file size %d" % (d["sourceFilePath"], os.path.getsize(d["sourceFilePath"])))
     # hash
     hashType = client.cP.get("HASH_TYPE")
     fullTestHash = IoUtility().getHashDigest(d["sourceFilePath"], hashType=hashType)
@@ -107,6 +78,7 @@ def upload(d):
         "resumable": d["resumable"],
         "extractChunk": extractChunk
     }
+    print("decompress %s extract chunk %s test no compress %s file size %d chunk size %d expected chunks %d" % (decompress, extractChunk, TEST_NO_COMPRESS, fileSize, chunkSize, expectedChunks))
     status = None
     for index in tqdm(
         range(chunkIndex, expectedChunks),
@@ -204,7 +176,6 @@ if __name__ == "__main__":
 
     RESUMABLE = False
     COMPRESS = False
-    COMPRESSION = Compression.GZIP
     DECOMPRESS = False
     OVERWRITE = False
     TEST_NO_COMPRESS = False

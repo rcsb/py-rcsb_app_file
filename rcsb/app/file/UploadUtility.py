@@ -13,6 +13,11 @@ __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
 import gzip
+import bz2
+import io
+import lzma
+import shutil
+import zipfile
 import logging
 import os
 import typing
@@ -23,7 +28,6 @@ from rcsb.app.file.Sessions import Sessions
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.IoUtility import IoUtility
-from rcsb.utils.io.FileUtil import FileUtil
 
 logging.basicConfig(
     level=logging.INFO,
@@ -163,7 +167,8 @@ class UploadUtility(object):
             chunk.close()
             raise HTTPException(status_code=400, detail="error - empty file")
         if extractChunk:
-            contents = gzip.decompress(contents)
+            compressionType = self.cP.get("COMPRESSION_TYPE")
+            contents = self.decompressChunk(contents, compressionType)
         try:
             # save, then compare hash or file size, then decompress
             # should lock, however client must wait for each response before sending next chunk, precluding race conditions (unless multifile upload problem)
@@ -206,24 +211,7 @@ class UploadUtility(object):
                         os.unlink(lockPath)
                 # decompress
                 if decompress and fileExtension:
-                    if fileExtension.startswith("."):
-                        fileExtension = fileExtension[1:]
-                    if fileExtension.find(".") < 0:
-                        # rename file with original file extension to enable decompression
-                        compressedFilePath = "%s.%s" % (filePath, fileExtension)
-                        os.replace(filePath, compressedFilePath)
-                        outfilepath = FileUtil().uncompress(
-                            compressedFilePath, os.path.dirname(filePath)
-                        )
-                        os.unlink(compressedFilePath)
-                        if fileExtension == "zip" and outfilepath != filePath:
-                            os.replace(outfilepath, filePath)
-                    else:
-                        os.unlink(filePath)
-                        raise HTTPException(
-                            status_code=400,
-                            detail="error - double file extension - could not decompress",
-                        )
+                    self.decompressFile(filePath, fileExtension)
                 # clear database and temp files
                 await session.close(tempPath, resumable, mapKey)
         except HTTPException as exc:
@@ -236,3 +224,119 @@ class UploadUtility(object):
             )
         finally:
             chunk.close()
+
+    def decompressFile(self, inputFilePath, fileExtension):
+        """
+        source - rcsb.app.utils.FileUtil
+        author - John Westbrook
+        (with modifications)
+
+        Uncompress the input file if the path name has a recognized compression type file extension.
+
+        Return the path of the uncompressed file (in outDir) or the original input file path.
+
+        """
+        try:
+            if not fileExtension.startswith("."):
+                fileExtension = "." + fileExtension
+            if not fileExtension in [".gz", ".bz2", ".xz", ".zip"]:
+                logging.error("error - unknown file extension %s", fileExtension)
+                return None
+            decompressedFilePath = inputFilePath
+            compressedFilePath = inputFilePath + fileExtension
+            outputDir = os.path.basename(inputFilePath)
+            os.replace(inputFilePath, compressedFilePath)
+            if compressedFilePath.endswith(".gz"):
+                with gzip.open(compressedFilePath, mode="rb") as inpF:
+                    with io.open(decompressedFilePath, "wb") as outF:
+                        shutil.copyfileobj(inpF, outF)
+            elif compressedFilePath.endswith(".bz2"):
+                with bz2.open(compressedFilePath, mode="rb") as inpF:
+                    with io.open(decompressedFilePath, "wb") as outF:
+                        shutil.copyfileobj(inpF, outF)
+            elif compressedFilePath.endswith(".xz"):
+                with lzma.open(compressedFilePath, mode="rb") as inpF:
+                    with io.open(decompressedFilePath, "wb") as outF:
+                        shutil.copyfileobj(inpF, outF)
+            elif compressedFilePath.endswith(".zip"):
+                with zipfile.ZipFile(compressedFilePath, mode="r") as zObj:
+                    memberList = zObj.namelist()
+                    for member in memberList[:1]:
+                        zObj.extract(member, path=outputDir)
+                if memberList:
+                    outputFilePath = os.path.join(outputDir, memberList[0])
+                    os.replace(outputFilePath, inputFilePath)
+            else:
+                outputFilePath = inputFilePath
+            os.unlink(compressedFilePath)
+            if os.path.exists(compressedFilePath):
+                logging.warning("error - file still exists %s", compressedFilePath)
+        except Exception as e:
+            logging.exception("Failing uncompress for file %s with %s", inputFilePath, str(e))
+        logging.debug("Returning file path %r", decompressedFilePath)
+        return decompressedFilePath
+
+    def compressFile(self, readFilePath, saveFilePath, compressionType):
+        """
+
+        Args:
+            readFilePath: client side path
+            saveFilePath: server side path
+            compressionType: gzip, bzip2, zip, or lzma
+
+        Returns:
+            new file path with appropriate extension
+
+        """
+        if compressionType == "gzip":
+            tempPath = readFilePath + ".gz"
+            with open(readFilePath, "rb") as r:
+                with gzip.open(tempPath, "wb") as w:
+                    w.write(r.read())
+            readFilePath = tempPath
+        elif compressionType == "bzip2":
+            tempPath = readFilePath + ".bz2"
+            with open(readFilePath, "rb") as r:
+                with bz2.open(tempPath, "wb") as w:
+                    w.write(r.read())
+            readFilePath = tempPath
+        elif compressionType == "zip":
+            tempPath = readFilePath + ".zip"
+            targetfilename = os.path.basename(saveFilePath)
+            with zipfile.ZipFile(tempPath, "w") as w:
+                w.write(readFilePath, targetfilename)
+            readFilePath = tempPath
+        elif compressionType == "lzma":
+            tempPath = readFilePath + ".xz"
+            with open(readFilePath, "rb") as r:
+                with lzma.open(tempPath, "wb") as w:
+                    w.write(r.read())
+            readFilePath = tempPath
+        return readFilePath
+
+    def compressChunk(self, chunk, compressionType):
+        if compressionType == "gzip":
+            return gzip.compress(chunk)
+        elif compressionType == "bzip2":
+            return bz2.compress(chunk)
+        elif compressionType == "lzma":
+            return lzma.compress(chunk)
+        elif compressionType == "zip":
+            logging.error("error - cannot compress chunks with zip file compression")
+            return None
+        else:
+            logging.error("error - unknown compression type for file extension")
+            return None
+
+    def decompressChunk(self, chunk, compressionType):
+        if compressionType == "gzip":
+            return gzip.decompress(chunk)
+        elif compressionType == "bzip2":
+            return bz2.decompress(chunk)
+        elif compressionType == "lzma":
+            return lzma.decompress(chunk)
+        elif compressionType == "zip":
+            raise HTTPException(status_code=400, detail="error - cannot extract chunks with zip file compression")
+        else:
+            raise HTTPException(status_code=400,
+                                detail="error - unknown compression type")
