@@ -4,8 +4,8 @@
 # Config file for File Access API server
 ---
 configuration:
-  # server host and port must start with http:// or https:// e.g. http://0.0.0.0:8000
-  SERVER_HOST_AND_PORT: http://0.0.0.0:8000
+  # server host and port must start with http:// or https:// e.g. http://0.0.0.0:80
+  SERVER_HOST_AND_PORT: http://0.0.0.0:80
   # reserve extra processors that will be used by, for example, redis or cron
   SURPLUS_PROCESSORS: 1
   # paths to mounted or local folders
@@ -15,7 +15,7 @@ configuration:
   SESSION_DIR_PATH: rcsb/app/tests-file/data/sessions
   # database parameters
   KV_MODE: sqlite # redis or sqlite
-  REDIS_HOST: localhost # localhost, redis, or url
+  REDIS_HOST: sqlite # localhost, redis, or url
   KV_SESSION_TABLE_NAME: sessions
   KV_MAP_TABLE_NAME: map
   KV_MAX_SECONDS: 14400 # session duration

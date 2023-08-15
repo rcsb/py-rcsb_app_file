@@ -132,6 +132,16 @@ Some sites could use multiple deposition servers, a situation comparable to mult
 
 As with containers, multiple servers will require all servers to coordinate through a single remote file system and database.
 
+A proxy server such as nginx may not be compatible with HTML uploads due to CORS policy, though Python should work.
+
+Adding CORS headers to the nginx config file creates conflicts with the CORS middleware in main.py.
+
+Removing the CORS middleware is not an option either.
+
+For an all-in-one solution, we've had best results with port 80, which is not always available.
+
+Rather than reconfiguring the server to another port, it seems best to wait until port 80 is available to start the server.
+
 # Deployment on local server without docker
 
 For launching without docker, edit url in deploy/LAUNCH_GUNICORN.sh
