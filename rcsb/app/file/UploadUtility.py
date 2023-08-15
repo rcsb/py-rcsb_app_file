@@ -34,7 +34,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s",
 )
 
-# functions - get upload parameters, upload
+# functions - get upload parameters, upload, compress file, decompress file, compress chunk, decompress chunk
 
 
 class UploadUtility(object):
@@ -168,7 +168,7 @@ class UploadUtility(object):
             raise HTTPException(status_code=400, detail="error - empty file")
         if extractChunk:
             compressionType = self.cP.get("COMPRESSION_TYPE")
-            contents = self.decompressChunk(contents, compressionType)
+            contents = await self.decompressChunk(contents, compressionType)
         try:
             # save, then compare hash or file size, then decompress
             # should lock, however client must wait for each response before sending next chunk, precluding race conditions (unless multifile upload problem)
@@ -183,9 +183,14 @@ class UploadUtility(object):
                         )
                 elif fileSize:
                     if fileSize != os.path.getsize(tempPath):
-                        raise HTTPException(status_code=400, detail="Error - file size comparison failed")
+                        raise HTTPException(
+                            status_code=400,
+                            detail="Error - file size comparison failed",
+                        )
                 else:
-                    raise HTTPException(status_code=400, detail="Error - no hash or file size provided")
+                    raise HTTPException(
+                        status_code=400, detail="Error - no hash or file size provided"
+                    )
                 # lock then save
                 lockPath = session.getLockPath(tempPath)  # either tempPath or filePath
                 lock = FileLock(lockPath)
@@ -211,7 +216,7 @@ class UploadUtility(object):
                         os.unlink(lockPath)
                 # decompress
                 if decompress and fileExtension:
-                    self.decompressFile(filePath, fileExtension)
+                    await self.decompressFile(filePath, fileExtension)
                 # clear database and temp files
                 await session.close(tempPath, resumable, mapKey)
         except HTTPException as exc:
@@ -225,26 +230,32 @@ class UploadUtility(object):
         finally:
             chunk.close()
 
-    def decompressFile(self, inputFilePath, fileExtension):
+    async def decompressFile(self, inputFilePath: str, fileExtension: str) -> str:
         """
-        source - rcsb.app.utils.FileUtil
+
+        Args:
+            inputFilePath: path of file on server
+            fileExtension: compression type
+
+        Returns:
+            new file path/name
+
+        source - rcsb.utils.io.FileUtil
         author - John Westbrook
         (with modifications)
-
-        Uncompress the input file if the path name has a recognized compression type file extension.
-
-        Return the path of the uncompressed file (in outDir) or the original input file path.
 
         """
         try:
             if not fileExtension.startswith("."):
                 fileExtension = "." + fileExtension
-            if not fileExtension in [".gz", ".bz2", ".xz", ".zip"]:
+            if fileExtension not in [".gz", ".bz2", ".xz", ".zip"]:
                 logging.error("error - unknown file extension %s", fileExtension)
                 return None
             decompressedFilePath = inputFilePath
             compressedFilePath = inputFilePath + fileExtension
             outputDir = os.path.basename(inputFilePath)
+            # rename from deposition format to compressed file name
+            # copy from compressed file name to original file name
             os.replace(inputFilePath, compressedFilePath)
             if compressedFilePath.endswith(".gz"):
                 with gzip.open(compressedFilePath, mode="rb") as inpF:
@@ -264,24 +275,31 @@ class UploadUtility(object):
                     for member in memberList[:1]:
                         zObj.extract(member, path=outputDir)
                 if memberList:
+                    # return file name of first file in zip archive
                     outputFilePath = os.path.join(outputDir, memberList[0])
+                    # rename file in zip archive from compressed file format to deposition format
                     os.replace(outputFilePath, inputFilePath)
             else:
                 outputFilePath = inputFilePath
+            # remove compressed file
             os.unlink(compressedFilePath)
             if os.path.exists(compressedFilePath):
                 logging.warning("error - file still exists %s", compressedFilePath)
         except Exception as e:
-            logging.exception("Failing uncompress for file %s with %s", inputFilePath, str(e))
+            logging.exception(
+                "Failing uncompress for file %s with %s", inputFilePath, str(e)
+            )
         logging.debug("Returning file path %r", decompressedFilePath)
         return decompressedFilePath
 
-    def compressFile(self, readFilePath, saveFilePath, compressionType):
+    def compressFile(
+        self, readFilePath: str, saveFilePath: str = None, compressionType: str = "gzip"
+    ) -> str:
         """
 
         Args:
             readFilePath: client side path
-            saveFilePath: server side path
+            saveFilePath: server side path (zip only)
             compressionType: gzip, bzip2, zip, or lzma
 
         Returns:
@@ -302,7 +320,10 @@ class UploadUtility(object):
             readFilePath = tempPath
         elif compressionType == "zip":
             tempPath = readFilePath + ".zip"
+            # file name inside of zip archive
+            # after extraction on server, file will have this name
             targetfilename = os.path.basename(saveFilePath)
+            # create zip archive with one file inside
             with zipfile.ZipFile(tempPath, "w") as w:
                 w.write(readFilePath, targetfilename)
             readFilePath = tempPath
@@ -328,7 +349,7 @@ class UploadUtility(object):
             logging.error("error - unknown compression type for file extension")
             return None
 
-    def decompressChunk(self, chunk, compressionType):
+    async def decompressChunk(self, chunk, compressionType):
         if compressionType == "gzip":
             return gzip.decompress(chunk)
         elif compressionType == "bzip2":
@@ -336,7 +357,11 @@ class UploadUtility(object):
         elif compressionType == "lzma":
             return lzma.decompress(chunk)
         elif compressionType == "zip":
-            raise HTTPException(status_code=400, detail="error - cannot extract chunks with zip file compression")
+            raise HTTPException(
+                status_code=400,
+                detail="error - cannot extract chunks with zip file compression",
+            )
         else:
-            raise HTTPException(status_code=400,
-                                detail="error - unknown compression type")
+            raise HTTPException(
+                status_code=400, detail="error - unknown compression type"
+            )

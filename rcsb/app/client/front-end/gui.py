@@ -13,6 +13,7 @@ from rcsb.app.file.UploadUtility import UploadUtility
 
 # author James Smith 2023
 
+
 class Gui(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
@@ -145,11 +146,17 @@ class Gui(tk.Frame):
         self.decompressCheckbox.pack(anchor=tk.W)
         self.upload_group.pack()
         self.noCompressionCheckbox = ttk.Checkbutton(
-            self.upload_group, text="test without compression", variable=self.test_no_compress, command=self.resetCompress
+            self.upload_group,
+            text="test without compression",
+            variable=self.test_no_compress,
+            command=self.resetCompress,
         )
         self.noCompressionCheckbox.pack(anchor=tk.W)
         self.noGuiCheckbox = ttk.Checkbutton(
-            self.upload_group, text="test without gui update", variable=self.test_no_gui_update, command=self.resetCompress
+            self.upload_group,
+            text="test without gui update",
+            variable=self.test_no_gui_update,
+            command=self.resetCompress,
         )
         self.noGuiCheckbox.pack(anchor=tk.W)
         self.upload_group.pack()
@@ -358,7 +365,21 @@ class Gui(tk.Frame):
             decompress = False
             fileExtension = ""
             extractChunk = True
-            response = self.__cU.upload(readFilePath, repositoryType, depId, contentType, milestone, partNumber, contentFormat, version, decompress, fileExtension, allowOverwrite, resumable, extractChunk)
+            response = self.__cU.upload(
+                readFilePath,
+                repositoryType,
+                depId,
+                contentType,
+                milestone,
+                partNumber,
+                contentFormat,
+                version,
+                decompress,
+                fileExtension,
+                allowOverwrite,
+                resumable,
+                extractChunk,
+            )
             if response:
                 status_code = response["status_code"]
                 if not status_code == 200:
@@ -392,7 +413,9 @@ class Gui(tk.Frame):
         # compress, then hash and compute file size parameter, then upload
         if COMPRESS:
             print("compressing file")
-            readFilePath = UploadUtility(self.__cU.cP).compressFile(readFilePath, saveFilePath, self._COMPRESSION)
+            readFilePath = UploadUtility(self.__cU.cP).compressFile(
+                readFilePath, saveFilePath, self._COMPRESSION
+            )
             print("new file name %s" % readFilePath)
         # hash
         hashType = self.__cU.cP.get("HASH_TYPE")
@@ -424,10 +447,13 @@ class Gui(tk.Frame):
             "decompress": DECOMPRESS,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
-            "extractChunk": extractChunk
+            "extractChunk": extractChunk,
         }
         self.upload_status.set("0%")
-        print("decompress %s extract chunk %s test no compress %s expected chunks %d" % (DECOMPRESS, extractChunk, TEST_NO_COMPRESS, expectedChunks))
+        print(
+            "decompress %s extract chunk %s test no compress %s expected chunks %d"
+            % (DECOMPRESS, extractChunk, TEST_NO_COMPRESS, expectedChunks)
+        )
         for index in range(chunkIndex, expectedChunks):
             mD["chunkIndex"] = index
             status_code = self.__cU.uploadChunk(readFilePath, **mD)

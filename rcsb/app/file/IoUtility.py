@@ -276,4 +276,3 @@ class IoUtility(object):
                 logger.error("unable to remove dirPath %s after compression", dirPath)
         else:
             raise HTTPException(status_code=400, detail="error - decompression failed")
-

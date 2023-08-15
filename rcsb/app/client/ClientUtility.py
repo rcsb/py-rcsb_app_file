@@ -141,7 +141,7 @@ class ClientUtility(object):
         fileExtension=None,
         allowOverwrite=False,
         resumable=False,
-        extractChunk=True
+        extractChunk=True,
     ) -> dict:
         # validate input
         if not os.path.exists(sourceFilePath):
@@ -226,9 +226,11 @@ class ClientUtility(object):
                 offset = int(mD["chunkIndex"]) * int(self.chunkSize)
                 packetSize = min(int(fileSize) - offset, int(self.chunkSize))
                 chunk = of.read(packetSize)
-                if extractChunk is None or extractChunk == True:
+                if extractChunk is None or extractChunk is True:
                     extractChunk = True
-                    chunk = UploadUtility(self.cP).compressChunk(chunk, self.compressionType)
+                    chunk = UploadUtility(self.cP).compressChunk(
+                        chunk, self.compressionType
+                    )
                     if not chunk:
                         logger.error("error - could not compress chunks")
                         return None
@@ -341,7 +343,7 @@ class ClientUtility(object):
         decompress: bool = False,
         allowOverwrite: bool = False,
         resumable: bool = False,
-        extractChunk: bool = False
+        extractChunk: bool = False,
     ) -> int:
         # validate input
         if not os.path.exists(sourceFilePath):
@@ -360,9 +362,11 @@ class ClientUtility(object):
             )
             chunk = of.read(packetSize)
             if not decompress:
-                if extractChunk is None or extractChunk == True:
+                if extractChunk is None or extractChunk is True:
                     extractChunk = True
-                    chunk = UploadUtility(self.cP).compressChunk(chunk, self.compressionType)
+                    chunk = UploadUtility(self.cP).compressChunk(
+                        chunk, self.compressionType
+                    )
                     if not chunk:
                         logger.error("error compressing chunk")
                         return None

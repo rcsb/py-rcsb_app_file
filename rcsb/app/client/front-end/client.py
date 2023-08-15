@@ -43,9 +43,17 @@ def upload(d):
     decompress = d["decompress"]
     if COMPRESS:
         decompress = True
-        print("compressing file %s size %d" % (d["sourceFilePath"], os.path.getsize(d["sourceFilePath"])))
-        d["sourceFilePath"] = UploadUtility(client.cP).compressFile(d["sourceFilePath"], saveFilePath, COMPRESSION)
-        print("new file name %s file size %d" % (d["sourceFilePath"], os.path.getsize(d["sourceFilePath"])))
+        print(
+            "compressing file %s size %d"
+            % (d["sourceFilePath"], os.path.getsize(d["sourceFilePath"]))
+        )
+        d["sourceFilePath"] = UploadUtility(client.cP).compressFile(
+            d["sourceFilePath"], saveFilePath, COMPRESSION
+        )
+        print(
+            "new file name %s file size %d"
+            % (d["sourceFilePath"], os.path.getsize(d["sourceFilePath"]))
+        )
     # hash
     hashType = client.cP.get("HASH_TYPE")
     fullTestHash = IoUtility().getHashDigest(d["sourceFilePath"], hashType=hashType)
@@ -76,9 +84,19 @@ def upload(d):
         "decompress": decompress,
         "allowOverwrite": d["allowOverwrite"],
         "resumable": d["resumable"],
-        "extractChunk": extractChunk
+        "extractChunk": extractChunk,
     }
-    print("decompress %s extract chunk %s test no compress %s file size %d chunk size %d expected chunks %d" % (decompress, extractChunk, TEST_NO_COMPRESS, fileSize, chunkSize, expectedChunks))
+    print(
+        "decompress %s extract chunk %s test no compress %s file size %d chunk size %d expected chunks %d"
+        % (
+            decompress,
+            extractChunk,
+            TEST_NO_COMPRESS,
+            fileSize,
+            chunkSize,
+            expectedChunks,
+        )
+    )
     status = None
     for index in tqdm(
         range(chunkIndex, expectedChunks),
@@ -258,10 +276,7 @@ if __name__ == "__main__":
         help="***** unzip files after upload *****",
     )
     parser.add_argument(
-        "-t",
-        "--test",
-        action="store_true",
-        help="***** test without compression *****"
+        "-t", "--test", action="store_true", help="***** test without compression *****"
     )
     args = parser.parse_args()
     uploads = []

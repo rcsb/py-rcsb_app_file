@@ -477,7 +477,6 @@ class UploadTest(unittest.TestCase):
                 )
                 logging.info("uploaded chunk %d", index)
 
-
 def upload_tests():
     suite = unittest.TestSuite()
     suite.addTest(UploadTest("testSimpleUpload"))
