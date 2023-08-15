@@ -39,7 +39,7 @@ Edit url variables to match server url in example-upload.html, example-download.
 
 # Endpoints and forwarding
 
-To view documentation, run a server, then visit localhost:8000/docs.
+To view documentation, run a server, then visit localhost:80/docs.
 
 The repository has one upload endpoint, one download endpoint, and one list-directory endpoint, among others.
 
@@ -343,19 +343,19 @@ docker build -t fileapp -f Dockerfile.stage .
 
 ```
 
-docker run --name fileapp -p 8000:8000 fileapp
+docker run --name fileapp -p 80:80 fileapp
 
 or, if also running a Redis container on the same machine
 
-docker run --name fileapp -p 8000:8000 --link redis-container:redis fileapp
+docker run --name fileapp -p 80:80 --link redis-container:redis fileapp
 
 or, if mounting folders, change paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH), enable full permissions for target folder, then
 
-docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 8000:8000 fileapp
+docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 80:80 fileapp
 
 or, if also linking to redis container running on same server
 
-docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 8000:8000 --link redis-container:redis fileapp
+docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 80:80 --link redis-container:redis fileapp
 
 (observe that the link attribute is not necessary for connecting to Redis running in a container on a different server)
 
@@ -367,7 +367,7 @@ docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/sy
 
 `–-name` allows user to choose a name for the container
 
-`-p` allows user to choose a port, 8000:8000 is used in this case, as the port 8000 is exposed in the current dockerfile
+`-p` allows user to choose a port, 80:80 is used in this case, as the port 80 is exposed in the current dockerfile
 
 `--link` connects to a Redis container if the container is running on the same machine as the files API 
 

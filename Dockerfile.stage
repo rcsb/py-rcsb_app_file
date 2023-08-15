@@ -25,7 +25,7 @@ COPY ./rcsb /app/rcsb
 COPY ./deploy/LAUNCH_GUNICORN.sh /app/LAUNCH_GUNICORN.sh
 RUN chmod +x /app/LAUNCH_GUNICORN.sh
 
-EXPOSE 8000
+EXPOSE 80
 
 # Launch the service
 CMD ["/app/LAUNCH_GUNICORN.sh", "container"]
