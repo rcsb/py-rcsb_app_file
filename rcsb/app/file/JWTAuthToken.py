@@ -8,9 +8,7 @@ import datetime
 import logging
 import time
 from typing import Optional
-
 import jwt
-
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
 logger = logging.getLogger(__name__)

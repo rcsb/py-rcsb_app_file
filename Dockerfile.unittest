@@ -50,7 +50,5 @@ COPY ./pylintrc /app/pylintrc
 COPY ./deploy/LAUNCH_GUNICORN.sh /app/LAUNCH_GUNICORN.sh
 RUN chmod +x /app/LAUNCH_GUNICORN.sh
 
-EXPOSE 80
-
 # Run test suite
 CMD ["tox"]

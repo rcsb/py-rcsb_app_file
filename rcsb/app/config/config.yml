@@ -5,7 +5,7 @@
 ---
 configuration:
   # server host and port must start with http:// or https:// e.g. http://0.0.0.0:80
-  SERVER_HOST_AND_PORT: http://0.0.0.0:80
+  SERVER_HOST_AND_PORT: http://0.0.0.0:8000
   # reserve extra processors that will be used by, for example, redis or cron
   SURPLUS_PROCESSORS: 1
   # paths to mounted or local folders
@@ -30,4 +30,4 @@ configuration:
   JWT_ALGORITHM: HS256
   JWT_SECRET: aTestSecret
   JWT_DURATION: 300
-  JWT_DISABLE: True
+  BYPASS_AUTHORIZATION: False

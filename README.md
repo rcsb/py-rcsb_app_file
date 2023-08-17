@@ -29,11 +29,25 @@ pip3 install .
 
 # Configuration 
 
+The only file to configure should be config.yml, with the exception of the example HTML files.
+
 Edit variables in rcsb/app/config/config.yml.
 
-In particular, edit paths (REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, SESSION_DIR_PATH, ).
+In particular, edit paths (REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, SESSION_DIR_PATH).
+
+For production, they should point to a remote path on an NFS file system.
+
+For testing, they may point to local paths.
 
 Also edit SERVER_HOST_AND_PORT.
+
+Please note that the client will require a different address than the server, so config.yml will require different settings on each.
+
+For example, client - 100.200.300.400:8000, server - 0.0.0.0:8000.
+
+Port number 80 is generally preferred, but not always available, so sometimes 8000 is required.
+
+The example HTML files must be configured independently.
 
 Edit url variables to match server url in example-upload.html, example-download.html, and example-list.html.
 
@@ -367,7 +381,7 @@ docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/sy
 
 `–-name` allows user to choose a name for the container
 
-`-p` allows user to choose a port, 80:80 is used in this case, as the port 80 is exposed in the current dockerfile
+`-p` allows user to choose a port, which should match the port in config.yml
 
 `--link` connects to a Redis container if the container is running on the same machine as the files API 
 

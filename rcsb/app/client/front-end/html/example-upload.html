@@ -8,10 +8,29 @@
 			async function handleform() {
               window.event.preventDefault();
               let start_time = new Date().getTime();
-              let base_url = "http://0.0.0.0:80";
+              let base_url = "http://0.0.0.0:8000";
               let upload_parameters_url = `${base_url}/getUploadParameters/`;
               let sequential_chunk_url = `${base_url}/upload/`;
+              let jwt_url = `${base_url}/token`;
+              let validate_jwt_url = `${base_url}/validate-token`;
+              let token = localStorage.getItem('token');
               let jwt_token = '';
+              let new_token = false;
+              if(token) {
+                  jwt_token = token;
+                  console.log("found previous token " + token);
+                  jwt_valid = false;
+                  await validateToken(jwt_token);
+                  if (!jwt_valid) {
+                      console.log("token not valid");
+                      new_token = true;
+                  }
+              }
+              if(new_token) {
+                  await getAccessToken();
+                  localStorage.setItem('token', jwt_token);
+                  console.log("generated token " + jwt_token);
+              }
               let file = document.getElementsByName('uploadFile')[0].files[0];
               let fileName = file.name;
               console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
@@ -20,6 +39,32 @@
               let chunkIndex = 0;
               let uploadId = null;
               await getUploadParameters().then(() => upload(file));
+
+              async function getAccessToken(){
+                  url = jwt_url;
+                  await fetch(url, { method: "GET" }).then(response => {
+                      if(response && response.status && response.status < 400){
+                          return response.json();
+                      } else if(response.status){
+                          throw new Error("error - status " + response.status);
+                      } else {
+                          throw new Error("error retrieving token");
+                      }
+                  }).then(json => { jwt_token = json.token; }).catch(err => console.log("error retrieving token " + err));
+              }
+
+              async function validateToken(token){
+                  url = validate_jwt_url + "/" + token;
+                  await fetch(url, { method: "GET" }).then(response => {
+                      if(response && response.status && response.status < 400){
+                          return response.json();
+                      } else if(response.status){
+                          throw new Error("error - status " + response.status);
+                      } else {
+                          throw new Error("error retrieving token");
+                      }
+                  }).then(json => { jwt_valid = json.valid }).catch(err => console.log("error validating token " + err));
+              }
 
               async function getUploadParameters() {
                   // get server-side parameters

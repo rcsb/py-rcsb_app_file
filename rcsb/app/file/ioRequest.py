@@ -20,8 +20,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
 provider = ConfigProvider()
-jwtDisable = bool(provider.get("JWT_DISABLE"))
-if not jwtDisable:
+bypassAuthorization = bool(provider.get("BYPASS_AUTHORIZATION"))
+if not bypassAuthorization:
     router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["io"])
 else:
     router = APIRouter(tags=["io"])

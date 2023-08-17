@@ -3,7 +3,6 @@
 # Date: 11-Aug-2020
 # Updates: James Smith 2023
 ##
-# pylint: skip-file
 
 __docformat__ = "google en"
 __author__ = "John Westbrook"
@@ -44,12 +43,11 @@ def serverStatus():
 
 
 def getUptime():
-    global TOPDIR
     HERE = os.path.dirname(__file__)
     TOPDIR = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
     uptime_file = os.path.join(TOPDIR, "uptime.txt")
     uptime_start = 0
-    with open(uptime_file, "r") as read:
+    with open(uptime_file, "r", encoding="UTF-8") as read:
         uptime_start = float(read.read())
     uptime_stop = time.time()
     seconds = uptime_stop - uptime_start

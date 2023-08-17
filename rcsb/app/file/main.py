@@ -20,6 +20,7 @@ from . import serverStatusRequest
 from . import uploadRequest
 from . import ioRequest
 from . import pathRequest
+from . import tokenRequest
 from .Sessions import Sessions
 
 logger = logging.getLogger()
@@ -94,3 +95,5 @@ app.include_router(
 app.include_router(pathRequest.router)
 
 app.include_router(serverStatusRequest.router)
+
+app.include_router(tokenRequest.router)

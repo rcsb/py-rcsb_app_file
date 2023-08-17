@@ -11,8 +11,8 @@ from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 from rcsb.app.file.PathProvider import PathProvider
 
 provider = ConfigProvider()
-jwtDisable = bool(provider.get("JWT_DISABLE"))
-if not jwtDisable:
+bypassAuthorization = bool(provider.get("BYPASS_AUTHORIZATION"))
+if not bypassAuthorization:
     router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["path"])
 else:
     router = APIRouter(tags=["path"])
