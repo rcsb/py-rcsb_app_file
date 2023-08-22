@@ -106,7 +106,7 @@ class KvSqlite(object):
         table = self.mapTable
         self.kV.set(key, val, table)
 
-    def clearMap(self, key):
+    def clearMapKey(self, key):
         table = self.mapTable
         self.kV.deleteRowWithKey(key, table)
 
@@ -116,25 +116,25 @@ class KvSqlite(object):
 
     # sessions table functions (nested dictionary - key1, key2, val)
 
-    def getSession(self, key, val):
-        if not key:
+    def getSession(self, key1, key2):
+        if not key1:
             return None
         table = self.sessionTable
-        return self.__getDictionary(key, val, table)
+        return self.__getDictionary(key1, key2, table)
 
-    def setSession(self, key, val, vval):
-        if not key:
+    def setSession(self, key1, key2, val):
+        if not key1:
             return None
         table = self.sessionTable
-        return self.__setDictionary(key, val, vval, table)
+        return self.__setDictionary(key1, key2, val, table)
 
     def clearSessionKey(self, key):
         table = self.sessionTable
         return self.__clearDictionaryKey(key, table)
 
-    def clearSessionVal(self, key, val):
+    def clearSessionVal(self, key1, key2):
         table = self.sessionTable
-        return self.__clearDictionaryVal(key, val, table)
+        return self.__clearDictionaryVal(key1, key2, table)
 
     # functions for integers
 

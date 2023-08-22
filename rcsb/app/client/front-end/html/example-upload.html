@@ -13,10 +13,13 @@
               let sequential_chunk_url = `${base_url}/upload/`;
               let jwt_url = `${base_url}/token`;
               let validate_jwt_url = `${base_url}/validate-token`;
+              let chunkSize = 1024 * 1024 * 32; // bytes
               let token = localStorage.getItem('token');
+              console.log(`jwt token ${token}`);
               let jwt_token = '';
-              let new_token = false;
+              let new_token = true;
               if(token) {
+                  new_token = false;
                   jwt_token = token;
                   console.log("found previous token " + token);
                   jwt_valid = false;
@@ -31,6 +34,7 @@
                   localStorage.setItem('token', jwt_token);
                   console.log("generated token " + jwt_token);
               }
+              console.log(`token now = ${jwt_token}`);
               let file = document.getElementsByName('uploadFile')[0].files[0];
               let fileName = file.name;
               console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
@@ -108,7 +112,6 @@
                     return;
                   }
                 var fileSize = file.size;
-                var chunkSize = 1024 * 1024 * 32; // bytes
                 var expectedChunks = Math.ceil((fileSize) / chunkSize);
                 var chunkOffset = chunkIndex * chunkSize;
                 let decompress = document.getElementsByName('decompress')[0].checked;

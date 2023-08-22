@@ -15,7 +15,7 @@ configuration:
   SESSION_DIR_PATH: rcsb/app/tests-file/data/sessions
   # database parameters
   KV_MODE: sqlite # redis or sqlite
-  REDIS_HOST: sqlite # localhost, redis, or url
+  REDIS_HOST: localhost # localhost, redis, or url
   KV_SESSION_TABLE_NAME: sessions
   KV_MAP_TABLE_NAME: map
   KV_MAX_SECONDS: 14400 # session duration

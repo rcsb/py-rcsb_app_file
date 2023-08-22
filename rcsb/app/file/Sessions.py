@@ -9,6 +9,7 @@ import time
 import logging
 import uuid
 import typing
+from rcsb.app.file.KvBase import KvBase
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.KvRedis import KvRedis
@@ -23,9 +24,12 @@ logging.basicConfig(level=logging.INFO)
 
 class Sessions(object):
     # statelessly invoked once per chunk of every upload
-    def __init__(self, uploadId=None, cP=None):
+    def __init__(self, uploadId=None, cP=None, kV=True):
         self.uploadId = uploadId
         self.cP = cP if cP else ConfigProvider()
+        self.kV = None
+        if kV:
+            self.kV = KvBase(self.cP)
 
     # invoked only once per upload
     async def open(
@@ -79,14 +83,7 @@ class Sessions(object):
             contentFormat=contentFormat,
             version=version,
         )
-        if self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
-        else:
-            logging.exception("error - unknown kv mode %s", self.cP.get("KV_MODE"))
-            return None
-        uploadId = kV.getMap(mapKey)
+        uploadId = self.kV.getMap(mapKey)
         if uploadId is None:
             # not a resumed upload
             return None
@@ -147,7 +144,6 @@ class Sessions(object):
         tempPath: str,
         resumable: bool = False,
         mapKey: typing.Optional[str] = None,
-        kV=None,
         uid: typing.Optional[str] = None,
     ):
         if os.path.exists(tempPath):
@@ -157,7 +153,7 @@ class Sessions(object):
             return True
         if not uid:
             uid = self.uploadId
-        return await self.clearKvSession(mapKey, kV, uid)
+        return await self.clearKvSession(mapKey, uid)
 
     # DATABASE FUNCTIONS (RESUMABLE UPLOADS ONLY)
 
@@ -180,42 +176,17 @@ class Sessions(object):
                     logging.exception("error - could not find path %s", tempPath)
         return 0
 
-    async def hasResumableUpload(self, kV=None, uploadId=None):
-        if kV:
-            pass
-        elif self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
-        if not uploadId:
-            uploadId = self.uploadId
-        return kV.getKey(uploadId, kV.sessionTable) is not None
-
     # returns entire dictionary of session table entry
-    async def getKvSession(self, kV=None, uploadId=None):
-        if kV is not None:
-            pass
-        elif self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
+    async def getKvSession(self, uploadId=None):
         if uploadId is None:
             uploadId = self.uploadId
-        return kV.getKey(uploadId, kV.sessionTable)
+        return self.kV.getKey(uploadId, self.kV.sessionTable)
 
     async def setKvSession(self, key1, key2, val):
-        if self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
-        kV.setSession(key1, key2, val)
+        self.kV.setSession(key1, key2, val)
 
     async def setKvMap(self, key, val):
-        if self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
-        kV.setMap(key, val)
+        self.kV.setMap(key, val)
 
     async def getKvPrimaryMapKey(
         self,
@@ -251,83 +222,30 @@ class Sessions(object):
         filename = repositoryType + "_" + filename
         return filename
 
-    # clear one entry from session table
-    async def clearKvUploadId(self, kV=None, uid=None):
-        if not uid:
-            uid = self.uploadId
-        if kV:
-            pass
-        elif self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
-        response = None
-        try:
-            response = kV.clearSessionKey(uid)
-        except Exception:
-            return False
-        return response
-
     # clear one entry from session table and corresponding entry from map table
     async def clearKvSession(
         self,
         mapKey: typing.Optional[str] = None,
-        kV=None,
         uid: typing.Optional[str] = None,
     ):
         if not uid:
             uid = self.uploadId
         response = True
-        if kV:
-            pass
-        elif self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
         try:
             # remove expired sessions entry (key = upload id)
-            res = kV.clearSessionKey(uid)
+            res = self.kV.clearSessionKey(uid)
             # remove map table entry
             # key = file parameters, val = upload id
             # without file parameters, must find key from val
             if not res:
                 response = False
             if mapKey is not None:
-                kV.clearMap(mapKey)
+                self.kV.clearMapKey(mapKey)
             else:
-                kV.clearMapVal(uid)
+                self.kV.clearMapVal(uid)
         except Exception:
             return False
         return response
-
-    # clear entire database
-    async def clearKv(self, kV=None):
-        if kV:
-            pass
-        elif self.cP.get("KV_MODE") == "sqlite":
-            kV = KvSqlite(self.cP)
-        elif self.cP.get("KV_MODE") == "redis":
-            kV = KvRedis(self.cP)
-        kV.clearTable(kV.sessionTable)
-        kV.clearTable(kV.mapTable)
-
-    # remove an entry from session table and map table, remove corresponding hidden files
-    # does not check expiration
-    async def removeKvExpiredEntry(
-        self,
-        mapKey: str = None,
-        depId: str = None,
-        repositoryType: str = None,
-        kV=None,
-        uploadId: str = None,
-    ):
-        if not uploadId:
-            uploadId = self.uploadId
-        pP = PathProvider(self.cP)
-        dirPath = pP.getDirPath(repositoryType, depId)
-        tempPath = self.getTempFilePath(dirPath, uploadId)
-        resumable = True
-        await self.close(tempPath, resumable, mapKey, kV)
 
     # SESSION DIRECTORY FUNCTIONS
 
@@ -448,7 +366,7 @@ class Sessions(object):
                             logging.exception(
                                 "error - could not remove session key for %s", sessionId
                             )
-                        # remove map table entry (key = file parameters)
+                        # remove map table entry with val (key = file parameters, val = session id)
                         kV.clearMapVal(sessionId)
                     except Exception:
                         pass
@@ -458,9 +376,9 @@ class Sessions(object):
                         os.unlink(lockPath)
                     # clear temp files
                     dirPath = os.path.join(repositoryDir, repoType, depId)
-                    tempPath = Sessions(cP, sessionId).getTempFilePath(
-                        dirPath, sessionId
-                    )
+                    tempPath = Sessions(
+                        uploadId=sessionId, cP=cP, kV=False
+                    ).getTempFilePath(dirPath, sessionId)
                     if os.path.exists(tempPath):
                         os.unlink(tempPath)
                     # remove placeholder file

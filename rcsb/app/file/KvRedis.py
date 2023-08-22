@@ -70,7 +70,7 @@ class KvRedis(object):
         return True
 
     # delete key
-    def clearMap(self, key):
+    def clearMapKey(self, key):
         self.kV.delete(key)
 
     # delete key from val

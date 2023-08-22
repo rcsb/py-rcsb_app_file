@@ -41,19 +41,25 @@ For testing, they may point to local paths.
 
 Also edit SERVER_HOST_AND_PORT.
 
+Determine the appropriate settings for the server.
+
 Please note that the client will require a different address than the server, so config.yml will require different settings on each.
 
 For example, client - 100.200.300.400:8000, server - 0.0.0.0:8000.
 
-Port number 80 is generally preferred, but not always available, so sometimes 8000 is required.
+Please note that a proxy server such as nginx may not work from the browser due to a conflict with the CORS middleware in main.py.
 
-The example HTML files must be configured independently.
+Rather than using a proxy server, you are encouraged to find an appropriate gunicorn server configuration.
 
-Edit url variables to match server url in example-upload.html, example-download.html, and example-list.html.
+The example HTML files (example-upload.html, example-download.html, and example-list.html) must be configured independently.
+
+The relevant variables should be at the top of the files.
+
+In particular, edit url variables to match server url.
 
 # Endpoints and forwarding
 
-To view documentation, run a server, then visit localhost:80/docs.
+To view documentation, run a server, then visit localhost:port_number/docs.
 
 The repository has one upload endpoint, one download endpoint, and one list-directory endpoint, among others.
 
@@ -71,7 +77,7 @@ The download endpoint is found at '/download'.
 
 The list directory endpoint is found at '/list-dir'.
 
-To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in various Utility or Provider files.
+To skip endpoints and forward a server-side chunk or file from Python, use functions in various Utility or Provider files.
 
 Those functions may throw a fastapi.HTTPException, so you will have to enclose function calls in a try except block.
 
@@ -104,13 +110,22 @@ python3 client.py
 
 ### Hashing and compression
 
-Should hashing be performed before or after compression/decompression? The API performs hashing on the compressed file.
+Compression of file
 
-For the Python client, from the client side, the API first compresses, then hashes the complete file, then uploads. From the server side, the API saves, then hashes the complete file, then decompresses.
+- Should hashing be performed before or after compression/decompression? The API performs hashing on the compressed file.
+- For the Python client, from the client side, the API first compresses, then hashes the complete file, then uploads. From the server side, the API saves, then hashes the complete file, then decompresses.
+- From javascript, hashing libraries are less reliable, so hashing is optional. If a hash digest is not sent as a parameter, the API defaults to file size comparison.
+- File size is computed on the compressed file, same as the hash. Please ensure that front-end scripts compute file size in the correct order if compression is used.
 
-From javascript, hashing libraries are less reliable, so hashing is optional. If a hash digest is not sent as a parameter, the API defaults to file size comparison.
+Compression of chunks
 
-File size is computed on the compressed file, same as the hash. Please ensure that front-end scripts compute file size in the correct order if compression is used.
+- When uploading, if the extractChunks parameter is set to True, the API assumes that you have compressed each chunk.
+- It therefore decompresses each chunk on receiving it.
+- The compression type is set in rcsb/app/config/config.yml.
+- Client-side compression is presently only available from the example Python clients.
+- The example HTML files do not have compression since compression frameworks from the browser are less developed.
+- If you add compression from the browser for compression of chunks, ensure that the compression type matches that specified in config.yml.
+- Hashing results are not affected by compression/decompression of chunks.
 
 # Testing
 
@@ -138,9 +153,9 @@ To enable scale-up to multiple containers, the file system and database should b
 
 Set paths in config.yml so that all containers coordinate through the same paths.
 
-Note that Docker requires parameters to bind the paths.
+Note that Docker requires parameters to bind the paths (refer to examples).
 
-If Redis is used, it runs best when Redis is also in a (separate) Docker container.
+If Redis is used, it runs best when Redis is also in a (separate) Docker container (refer to examples).
 
 Some sites could use multiple deposition servers, a situation comparable to multiple containers.
 
@@ -150,11 +165,9 @@ A proxy server such as nginx may not be compatible with HTML uploads due to CORS
 
 Adding CORS headers to the nginx config file creates conflicts with the CORS middleware in main.py.
 
-Removing the CORS middleware is not an option either.
+Removing the CORS middleware does not seem to be an option either.
 
-For an all-in-one solution, we've had best results with port 80, which is not always available.
-
-Rather than reconfiguring the server to another port, it seems best to wait until port 80 is available to start the server.
+As stated previously, please find an appropriate gunicorn server configuration rather than using a proxy server.
 
 # Deployment on local server without docker
 
@@ -356,6 +369,8 @@ docker build -t fileapp -f Dockerfile.stage .
 ### Run docker container
 
 ```
+
+# port number should match port in config.yml
 
 docker run --name fileapp -p 80:80 fileapp
 
