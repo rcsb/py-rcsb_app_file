@@ -14,6 +14,7 @@ __license__ = "Apache 2.0"
     Download/upload a session bundle (not implemented)
 """
 
+import aiofiles
 import logging
 import os
 import typing
@@ -23,6 +24,7 @@ from fastapi.responses import FileResponse, Response
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.Definitions import Definitions
 from rcsb.app.file.IoUtility import IoUtility
+from rcsb.app.file.Locking import Locking
 
 
 logger = logging.getLogger(__name__)
@@ -77,10 +79,14 @@ class DownloadUtility(object):
             # return only one chunk
             data = None
             try:
-                with open(filePath, "rb") as r:
-                    r.seek(chunkIndex * chunkSize)
-                    data = r.read(chunkSize)
-            except Exception:
+                async with Locking(filePath, "r", second_traversal=False):
+                    # second traversal for each chunk could slow download
+                    # task - add security by testing hash or file size of result on client side
+                    async with aiofiles.open(filePath, "rb") as r:
+                        await r.seek(chunkIndex * chunkSize)
+                        data = await r.read(chunkSize)
+            except Exception as exc:
+                logging.warning("exception in download file %r", exc)
                 raise HTTPException(
                     status_code=500, detail="error occurred while reading file"
                 )
@@ -88,16 +94,24 @@ class DownloadUtility(object):
         else:
             # return complete file
             tD = {}
-            if hashType and not (chunkSize is not None and chunkIndex is not None):
-                hashDigest = IoUtility().getHashDigest(filePath, hashType.name)
-                tD = {"rcsb_hash_type": hashType.name, "rcsb_hexdigest": hashDigest}
             mimeType = self.getMimeType(contentFormat)
-            return FileResponse(
-                path=filePath,
-                media_type=mimeType,
-                filename=os.path.basename(filePath),
-                headers=tD,
-            )
+            try:
+                async with Locking(filePath, "r"):
+                    if hashType:
+                        hashDigest = IoUtility().getHashDigest(filePath, hashType.name)
+                        tD = {
+                            "rcsb_hash_type": hashType.name,
+                            "rcsb_hexdigest": hashDigest,
+                        }
+                    return FileResponse(
+                        path=filePath,
+                        media_type=mimeType,
+                        filename=os.path.basename(filePath),
+                        headers=tD,
+                    )
+            except Exception as exc:
+                logging.warning("exception in download file %r", exc)
+                raise HTTPException(status_code=500, detail="error downloading file")
 
     def getMimeType(self, contentFormat: str) -> str:
         cFormat = contentFormat

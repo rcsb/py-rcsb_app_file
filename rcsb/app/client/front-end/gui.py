@@ -61,8 +61,8 @@ class Gui(tk.Frame):
         self.allow_overwrite = tk.IntVar(master)
         self.compress = tk.IntVar(master)
         self.decompress = tk.IntVar(master)
-        self.test_no_compress = tk.IntVar(master)
-        self.test_no_gui_update = tk.IntVar(master)
+        self.compress_chunks = tk.IntVar(master)
+        self.no_chunks = tk.IntVar(master)
         self.upload_status = tk.StringVar(master)
         self.upload_status.set("0%")
         self.file_path = None
@@ -137,28 +137,34 @@ class Gui(tk.Frame):
         )
         self.allowOverwriteButton.pack(anchor=tk.W)
         self.compressCheckbox = ttk.Checkbutton(
-            self.upload_group, text="compress", variable=self.compress
+            self.upload_group,
+            text="compress complete file",
+            variable=self.compress,
+            command=self.resetChunks,
         )
         self.compressCheckbox.pack(anchor=tk.W)
         self.decompressCheckbox = ttk.Checkbutton(
-            self.upload_group, text="decompress after upload", variable=self.decompress
+            self.upload_group,
+            text="decompress after upload",
+            variable=self.decompress,
+            command=self.resetChunks,
         )
         self.decompressCheckbox.pack(anchor=tk.W)
         self.upload_group.pack()
-        self.noCompressionCheckbox = ttk.Checkbutton(
+        self.compressChunksCheckbox = ttk.Checkbutton(
             self.upload_group,
-            text="test without compression",
-            variable=self.test_no_compress,
+            text="compress chunks",
+            variable=self.compress_chunks,
             command=self.resetCompress,
         )
-        self.noCompressionCheckbox.pack(anchor=tk.W)
-        self.noGuiCheckbox = ttk.Checkbutton(
+        self.compressChunksCheckbox.pack(anchor=tk.W)
+        self.noChunksCheckbox = ttk.Checkbutton(
             self.upload_group,
-            text="test without gui update",
-            variable=self.test_no_gui_update,
-            command=self.resetCompress,
+            text="don't chunk file",
+            variable=self.no_chunks,
+            command=self.resetChunks,
         )
-        self.noGuiCheckbox.pack(anchor=tk.W)
+        self.noChunksCheckbox.pack(anchor=tk.W)
         self.upload_group.pack()
 
         self.uploadButton = ttk.Button(
@@ -182,6 +188,7 @@ class Gui(tk.Frame):
         self.download_file_format = tk.StringVar(master)
         self.download_version_number = tk.StringVar(master)
         self.download_allow_overwrite = tk.IntVar(master)
+        self.download_chunked_file = tk.IntVar(master)
         self.download_status = tk.StringVar(master)
         self.download_status.set("0%")
         self.download_file_path = None
@@ -201,6 +208,13 @@ class Gui(tk.Frame):
             variable=self.download_allow_overwrite,
         )
         self.download_allowOverwrite.pack()
+
+        self.download_chunkedFile = ttk.Checkbutton(
+            self.downloadTab,
+            text="chunk file",
+            variable=self.download_chunked_file,
+        )
+        self.download_chunkedFile.pack()
 
         self.download_repoTypeLabel = ttk.Label(
             self.downloadTab, text="REPOSITORY TYPE"
@@ -317,6 +331,11 @@ class Gui(tk.Frame):
     def resetCompress(self):
         self.compress.set(0)
         self.decompress.set(0)
+        self.no_chunks.set(0)
+        self.master.update()
+
+    def resetChunks(self):
+        self.compress_chunks.set(0)
         self.master.update()
 
     def selectFile(self):
@@ -337,12 +356,12 @@ class Gui(tk.Frame):
         contentFormat = self.file_format.get()
         version = self.version_number.get()
         readFilePath = self.file_path
-        COMPRESS = self.compress.get() == 1
-        DECOMPRESS = self.decompress.get() == 1
-        if COMPRESS:
-            DECOMPRESS = True
-        TEST_NO_COMPRESS = self.test_no_compress.get() == 1
-        TEST_NO_GUI_UPDATE = self.test_no_gui_update.get() == 1
+        COMPRESS_FILE = self.compress.get() == 1
+        DECOMPRESS_FILE = self.decompress.get() == 1
+        if COMPRESS_FILE:
+            DECOMPRESS_FILE = True
+        COMPRESS_CHUNKS = self.compress_chunks.get() == 1
+        NO_CHUNKS = self.no_chunks.get() == 1
         allowOverwrite = self.allow_overwrite.get() == 1
         resumable = self.resumable.get() == 1
         if (
@@ -361,7 +380,7 @@ class Gui(tk.Frame):
         if milestone.lower() == "none":
             milestone = ""
 
-        if TEST_NO_GUI_UPDATE:
+        if NO_CHUNKS:
             decompress = False
             fileExtension = ""
             extractChunk = True
@@ -411,7 +430,7 @@ class Gui(tk.Frame):
         chunkIndex = response["chunkIndex"]
         uploadId = response["uploadId"]
         # compress, then hash and compute file size parameter, then upload
-        if COMPRESS:
+        if COMPRESS_FILE:
             print("compressing file")
             readFilePath = UploadUtility(self.__cU.cP).compressFile(
                 readFilePath, saveFilePath, self._COMPRESSION
@@ -428,7 +447,7 @@ class Gui(tk.Frame):
             expectedChunks = math.ceil(fileSize / chunkSize)
         fileExtension = os.path.splitext(readFilePath)[-1]
         extractChunk = True
-        if DECOMPRESS or TEST_NO_COMPRESS:
+        if DECOMPRESS_FILE or not COMPRESS_CHUNKS:
             extractChunk = False
         # upload chunks sequentially
         mD = {
@@ -444,21 +463,21 @@ class Gui(tk.Frame):
             "saveFilePath": saveFilePath,
             "fileSize": fileSize,
             "fileExtension": fileExtension,
-            "decompress": DECOMPRESS,
+            "decompress": DECOMPRESS_FILE,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
             "extractChunk": extractChunk,
         }
         self.upload_status.set("0%")
         print(
-            "decompress %s extract chunk %s test no compress %s expected chunks %d"
-            % (DECOMPRESS, extractChunk, TEST_NO_COMPRESS, expectedChunks)
+            "decompress %s extract chunk %s compress chunks %s expected chunks %d"
+            % (DECOMPRESS_FILE, extractChunk, COMPRESS_CHUNKS, expectedChunks)
         )
         for index in range(chunkIndex, expectedChunks):
             mD["chunkIndex"] = index
             status_code = self.__cU.uploadChunk(readFilePath, **mD)
             if not status_code == 200:
-                print("error in upload %r" % response)
+                print("error in upload %d" % status_code)
                 break
             percentage = ((index + 1) / expectedChunks) * 100
             self.upload_status.set("%.0f%%" % percentage)
@@ -476,6 +495,7 @@ class Gui(tk.Frame):
         version = self.download_version_number.get()
         folderPath = self.file_path
         allowOverwrite = self.download_allow_overwrite.get() == 1
+        chunkFile = self.download_chunked_file.get() == 1
         if (
             not folderPath
             or not repositoryType
@@ -512,7 +532,9 @@ class Gui(tk.Frame):
         fileSize = int(response["fileSize"])
         chunkSize = self.__cU.cP.get("CHUNK_SIZE")
         expectedChunks = 1
-        if chunkSize < fileSize:
+        if not chunkFile:
+            chunkSize = None
+        elif chunkSize < fileSize:
             expectedChunks = math.ceil(fileSize / chunkSize)
 
         for chunkIndex in range(0, expectedChunks):
@@ -579,8 +601,8 @@ class Gui(tk.Frame):
         self.compress.set(0)
         self.decompress.set(0)
         self.resumable.set(0)
-        self.test_no_compress.set(0)
-        self.test_no_gui_update.set(0)
+        self.compress_chunks.set(0)
+        self.no_chunks.set(0)
 
         self.download_repo_type.set("")
         self.download_dep_id.set("")
@@ -590,6 +612,7 @@ class Gui(tk.Frame):
         self.download_file_format.set("")
         self.download_version_number.set("1")
         self.download_allow_overwrite.set(0)
+        self.download_chunked_file.set(0)
 
         self.list_repo_type.set("")
         self.list_dep_id.set("")

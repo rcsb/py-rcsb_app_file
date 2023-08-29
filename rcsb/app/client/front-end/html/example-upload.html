@@ -18,6 +18,7 @@
               console.log(`jwt token ${token}`);
               let jwt_token = '';
               let new_token = true;
+              let jwt_valid = true;
               if(token) {
                   new_token = false;
                   jwt_token = token;
@@ -35,6 +36,10 @@
                   console.log("generated token " + jwt_token);
               }
               console.log(`token now = ${jwt_token}`);
+              if(! jwt_valid){
+                  console.log("jwt token not valid");
+                  return;
+              }
               let file = document.getElementsByName('uploadFile')[0].files[0];
               let fileName = file.name;
               console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
@@ -46,8 +51,11 @@
 
               async function getAccessToken(){
                   url = jwt_url;
-                  await fetch(url, { method: "GET" }).then(response => {
+                  await fetch(url, {
+                      method: "GET"
+                  }).then(response => {
                       if(response && response.status && response.status < 400){
+                          jwt_valid = true;
                           return response.json();
                       } else if(response.status){
                           throw new Error("error - status " + response.status);
@@ -164,9 +172,11 @@
                   formdata.append("allowOverwrite", allowOverwrite);
                   formdata.append("resumable", resumable);
                   fetch(sequential_chunk_url, {
-                    method: "POST",
-                    headers: {"Authorization": `Bearer ${jwt_token}`},
-                    body: formdata
+                      method: "POST",
+                      headers: {
+                          "Authorization": `Bearer ${jwt_token}`
+                      },
+                      body: formdata
                   }).then(response => {
                       if(response) {
                           if(response.status && response.status < 400)

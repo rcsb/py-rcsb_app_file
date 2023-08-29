@@ -22,12 +22,12 @@ import logging
 import os
 import typing
 import aiofiles
-from filelock import Timeout, FileLock
 from fastapi import HTTPException
 from rcsb.app.file.Sessions import Sessions
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.IoUtility import IoUtility
+from rcsb.app.file.Locking import Locking
 
 logging.basicConfig(
     level=logging.INFO,
@@ -176,6 +176,7 @@ class UploadUtility(object):
                 await ofh.write(contents)
             # if last chunk
             if chunkIndex + 1 == expectedChunks:
+                # need not lock temp file
                 if hashDigest and hashType:
                     if not IoUtility().checkHash(tempPath, hashDigest, hashType):
                         raise HTTPException(
@@ -191,32 +192,24 @@ class UploadUtility(object):
                     raise HTTPException(
                         status_code=400, detail="Error - no hash or file size provided"
                     )
-                # lock then save
-                lockPath = session.getLockPath(tempPath)  # either tempPath or filePath
-                lock = FileLock(lockPath)
-                try:
-                    with lock.acquire(timeout=60 * 60 * 4):
-                        # last minute race condition handling
-                        if os.path.exists(filePath) and not allowOverwrite:
-                            raise HTTPException(
-                                status_code=403,
-                                detail="Encountered existing file - cannot overwrite",
-                            )
-                        else:
-                            # save final version
-                            os.replace(tempPath, filePath)
-                except Timeout:
+                # last minute race condition handling
+                if os.path.exists(filePath) and not allowOverwrite:
                     raise HTTPException(
-                        status_code=400,
-                        detail=f"error - lock timed out on {filePath}",
+                        status_code=403,
+                        detail="Encountered existing file - cannot overwrite",
                     )
-                finally:
-                    lock.release()
-                    if os.path.exists(lockPath):
-                        os.unlink(lockPath)
-                # decompress
-                if decompress and fileExtension:
-                    await self.decompressFile(filePath, fileExtension)
+                # lock target file (though it might not exist) then save
+                try:
+                    async with Locking(filePath, "w"):
+                        # save final version
+                        os.replace(tempPath, filePath)
+                        # decompress
+                        if decompress and fileExtension:
+                            await self.decompressFile(filePath, fileExtension)
+                except FileExistsError:
+                    raise HTTPException(
+                        status_code=400, detail=f"error - lock timed out on {filePath}"
+                    )
                 # clear database and temp files
                 await session.close(tempPath, resumable, mapKey)
         except HTTPException as exc:
@@ -255,7 +248,7 @@ class UploadUtility(object):
             compressedFilePath = inputFilePath + fileExtension
             outputDir = os.path.basename(inputFilePath)
             # rename from deposition format to compressed file name
-            # copy from compressed file name to original file name
+            # then decompress from compressed file name to original file name
             os.replace(inputFilePath, compressedFilePath)
             if compressedFilePath.endswith(".gz"):
                 with gzip.open(compressedFilePath, mode="rb") as inpF:

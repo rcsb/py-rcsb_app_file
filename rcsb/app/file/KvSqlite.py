@@ -7,6 +7,7 @@ from rcsb.app.file.KvConnection import KvConnection
 from fastapi.exceptions import HTTPException
 
 # map redis-style hash vars to sql queries
+# not valid across multiple machines or containers
 
 
 class KvSqlite(object):

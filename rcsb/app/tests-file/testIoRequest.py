@@ -430,6 +430,7 @@ def tests():
     suites = unittest.TestSuite()
     suites.addTest(IoRequestTests("testCopyFile"))
     suites.addTest(IoRequestTests("testMoveFile"))
+    suites.addTest(IoRequestTests("testCopyDir"))
     suites.addTest(IoRequestTests("testCompressDir"))
     suites.addTest(IoRequestTests("testCompressDirPath"))
     suites.addTest(IoRequestTests("testDecompressDir"))

@@ -353,6 +353,7 @@ class ClientUtility(object):
             fileExtension if fileExtension else os.path.splitext(sourceFilePath)[-1]
         )
         offset = chunkIndex * chunkSize
+        statusCode = 200
         with open(sourceFilePath, "rb") as of:
             of.seek(offset)
             url = os.path.join(self.baseUrl, "upload")
@@ -403,12 +404,13 @@ class ClientUtility(object):
                 timeout=None,
             )
             if response.status_code != 200:
+                statusCode = response.status_code
                 logger.error(
                     "Status code %r with text %r ...terminating",
                     response.status_code,
                     response.text,
                 )
-        return response.status_code
+        return statusCode
 
     def download(
         self,

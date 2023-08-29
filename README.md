@@ -35,7 +35,7 @@ Edit variables in rcsb/app/config/config.yml.
 
 In particular, edit paths (REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, SESSION_DIR_PATH).
 
-For production, they should point to a remote path on an NFS file system.
+For production, they should point to a remote path on a mounted file system.
 
 For testing, they may point to local paths.
 
@@ -48,8 +48,6 @@ Please note that the client will require a different address than the server, so
 For example, client - 100.200.300.400:8000, server - 0.0.0.0:8000.
 
 Please note that a proxy server such as nginx may not work from the browser due to a conflict with the CORS middleware in main.py.
-
-Rather than using a proxy server, you are encouraged to find an appropriate gunicorn server configuration.
 
 The example HTML files (example-upload.html, example-download.html, and example-list.html) must be configured independently.
 
@@ -145,7 +143,11 @@ tox
 
 # Deployment
 
-For production, we presume that the file system is a mounted NFS file system.
+Sqlite cannot be used on a distributed system, therefore it cannot be used in production unless there is only one server and the sqlite database is stored on that server.
+
+Otherwise, to synchronize transactions on multiple servers or containers requires a remote Redis server (do not connect to Redis with 'localhost').
+
+For production, we presume that the file system is a mounted file system.
 
 A Docker container should be used.
 
@@ -155,7 +157,7 @@ Set paths in config.yml so that all containers coordinate through the same paths
 
 Note that Docker requires parameters to bind the paths (refer to examples).
 
-If Redis is used, it runs best when Redis is also in a (separate) Docker container (refer to examples).
+If both Docker and Redis are used, it runs best when Redis is also in a (separate) Docker container (refer to examples).
 
 Some sites could use multiple deposition servers, a situation comparable to multiple containers.
 
@@ -178,11 +180,23 @@ From base repository directory (in `py-rcsb_app_file/`), start app with:
 
 ./deploy/LAUNCH_GUNICORN.sh
 
+or 
+
+nohup ./deploy/LAUNCH_GUNICORN.sh > /dev/null 2>&1 &
+
 ```
+
+# Database
+
+When uploading resumable chunks, server processes coordinate through a database named KV (key-value)
+
+The value of KV_MODE in config.yml determines whether the database is Redis or Sqlite3.
 
 # Sqlite3
 
-When uploading resumable chunks, server processes coordinate through a database named KV (key-value)
+Sqlite is provided just for testing.
+
+As configured, Sqlite will only work when the app runs on a single server and the file system and database are also stored on that server.
 
 If KV_MODE is set to sqlite in rcsb/app/config/config.yml, chunk information is coordinated with a sqlite3 database
 

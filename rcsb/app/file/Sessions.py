@@ -18,8 +18,8 @@ from rcsb.app.file.KvSqlite import KvSqlite
 logging.basicConfig(level=logging.INFO)
 
 # session maintenance for one upload
-# includes file locking and optional resumability API
-# functions - upload helper functions, database functions, locking functions, session placeholder functions, bulk maintenance function
+# includes optional resumability API
+# functions - upload helper functions, database functions, session placeholder functions, bulk maintenance function
 
 
 class Sessions(object):
@@ -250,6 +250,7 @@ class Sessions(object):
     # SESSION DIRECTORY FUNCTIONS
 
     def getPlaceholderFile(self, tempPath):
+        # placeholder name should overlap with lock file name so that cleanupSessions is able to remove associated lock files for a placeholder
         repositoryType = os.path.basename(os.path.dirname(os.path.dirname(tempPath)))
         depId = os.path.basename(os.path.dirname(tempPath))
         uploadId = os.path.basename(tempPath)
@@ -280,62 +281,17 @@ class Sessions(object):
         else:
             logging.exception("error - placeholder file does not exist %s", placeholder)
 
-    # LOCKING FUNCTIONS
-
-    def getLockPath(self, filePath):
-        # make lock path from either temp file path or target file path
-        repositoryType = os.path.basename(os.path.dirname(os.path.dirname(filePath)))
-        depId = os.path.basename(os.path.dirname(filePath))
-        uploadId = os.path.basename(filePath)
-        if uploadId.startswith("."):
-            uploadId = uploadId[1:]
-        if uploadId.startswith("_"):
-            uploadId = uploadId[1:]
-        sharedLockDirPath = self.cP.get("SHARED_LOCK_PATH")
-        if not os.path.exists(sharedLockDirPath):
-            os.makedirs(sharedLockDirPath)
-        lockPath = os.path.join(
-            sharedLockDirPath, repositoryType + "~" + depId + "~" + uploadId + ".lock"
-        )
-        return lockPath
-
-    # unused locking functions
-
-    def getLockPathFromParameters(
-        self,
-        depId: str,
-        contentType: str,
-        milestone: str,
-        partNumber: int,
-        contentFormat: str,
-    ) -> str:
-        # legacy function
-        sharedLockDirPath = self.cP.get("SHARED_LOCK_PATH")
-        if not os.path.exists(sharedLockDirPath):
-            os.makedirs(sharedLockDirPath)
-        fnBase = PathProvider(self.cP).getBaseFileName(
-            depId, contentType, milestone, partNumber, contentFormat
-        )
-        return os.path.join(sharedLockDirPath, fnBase + ".lock")
-
-    def getInPlaceLockPath(self, filePath):
-        # make lock path from target file path (not temp file path)
-        lockPath = os.path.join(
-            os.path.dirname(filePath), "." + os.path.basename(filePath) + ".lock"
-        )
-        return lockPath
-
     # BULK SESSION MAINTENANCE
 
     @staticmethod
     async def cleanupSessions(seconds=None):
-        # by default removes only unexpired sessions
+        # triggered on server shutdown (remove all), cron job (remove expired), or from command line
+        # by default removes only expired sessions
         # set max seconds <= 0 to remove all sessions
-        # set to None to keep unexpired sessions
+        # set to None to keep expired sessions
         cP = ConfigProvider()
         repositoryDir = cP.get("REPOSITORY_DIR_PATH")
         sessionDir = cP.get("SESSION_DIR_PATH")
-        lockDir = cP.get("SHARED_LOCK_PATH")
         kvMaxSeconds = cP.get("KV_MAX_SECONDS")
         kvMode = cP.get("KV_MODE")
         if kvMode != "sqlite" and kvMode != "redis":
@@ -364,16 +320,13 @@ class Sessions(object):
                         # remove expired entry and temp files
                         if not kV.clearSessionKey(sessionId):
                             logging.exception(
-                                "error - could not remove session key for %s", sessionId
+                                "error - could not remove session key for %s, upload may not have been resumable",
+                                sessionId,
                             )
                         # remove map table entry with val (key = file parameters, val = session id)
                         kV.clearMapVal(sessionId)
                     except Exception:
                         pass
-                    # clear lock files
-                    lockPath = os.path.join(lockDir, placeholder + ".lock")
-                    if os.path.exists(lockPath):
-                        os.unlink(lockPath)
                     # clear temp files
                     dirPath = os.path.join(repositoryDir, repoType, depId)
                     tempPath = Sessions(

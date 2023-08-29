@@ -22,6 +22,7 @@ from . import ioRequest
 from . import pathRequest
 from . import tokenRequest
 from .Sessions import Sessions
+from .Locking import Locking
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -76,6 +77,7 @@ async def shutdownEvent():
         0  # set <= 0 to remove all sessions, set to None to keep unexpired sessions
     )
     await Sessions.cleanupSessions(maxSeconds)
+    await Locking.cleanup()
 
 
 app.include_router(

@@ -21,6 +21,37 @@ def upload(d):
         sys.exit(f"error - file does not exist: {d['sourceFilePath']}")
     if d["milestone"].lower() == "none":
         d["milestone"] = ""
+
+    if NO_CHUNKS:
+        extractChunk = True
+        if d["decompress"] or not COMPRESS_CHUNKS:
+            extractChunk = False
+        fileExtension = os.path.splitext(d["sourceFilePath"])[-1]
+        response = client.upload(
+            d["sourceFilePath"],
+            d["repositoryType"],
+            d["depId"],
+            d["contentType"],
+            d["milestone"],
+            d["partNumber"],
+            d["contentFormat"],
+            d["version"],
+            d["decompress"],
+            fileExtension,
+            d["allowOverwrite"],
+            d["resumable"],
+            extractChunk,
+        )
+        if response:
+            status = response["status_code"]
+            if not status == 200:
+                print("error in upload %d" % status_code)
+            else:
+                return status
+        else:
+            print("error in upload - no response")
+        return
+
     # get upload parameters
     response = client.getUploadParameters(
         d["repositoryType"],
@@ -41,7 +72,7 @@ def upload(d):
     uploadId = response["uploadId"]
     # compress, then hash and compute file size parameter, then upload
     decompress = d["decompress"]
-    if COMPRESS:
+    if COMPRESS_FILE:
         decompress = True
         print(
             "compressing file %s size %d"
@@ -65,7 +96,7 @@ def upload(d):
         expectedChunks = math.ceil(fileSize / chunkSize)
     fileExtension = os.path.splitext(d["sourceFilePath"])[-1]
     extractChunk = True
-    if decompress or TEST_NO_COMPRESS:
+    if decompress or not COMPRESS_CHUNKS:
         extractChunk = False
     # upload chunks sequentially
     mD = {
@@ -87,11 +118,11 @@ def upload(d):
         "extractChunk": extractChunk,
     }
     print(
-        "decompress %s extract chunk %s test no compress %s file size %d chunk size %d expected chunks %d"
+        "decompress %s extract chunk %s compress chunks %s file size %d chunk size %d expected chunks %d"
         % (
             decompress,
             extractChunk,
-            TEST_NO_COMPRESS,
+            COMPRESS_CHUNKS,
             fileSize,
             chunkSize,
             expectedChunks,
@@ -193,10 +224,11 @@ if __name__ == "__main__":
     t1 = time.perf_counter()
 
     RESUMABLE = False
-    COMPRESS = False
-    DECOMPRESS = False
+    COMPRESS_FILE = False
+    DECOMPRESS_FILE = False
     OVERWRITE = False
-    TEST_NO_COMPRESS = False
+    COMPRESS_CHUNKS = False
+    NO_CHUNKS = False
     uploadIds = []
     uploadResults = []
     uploadTexts = []
@@ -255,6 +287,54 @@ if __name__ == "__main__":
         help="***** list contents of requested directory *****",
     )
     parser.add_argument(
+        "-c",
+        "--copy",
+        nargs=15,
+        action="append",
+        metavar=(
+            "source-repo-type",
+            "source-dep-id",
+            "source-content-type",
+            "source-milestone",
+            "source-part",
+            "source-content-format",
+            "source-version",
+            "target-repo-type",
+            "target-dep-id",
+            "target-content-type",
+            "target-milestone",
+            "target-part",
+            "target-content-format",
+            "target-version",
+            "allow-overwrite",
+        ),
+        help="***** copy file *****",
+    )
+    parser.add_argument(
+        "-m",
+        "--move",
+        nargs=15,
+        action="append",
+        metavar=(
+            "source-repo-type",
+            "source-dep-id",
+            "source-content-type",
+            "source-milestone",
+            "source-part",
+            "source-content-format",
+            "source-version",
+            "target-repo-type",
+            "target-dep-id",
+            "target-content-type",
+            "target-milestone",
+            "target-part",
+            "target-content-format",
+            "target-version",
+            "allow-overwrite",
+        ),
+        help="***** move file *****",
+    )
+    parser.add_argument(
         "-r",
         "--resumable",
         action="store_true",
@@ -267,16 +347,22 @@ if __name__ == "__main__":
         help="***** overwrite files with same name *****",
     )
     parser.add_argument(
-        "-z", "--zip", action="store_true", help="***** zip files prior to upload *****"
+        "-z",
+        "--zip",
+        action="store_true",
+        help="***** zip complete file prior to upload *****",
     )
     parser.add_argument(
         "-x",
         "--expand",
         action="store_true",
-        help="***** unzip files after upload *****",
+        help="***** unzip complete file after upload *****",
     )
     parser.add_argument(
-        "-t", "--test", action="store_true", help="***** test without compression *****"
+        "-g", "--gzip", action="store_true", help="***** compress chunks *****"
+    )
+    parser.add_argument(
+        "-n", "--nochunks", action="store_true", help="***** no chunking *****"
     )
     args = parser.parse_args()
     uploads = []
@@ -286,13 +372,15 @@ if __name__ == "__main__":
     if args.resumable:
         RESUMABLE = True
     if args.zip:
-        COMPRESS = True
+        COMPRESS_FILE = True
     if args.expand:
-        DECOMPRESS = True
+        DECOMPRESS_FILE = True
     if args.overwrite:
         OVERWRITE = True
-    if args.test:
-        TEST_NO_COMPRESS = True
+    if args.gzip:
+        COMPRESS_CHUNKS = True
+    if args.nochunks:
+        NO_CHUNKS = True
     if args.upload:
         for arglist in args.upload:
             if len(arglist) < 8:
@@ -319,7 +407,7 @@ if __name__ == "__main__":
                     "partNumber": partNumber,
                     "contentFormat": contentFormat,
                     "version": version,
-                    "decompress": DECOMPRESS,
+                    "decompress": DECOMPRESS_FILE,
                     "allowOverwrite": OVERWRITE,
                     "resumable": RESUMABLE,
                 }
