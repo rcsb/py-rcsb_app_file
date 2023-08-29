@@ -14,9 +14,9 @@ configuration:
   SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks
   SESSION_DIR_PATH: rcsb/app/tests-file/data/sessions
   LOCK_TRANSACTIONS: True
-  LOCK_TYPE: default # only option available
+  LOCK_TYPE: default # only option available at this time
   # database parameters
-  KV_MODE: redis # redis or sqlite
+  KV_MODE: sqlite # redis (for production) or sqlite (for testing)
   REDIS_HOST: localhost # localhost, redis, or url
   KV_SESSION_TABLE_NAME: sessions
   KV_MAP_TABLE_NAME: map
