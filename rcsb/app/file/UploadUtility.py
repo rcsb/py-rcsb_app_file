@@ -27,7 +27,7 @@ from rcsb.app.file.Sessions import Sessions
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.IoUtility import IoUtility
-from rcsb.app.file.Locking import Locking
+from rcsb.app.file.TernaryLock import Locking
 
 logging.basicConfig(
     level=logging.INFO,
@@ -206,9 +206,9 @@ class UploadUtility(object):
                         # decompress
                         if decompress and fileExtension:
                             await self.decompressFile(filePath, fileExtension)
-                except FileExistsError:
+                except (FileExistsError, OSError) as err:
                     raise HTTPException(
-                        status_code=400, detail=f"error - lock timed out on {filePath}"
+                        status_code=400, detail="error %r" % err
                     )
                 # clear database and temp files
                 await session.close(tempPath, resumable, mapKey)

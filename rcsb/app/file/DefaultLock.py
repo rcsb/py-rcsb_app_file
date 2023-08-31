@@ -57,7 +57,6 @@ class Locking(object):
             logging.debug("use lock false, skipping file locks")
             return
         self.lockdir = provider.get("SHARED_LOCK_PATH")
-        self.locktype = provider.get("LOCK_TYPE")
         # target file path
         self.filepath = filepath  # might not exist
         # lock file path
@@ -85,11 +84,7 @@ class Locking(object):
 
     async def __aenter__(self):
         logging.debug("attempting to get lock path for %s", self.filepath)
-        if (
-            self.locktype == "default"
-            and self.uselock is not None
-            and self.mode is not None
-        ):
+        if self.uselock is not None and self.mode is not None:
             # busy wait to acquire lock
             while True:
                 try:
@@ -145,7 +140,7 @@ class Locking(object):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if not self.uselock:
             return
-        if self.locktype == "default" and self.mode is not None:
+        if self.mode is not None:
             if self.lockfilepath is not None and os.path.exists(self.lockfilepath):
                 try:
                     # comment out to test locking

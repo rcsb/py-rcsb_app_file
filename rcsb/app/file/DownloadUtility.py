@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, Response
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.Definitions import Definitions
 from rcsb.app.file.IoUtility import IoUtility
-from rcsb.app.file.Locking import Locking
+from rcsb.app.file.TernaryLock import Locking
 
 
 logger = logging.getLogger(__name__)
@@ -85,10 +85,10 @@ class DownloadUtility(object):
                     async with aiofiles.open(filePath, "rb") as r:
                         await r.seek(chunkIndex * chunkSize)
                         data = await r.read(chunkSize)
-            except Exception as exc:
-                logging.warning("exception in download file %r", exc)
+            except (FileExistsError, OSError) as err:
+                logging.warning("exception in download file %r", err)
                 raise HTTPException(
-                    status_code=500, detail="error occurred while reading file"
+                    status_code=500, detail="error occurred while reading file %r" % err
                 )
             return Response(content=data, media_type="application/octet-stream")
         else:
@@ -109,9 +109,9 @@ class DownloadUtility(object):
                         filename=os.path.basename(filePath),
                         headers=tD,
                     )
-            except Exception as exc:
-                logging.warning("exception in download file %r", exc)
-                raise HTTPException(status_code=500, detail="error downloading file")
+            except (FileExistsError, OSError) as err:
+                logging.warning("exception in download file %r", err)
+                raise HTTPException(status_code=500, detail="error downloading file %r" % err)
 
     def getMimeType(self, contentFormat: str) -> str:
         cFormat = contentFormat

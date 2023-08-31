@@ -24,7 +24,7 @@ import hashlib
 from fastapi import HTTPException
 from rcsb.utils.io.FileUtil import FileUtil
 from rcsb.app.file.PathProvider import PathProvider
-from rcsb.app.file.Locking import Locking
+from rcsb.app.file.TernaryLock import Locking
 
 logging.basicConfig(
     level=logging.INFO,
@@ -119,8 +119,11 @@ class IoUtility(object):
         if not os.path.exists(os.path.dirname(filePathTarget)):
             os.makedirs(os.path.dirname(filePathTarget))
         logging.info("copying %s to %s", filePathSource, filePathTarget)
-        async with Locking(filePathSource, "r"):
-            shutil.copy(filePathSource, filePathTarget)
+        try:
+            async with Locking(filePathSource, "r"):
+                shutil.copy(filePathSource, filePathTarget)
+        except (FileExistsError, OSError) as err:
+            raise HTTPException(status_code=400, detail="error %r" % err)
 
     async def copyDir(
         self,
@@ -151,8 +154,11 @@ class IoUtility(object):
             else:
                 shutil.rmtree(target_path)
         logger.info("copying %s to %s", source_path, target_path)
-        async with Locking(source_path, "r", is_dir=True):
-            shutil.copytree(source_path, target_path)
+        try:
+            async with Locking(source_path, "r", is_dir=True):
+                shutil.copytree(source_path, target_path)
+        except (FileExistsError, OSError) as err:
+            raise HTTPException(status_code=400, detail="error %r" % err)
 
     async def moveFile(
         self,
@@ -213,8 +219,11 @@ class IoUtility(object):
         if not os.path.exists(os.path.dirname(filePathTarget)):
             os.makedirs(os.path.dirname(filePathTarget))
         logger.info("moving %s to %s", filePathSource, filePathTarget)
-        async with Locking(filePathSource, "w"):
-            shutil.move(filePathSource, filePathTarget)
+        try:
+            async with Locking(filePathSource, "w"):
+                shutil.move(filePathSource, filePathTarget)
+        except (FileExistsError, OSError) as err:
+            raise HTTPException(status_code=400, detail="error %r" % err)
 
     async def compressDir(self, repositoryType: str, depId: str):
         # removes uncompressed source afterward
@@ -233,13 +242,16 @@ class IoUtility(object):
                 status_code=403,
                 detail="error - requested path already exists %s" % compressPath,
             )
-        async with Locking(dirPath, "w", is_dir=True):
-            if FileUtil().bundleTarfile(compressPath, [os.path.abspath(dirPath)]):
-                shutil.rmtree(dirPath)
-                if os.path.exists(dirPath):
-                    logger.error(
-                        "unable to remove dirPath %s after compression", dirPath
-                    )
+        try:
+            async with Locking(dirPath, "w", is_dir=True):
+                if FileUtil().bundleTarfile(compressPath, [os.path.abspath(dirPath)]):
+                    shutil.rmtree(dirPath)
+                    if os.path.exists(dirPath):
+                        logger.error(
+                            "unable to remove dirPath %s after compression", dirPath
+                        )
+        except (FileExistsError, OSError) as err:
+            raise HTTPException(status_code=400, detail="error %r" % err)
 
     async def compressDirPath(self, dirPath: str):
         """
@@ -256,17 +268,20 @@ class IoUtility(object):
                 status_code=403,
                 detail="error - requested path already exists %s" % compressPath,
             )
-        async with Locking(dirPath, "w", is_dir=True):
-            if FileUtil().bundleTarfile(compressPath, [os.path.abspath(dirPath)]):
-                shutil.rmtree(dirPath)
-                if os.path.exists(dirPath):
-                    logger.error(
-                        "unable to remove dirPath %s after compression", dirPath
+        try:
+            async with Locking(dirPath, "w", is_dir=True):
+                if FileUtil().bundleTarfile(compressPath, [os.path.abspath(dirPath)]):
+                    shutil.rmtree(dirPath)
+                    if os.path.exists(dirPath):
+                        logger.error(
+                            "unable to remove dirPath %s after compression", dirPath
+                        )
+                else:
+                    raise HTTPException(
+                        status_code=400, detail="error - failed to compress directory"
                     )
-            else:
-                raise HTTPException(
-                    status_code=400, detail="error - failed to compress directory"
-                )
+        except (FileExistsError, OSError) as err:
+            raise HTTPException(status_code=400, detail="error %r" % err)
 
     async def decompressDir(self, repositoryType: str, depId: str):
         # removes compressed source afterward
@@ -284,16 +299,19 @@ class IoUtility(object):
             raise HTTPException(
                 status_code=404, detail="error - path not found %s" % decompressPath
             )
-        async with Locking(decompressPath, "w"):
-            if FileUtil().unbundleTarfile(
-                decompressPath, os.path.abspath(os.path.dirname(dirPath))
-            ):
-                os.unlink(decompressPath)
-                if os.path.exists(decompressPath):
-                    logger.error(
-                        "unable to remove dirPath %s after compression", dirPath
+        try:
+            async with Locking(decompressPath, "w"):
+                if FileUtil().unbundleTarfile(
+                    decompressPath, os.path.abspath(os.path.dirname(dirPath))
+                ):
+                    os.unlink(decompressPath)
+                    if os.path.exists(decompressPath):
+                        logger.error(
+                            "unable to remove dirPath %s after compression", dirPath
+                        )
+                else:
+                    raise HTTPException(
+                        status_code=400, detail="error - decompression failed"
                     )
-            else:
-                raise HTTPException(
-                    status_code=400, detail="error - decompression failed"
-                )
+        except (FileExistsError, OSError) as err:
+            raise HTTPException(status_code=400, detail="error %r" % err)

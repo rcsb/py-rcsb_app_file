@@ -22,7 +22,7 @@ from . import ioRequest
 from . import pathRequest
 from . import tokenRequest
 from .Sessions import Sessions
-from .Locking import Locking
+from .TernaryLock import Locking
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

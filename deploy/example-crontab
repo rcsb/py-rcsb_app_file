@@ -8,4 +8,4 @@
 0 0/4 * * * python3 -m rcsb.app.file.Sessions
 
 # remove locks over 1 hour old
-0 0/4 * * * python3 -m rcsb.app.file.Locking True 3600
+0 0/4 * * * python3 -m rcsb.app.file.TernaryLock True 3600
