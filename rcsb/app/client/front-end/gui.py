@@ -1,4 +1,3 @@
-import tkinter
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename, askdirectory
@@ -443,7 +442,7 @@ class Gui(tk.Frame):
         self.copymove_versionEntry1.insert(1, "1")
         self.copymove_versionEntry1.pack()
 
-        self.copymove_group1.pack(side=tkinter.LEFT)
+        self.copymove_group1.pack(side=tk.LEFT)
 
         self.copymove_group2 = ttk.Frame(self.copymove_group3)
 
@@ -530,7 +529,7 @@ class Gui(tk.Frame):
         self.copymove_versionEntry2.insert(1, "1")
         self.copymove_versionEntry2.pack()
 
-        self.copymove_group2.pack(side=tkinter.RIGHT)
+        self.copymove_group2.pack(side=tk.RIGHT)
         self.copymove_group3.pack()
 
         self.copymove_radio_group = ttk.Frame(self.copymove_group4)
