@@ -1,3 +1,4 @@
+import tkinter
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename, askdirectory
@@ -27,10 +28,12 @@ class Gui(tk.Frame):
         self.uploadTab = ttk.Frame(master)
         self.downloadTab = ttk.Frame(master)
         self.listTab = ttk.Frame(master)
+        self.copymoveTab = ttk.Frame(master)
         self.tabs.add(self.splashTab, text="START")
         self.tabs.add(self.uploadTab, text="UPLOAD")
         self.tabs.add(self.downloadTab, text="DOWNLOAD")
         self.tabs.add(self.listTab, text="LIST")
+        self.tabs.add(self.copymoveTab, text="COPY/MOVE")
         self.tabs.pack(expand=1, fill="both")
 
         HERE = os.path.abspath(os.path.dirname(__file__))
@@ -321,12 +324,257 @@ class Gui(tk.Frame):
         self.listButton.pack()
 
         self.list_Listbox = tk.Listbox(self.listTab, exportselection=0, width=50)
-        self.list_Listbox.pack(pady=50)
+        self.list_Listbox.pack(pady=1)
 
         self.list_resetButton = ttk.Button(
             self.listTab, text="reset", command=self.reset
         )
         self.list_resetButton.pack()
+
+        # COPY/MOVE
+
+        self.copymove_radio = tk.IntVar(master)
+        self.copymove_radio.set(1)
+        self.copymove_repo_type1 = tk.StringVar(master)
+        self.copymove_dep_id1 = tk.StringVar(master)
+        self.copymove_content_type1 = tk.StringVar(master)
+        self.copymove_mile_stone1 = tk.StringVar(master)
+        self.copymove_part_number1 = tk.StringVar(master)
+        self.copymove_file_format1 = tk.StringVar(master)
+        self.copymove_version_number1 = tk.StringVar(master)
+        self.copymove_repo_type2 = tk.StringVar(master)
+        self.copymove_dep_id2 = tk.StringVar(master)
+        self.copymove_content_type2 = tk.StringVar(master)
+        self.copymove_mile_stone2 = tk.StringVar(master)
+        self.copymove_part_number2 = tk.StringVar(master)
+        self.copymove_file_format2 = tk.StringVar(master)
+        self.copymove_version_number2 = tk.StringVar(master)
+        self.copymove_allow_overwrite = tk.IntVar(master)
+        self.copymove_status = tk.StringVar(master)
+        self.copymove_status.set("0%")
+        self.copymove_file_path = None
+
+        self.copymove_group4 = ttk.Frame(self.copymoveTab)
+
+        self.copymove_group3 = ttk.Frame(self.copymove_group4)
+
+        self.copymove_group1 = ttk.Frame(self.copymove_group3)
+
+        self.copymove_repoTypeLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE REPOSITORY TYPE"
+        )
+        self.copymove_repoTypeLabel1.pack()
+        self.copymove_repoTypeListbox1 = ttk.Combobox(
+            self.copymove_group1,
+            exportselection=0,
+            textvariable=self.copymove_repo_type1,
+        )
+        self.copymove_repoTypeListbox1.pack()
+        self.copymove_repoTypeListbox1["values"] = repoTypeList
+        self.copymove_repoTypeListbox1.current()
+
+        self.copymove_depIdLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE DEPOSIT ID"
+        )
+        self.copymove_depIdLabel1.pack()
+        self.copymove_depIdEntry1 = ttk.Entry(
+            self.copymove_group1, textvariable=self.copymove_dep_id1
+        )
+        self.copymove_depIdEntry1.pack()
+
+        self.copymove_contentTypeLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE CONTENT TYPE"
+        )
+        self.copymove_contentTypeLabel1.pack()
+        self.copymove_contentTypeListbox1 = ttk.Combobox(
+            self.copymove_group1,
+            exportselection=0,
+            textvariable=self.copymove_content_type1,
+        )
+        self.copymove_contentTypeListbox1.pack()
+        self.copymove_contentTypeListbox1["values"] = [
+            key for key in contentTypeInfoD.keys()
+        ]
+
+        self.copymove_milestoneLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE MILESTONE"
+        )
+        self.copymove_milestoneLabel1.pack()
+        self.copymove_milestoneListbox1 = ttk.Combobox(
+            self.copymove_group1,
+            exportselection=0,
+            textvariable=self.copymove_mile_stone1,
+        )
+        self.copymove_milestoneListbox1.pack()
+        self.copymove_milestoneListbox1["values"] = milestoneList
+        self.copymove_milestoneListbox1.current()
+
+        self.copymove_partLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE PART NUMBER"
+        )
+        self.copymove_partLabel1.pack()
+        self.copymove_partNumberEntry1 = ttk.Entry(
+            self.copymove_group1, textvariable=self.copymove_part_number1
+        )
+        self.copymove_partNumberEntry1.insert(1, "1")
+        self.copymove_partNumberEntry1.pack()
+
+        self.copymove_contentFormatLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE CONTENT FORMAT"
+        )
+        self.copymove_contentFormatLabel1.pack()
+        self.copymove_contentFormatListbox1 = ttk.Combobox(
+            self.copymove_group1,
+            exportselection=0,
+            textvariable=self.copymove_file_format1,
+        )
+        self.copymove_contentFormatListbox1.pack()
+        self.copymove_contentFormatListbox1["values"] = [
+            key for key in fileFormatExtensionD.keys()
+        ]
+
+        self.copymove_versionLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE VERSION"
+        )
+        self.copymove_versionLabel1.pack()
+        self.copymove_versionEntry1 = ttk.Entry(
+            self.copymove_group1, textvariable=self.copymove_version_number1
+        )
+        self.copymove_versionEntry1.insert(1, "1")
+        self.copymove_versionEntry1.pack()
+
+        self.copymove_group1.pack(side=tkinter.LEFT)
+
+        self.copymove_group2 = ttk.Frame(self.copymove_group3)
+
+        self.copymove_repoTypeLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET REPOSITORY TYPE"
+        )
+        self.copymove_repoTypeLabel2.pack()
+        self.copymove_repoTypeListbox2 = ttk.Combobox(
+            self.copymove_group2,
+            exportselection=0,
+            textvariable=self.copymove_repo_type2,
+        )
+        self.copymove_repoTypeListbox2.pack()
+        self.copymove_repoTypeListbox2["values"] = repoTypeList
+        self.copymove_repoTypeListbox2.current()
+
+        self.copymove_depIdLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET DEPOSIT ID"
+        )
+        self.copymove_depIdLabel2.pack()
+        self.copymove_depIdEntry2 = ttk.Entry(
+            self.copymove_group2, textvariable=self.copymove_dep_id2
+        )
+        self.copymove_depIdEntry2.pack()
+
+        self.copymove_contentTypeLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET CONTENT TYPE"
+        )
+        self.copymove_contentTypeLabel2.pack()
+        self.copymove_contentTypeListbox2 = ttk.Combobox(
+            self.copymove_group2,
+            exportselection=0,
+            textvariable=self.copymove_content_type2,
+        )
+        self.copymove_contentTypeListbox2.pack()
+        self.copymove_contentTypeListbox2["values"] = [
+            key for key in contentTypeInfoD.keys()
+        ]
+
+        self.copymove_milestoneLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET MILESTONE"
+        )
+        self.copymove_milestoneLabel2.pack()
+        self.copymove_milestoneListbox2 = ttk.Combobox(
+            self.copymove_group2,
+            exportselection=0,
+            textvariable=self.copymove_mile_stone2,
+        )
+        self.copymove_milestoneListbox2.pack()
+        self.copymove_milestoneListbox2["values"] = milestoneList
+        self.copymove_milestoneListbox2.current()
+
+        self.copymove_partLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET PART NUMBER"
+        )
+        self.copymove_partLabel2.pack()
+        self.copymove_partNumberEntry2 = ttk.Entry(
+            self.copymove_group2, textvariable=self.copymove_part_number2
+        )
+        self.copymove_partNumberEntry2.insert(1, "1")
+        self.copymove_partNumberEntry2.pack()
+
+        self.copymove_contentFormatLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET CONTENT FORMAT"
+        )
+        self.copymove_contentFormatLabel2.pack()
+        self.copymove_contentFormatListbox2 = ttk.Combobox(
+            self.copymove_group2,
+            exportselection=0,
+            textvariable=self.copymove_file_format2,
+        )
+        self.copymove_contentFormatListbox2.pack()
+        self.copymove_contentFormatListbox2["values"] = [
+            key for key in fileFormatExtensionD.keys()
+        ]
+
+        self.copymove_versionLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET VERSION"
+        )
+        self.copymove_versionLabel2.pack()
+        self.copymove_versionEntry2 = ttk.Entry(
+            self.copymove_group2, textvariable=self.copymove_version_number2
+        )
+        self.copymove_versionEntry2.insert(1, "1")
+        self.copymove_versionEntry2.pack()
+
+        self.copymove_group2.pack(side=tkinter.RIGHT)
+        self.copymove_group3.pack()
+
+        self.copymove_radio_group = ttk.Frame(self.copymove_group4)
+
+        self.copymove_copy_radio = ttk.Radiobutton(
+            self.copymove_radio_group,
+            text="copy file",
+            variable=self.copymove_radio,
+            value=1,
+        )
+        self.copymove_copy_radio.pack(anchor=tk.W)
+        self.copymove_move_radio = ttk.Radiobutton(
+            self.copymove_radio_group,
+            text="move file",
+            variable=self.copymove_radio,
+            value=2,
+        )
+        self.copymove_move_radio.pack(anchor=tk.W)
+
+        self.copymove_allowOverwrite = ttk.Checkbutton(
+            self.copymove_radio_group,
+            text="allow overwrite",
+            variable=self.copymove_allow_overwrite,
+        )
+        self.copymove_allowOverwrite.pack(anchor=tk.W)
+
+        self.copymoveButton = ttk.Button(
+            self.copymove_radio_group, text="submit", command=self.copymove
+        )
+        self.copymoveButton.pack()
+
+        self.copymove_statusLabel = ttk.Label(
+            self.copymove_radio_group, textvariable=self.copymove_status
+        )
+        self.copymove_statusLabel.pack()
+
+        self.copymove_resetButton = ttk.Button(
+            self.copymove_radio_group, text="reset", command=self.reset
+        )
+        self.copymove_resetButton.pack()
+
+        self.copymove_radio_group.pack()
+
+        self.copymove_group4.pack(pady=50)
 
     def resetCompress(self):
         self.compress.set(0)
@@ -583,12 +831,83 @@ class Gui(tk.Frame):
             print("\nerror - not found\n")
         print(f"time {time.perf_counter() - t1} s")
 
+    def copymove(self):
+        t1 = time.perf_counter()
+        copy_or_move = self.copymove_radio.get()
+        repositoryType1 = self.copymove_repo_type1.get()
+        depId1 = self.copymove_dep_id1.get()
+        contentType1 = self.copymove_content_type1.get()
+        milestone1 = self.copymove_mile_stone1.get()
+        partNumber1 = self.copymove_part_number1.get()
+        contentFormat1 = self.copymove_file_format1.get()
+        version1 = self.copymove_version_number1.get()
+        repositoryType2 = self.copymove_repo_type2.get()
+        depId2 = self.copymove_dep_id2.get()
+        contentType2 = self.copymove_content_type2.get()
+        milestone2 = self.copymove_mile_stone2.get()
+        partNumber2 = self.copymove_part_number2.get()
+        contentFormat2 = self.copymove_file_format2.get()
+        version2 = self.copymove_version_number2.get()
+        allowOverwrite = self.copymove_allow_overwrite.get() == 1
+        if milestone1.lower() == "none":
+            milestone1 = ""
+        if milestone2.lower() == "none":
+            milestone2 = ""
+
+        response = None
+        if copy_or_move == 1:
+            response = self.__cU.copyFile(
+                repositoryTypeSource=repositoryType1,
+                depIdSource=depId1,
+                contentTypeSource=contentType1,
+                milestoneSource=milestone1,
+                partNumberSource=partNumber1,
+                contentFormatSource=contentFormat1,
+                versionSource=version1,
+                repositoryTypeTarget=repositoryType2,
+                depIdTarget=depId2,
+                contentTypeTarget=contentType2,
+                milestoneTarget=milestone2,
+                partNumberTarget=partNumber2,
+                contentFormatTarget=contentFormat2,
+                versionTarget=version2,
+                overwrite=allowOverwrite,
+            )
+        elif copy_or_move == 2:
+            response = self.__cU.moveFile(
+                repositoryTypeSource=repositoryType1,
+                depIdSource=depId1,
+                contentTypeSource=contentType1,
+                milestoneSource=milestone1,
+                partNumberSource=partNumber1,
+                contentFormatSource=contentFormat1,
+                versionSource=version1,
+                repositoryTypeTarget=repositoryType2,
+                depIdTarget=depId2,
+                contentTypeTarget=contentType2,
+                milestoneTarget=milestone2,
+                partNumberTarget=partNumber2,
+                contentFormatTarget=contentFormat2,
+                versionTarget=version2,
+                overwrite=allowOverwrite,
+            )
+
+        if response and response["status_code"] == 200:
+            self.copymove_status.set("100%")
+            self.master.update()
+        else:
+            print("error - %d" % response["status_code"])
+            return None
+
+        print(f"time {time.perf_counter() - t1} s")
+
     def reset(self):
         self.fileButton.config(text="select")
         self.download_fileButton.config(text="select")
         self.list_Listbox.delete(0, tk.END)
         self.upload_status.set("0%")
         self.download_status.set("0%")
+        self.copymove_status.set("0%")
 
         self.repo_type.set("")
         self.dep_id.set("")
@@ -616,6 +935,23 @@ class Gui(tk.Frame):
 
         self.list_repo_type.set("")
         self.list_dep_id.set("")
+
+        self.copymove_radio.set(1)
+        self.copymove_repo_type1.set("")
+        self.copymove_dep_id1.set("")
+        self.copymove_content_type1.set("")
+        self.copymove_mile_stone1.set("")
+        self.copymove_part_number1.set("1")
+        self.copymove_file_format1.set("")
+        self.copymove_version_number1.set("1")
+        self.copymove_repo_type2.set("")
+        self.copymove_dep_id2.set("")
+        self.copymove_content_type2.set("")
+        self.copymove_mile_stone2.set("")
+        self.copymove_part_number2.set("1")
+        self.copymove_file_format2.set("")
+        self.copymove_version_number2.set("1")
+        self.copymove_allow_overwrite.set(0)
 
         self.master.update()
 

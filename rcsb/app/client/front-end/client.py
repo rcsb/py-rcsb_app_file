@@ -194,6 +194,34 @@ def download(d):
     return statusCode
 
 
+def copy(d):
+    client = ClientUtility()
+    statusCode = 0
+    response = client.copyFile(**d)
+    if response and response["status_code"] == 200:
+        statusCode = response["status_code"]
+    elif "status_code" in response:
+        print("error - %d" % response["status_code"])
+        return response["status_code"]
+    else:
+        return None
+    return statusCode
+
+
+def move(d):
+    client = ClientUtility()
+    statusCode = 0
+    response = client.moveFile(**d)
+    if response and response["status_code"] == 200:
+        statusCode = response["status_code"]
+    elif "status_code" in response:
+        print("error - %d" % response["status_code"])
+        return response["status_code"]
+    else:
+        return None
+    return statusCode
+
+
 def listDir(r, d):
     response = ClientUtility().listDir(r, d)
     if (
@@ -233,6 +261,8 @@ if __name__ == "__main__":
     uploadResults = []
     uploadTexts = []
     downloadResults = []
+    copyResults = []
+    moveResults = []
     signature = """
         --------------------------------------------------------
                  FILE ACCESS AND DEPOSITION APPLICATION
@@ -289,7 +319,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c",
         "--copy",
-        nargs=15,
+        nargs=14,
         action="append",
         metavar=(
             "source-repo-type",
@@ -306,14 +336,13 @@ if __name__ == "__main__":
             "target-part",
             "target-content-format",
             "target-version",
-            "allow-overwrite",
         ),
         help="***** copy file *****",
     )
     parser.add_argument(
         "-m",
         "--move",
-        nargs=15,
+        nargs=14,
         action="append",
         metavar=(
             "source-repo-type",
@@ -330,7 +359,6 @@ if __name__ == "__main__":
             "target-part",
             "target-content-format",
             "target-version",
-            "allow-overwrite",
         ),
         help="***** move file *****",
     )
@@ -368,6 +396,8 @@ if __name__ == "__main__":
     uploads = []
     uploadIds = []
     downloads = []
+    copies = []
+    moves = []
     description()
     if args.resumable:
         RESUMABLE = True
@@ -438,6 +468,88 @@ if __name__ == "__main__":
                 "allowOverwrite": OVERWRITE,
             }
             downloads.append(downloadDict)
+    if args.copy:
+        for arglist in args.copy:
+            if len(arglist) < 8:
+                sys.exit(f"error - wrong number of args to upload: {len(arglist)}")
+            sourceRepositoryType = arglist[0]
+            sourceDepId = arglist[1]
+            sourceContentType = arglist[2]
+            sourceMilestone = arglist[3]
+            if sourceMilestone.lower() == "none":
+                sourceMilestone = ""
+            sourcePartNumber = arglist[4]
+            sourceContentFormat = arglist[5]
+            sourceVersion = arglist[6]
+            targetRepositoryType = arglist[7]
+            targetDepId = arglist[8]
+            targetContentType = arglist[9]
+            targetMilestone = arglist[10]
+            if targetMilestone.lower() == "none":
+                targetMilestone = ""
+            targetPartNumber = arglist[11]
+            targetContentFormat = arglist[12]
+            targetVersion = arglist[13]
+            copies.append(
+                {
+                    "repositoryTypeSource": sourceRepositoryType,
+                    "depIdSource": sourceDepId,
+                    "contentTypeSource": sourceContentType,
+                    "milestoneSource": sourceMilestone,
+                    "partNumberSource": sourcePartNumber,
+                    "contentFormatSource": sourceContentFormat,
+                    "versionSource": sourceVersion,
+                    "repositoryTypeTarget": targetRepositoryType,
+                    "depIdTarget": targetDepId,
+                    "contentTypeTarget": targetContentType,
+                    "milestoneTarget": targetMilestone,
+                    "partNumberTarget": targetPartNumber,
+                    "contentFormatTarget": targetContentFormat,
+                    "versionTarget": targetVersion,
+                    "overwrite": OVERWRITE,
+                }
+            )
+    if args.move:
+        for arglist in args.move:
+            if len(arglist) < 8:
+                sys.exit(f"error - wrong number of args to upload: {len(arglist)}")
+            sourceRepositoryType = arglist[0]
+            sourceDepId = arglist[1]
+            sourceContentType = arglist[2]
+            sourceMilestone = arglist[3]
+            if sourceMilestone.lower() == "none":
+                sourceMilestone = ""
+            sourcePartNumber = arglist[4]
+            sourceContentFormat = arglist[5]
+            sourceVersion = arglist[6]
+            targetRepositoryType = arglist[7]
+            targetDepId = arglist[8]
+            targetContentType = arglist[9]
+            targetMilestone = arglist[10]
+            if targetMilestone.lower() == "none":
+                targetMilestone = ""
+            targetPartNumber = arglist[11]
+            targetContentFormat = arglist[12]
+            targetVersion = arglist[13]
+            moves.append(
+                {
+                    "repositoryTypeSource": sourceRepositoryType,
+                    "depIdSource": sourceDepId,
+                    "contentTypeSource": sourceContentType,
+                    "milestoneSource": sourceMilestone,
+                    "partNumberSource": sourcePartNumber,
+                    "contentFormatSource": sourceContentFormat,
+                    "versionSource": sourceVersion,
+                    "repositoryTypeTarget": targetRepositoryType,
+                    "depIdTarget": targetDepId,
+                    "contentTypeTarget": targetContentType,
+                    "milestoneTarget": targetMilestone,
+                    "partNumberTarget": targetPartNumber,
+                    "contentFormatTarget": targetContentFormat,
+                    "versionTarget": targetVersion,
+                    "overwrite": OVERWRITE,
+                }
+            )
     if len(uploads) > 0:
         # upload concurrent files sequential chunks
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -458,10 +570,30 @@ if __name__ == "__main__":
                 results.append(future.result())
             for status_code in results:
                 downloadResults.append(status_code)
+    if len(copies) > 0:
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(copy, c): c for c in copies}
+            results = []
+            for future in concurrent.futures.as_completed(futures):
+                results.append(future.result())
+            for status_code in results:
+                copyResults.append(status_code)
+    if len(moves) > 0:
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(move, m): m for m in moves}
+            results = []
+            for future in concurrent.futures.as_completed(futures):
+                results.append(future.result())
+            for status_code in results:
+                moveResults.append(status_code)
     if len(uploadResults) > 0:
         print(f"upload results {uploadResults}")
     if len(downloadResults) > 0:
         print(f"download results {downloadResults}")
+    if len(copyResults) > 0:
+        print(f"copy results {copyResults}")
+    if len(moveResults) > 0:
+        print(f"move results {moveResults}")
     if args.list:
         arglist = args.list
         if not len(arglist) == 2:
