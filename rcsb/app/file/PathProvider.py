@@ -27,10 +27,10 @@ class PathProvider(object):
         self.__sharedLockDirPath = self.__cP.get("SHARED_LOCK_PATH")
 
         self.__dP = Definitions()
-        self.__milestoneList = self.__dP.milestoneList
-        self.__repoTypeList = self.__dP.repoTypeList
-        self.__contentTypeInfoD = self.__dP.contentTypeD
-        self.__fileFormatExtensionD = self.__dP.fileFormatExtD
+        self.milestoneList = self.__dP.milestoneList
+        self.repoTypeList = self.__dP.repoTypeList
+        self.contentTypeInfoD = self.__dP.contentTypeD
+        self.fileFormatExtensionD = self.__dP.fileFormatExtD
 
     # functions that find relative paths on server, or file names from parameters
     # does not return absolute paths unless the repository path specified in config.yml is an absolute path
@@ -48,10 +48,10 @@ class PathProvider(object):
         if not depId or not contentType or not contentFormat:
             return None
         typ = frmt = None
-        if contentType in self.__contentTypeInfoD:
-            typ = self.__contentTypeInfoD[contentType][1]
-        if contentFormat in self.__fileFormatExtensionD:
-            frmt = self.__fileFormatExtensionD[contentFormat]
+        if contentType in self.contentTypeInfoD:
+            typ = self.contentTypeInfoD[contentType][1]
+        if contentFormat in self.fileFormatExtensionD:
+            frmt = self.fileFormatExtensionD[contentFormat]
         if not typ or not frmt:
             return None
         mst = self.__convertMilestone(milestone)
@@ -80,7 +80,7 @@ class PathProvider(object):
 
     # returns relative dir path consisting of repository directory / repository type (deposit, archive...)
     def getRepositoryDirPath(self, repositoryType: str) -> typing.Optional[str]:
-        if not repositoryType.lower() in self.__repoTypeList:
+        if not repositoryType.lower() in self.repoTypeList:
             return None
         repositoryType = repositoryType.lower()
         repositoryType = repositoryType.replace("onedep-", "")
@@ -97,7 +97,37 @@ class PathProvider(object):
             logger.exception("Failing with %s", str(e))
         return dirPath
 
+    # similar to os.path.join
+    # returns a non-absolute path consisting of repositoryType / depId / fileName
+    def join(
+        self,
+        repositoryType: str,
+        depId: str,
+        contentType: str,
+        milestone: str,
+        partNumber: int,
+        contentFormat: str,
+        version: str,
+    ):
+        path = self.getVersionedPath(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+        )
+        if path is None:
+            return None
+        filename = os.path.basename(path)
+        depIdFolder = os.path.basename(os.path.dirname(path))
+        repoTypeFolder = os.path.basename(os.path.dirname(os.path.dirname(path)))
+        joined_parameters = os.path.join(repoTypeFolder, depIdFolder, filename)
+        return joined_parameters
+
     # returns file path consisting of repository directory / repository type / deposit id / file name
+    # if version is a string (e.g. "next"), determines version dynamically
     # does not test file existence
     def getVersionedPath(
         self,
@@ -247,21 +277,21 @@ class PathProvider(object):
         contentFormat: str,
         version: str,
     ) -> bool:
-        if repositoryType not in self.__repoTypeList:
+        if repositoryType not in self.repoTypeList:
             return False
         if depId:
             pass
-        if contentType not in self.__contentTypeInfoD.keys():
+        if contentType not in self.contentTypeInfoD.keys():
             return False
         if (
             milestone is not None
             and len(milestone) > 0
-            and milestone not in self.__milestoneList
+            and milestone not in self.milestoneList
         ):
             return False
         if partNumber:
             pass
-        if contentFormat not in self.__fileFormatExtensionD.keys():
+        if contentFormat not in self.fileFormatExtensionD.keys():
             return False
         if not self.checkContentTypeFormat(contentType, contentFormat):
             return False
@@ -273,12 +303,12 @@ class PathProvider(object):
         # validate content parameters
         if not contentType or not contentFormat:
             return False
-        if contentType not in self.__contentTypeInfoD:
+        if contentType not in self.contentTypeInfoD:
             return False
-        if contentFormat not in self.__fileFormatExtensionD:
+        if contentFormat not in self.fileFormatExtensionD:
             return False
         # assert valid combination of type and format
-        if contentFormat in self.__contentTypeInfoD[contentType][0]:
+        if contentFormat in self.contentTypeInfoD[contentType][0]:
             return True
         logger.info(
             "System does not support %s contentType with %s contentFormat.",
@@ -297,7 +327,7 @@ class PathProvider(object):
             "-" + milestone, or blank string
 
         """
-        if milestone and milestone in self.__milestoneList:
+        if milestone and milestone in self.milestoneList:
             return "-" + milestone
         return ""
 

@@ -23,7 +23,7 @@ __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
 __license__ = "Apache 2.0"
 
-
+import io
 import os
 import logging
 from copy import deepcopy
@@ -73,6 +73,15 @@ class ClientUtility(object):
         version: str = None,
         sessionDir: str = None,
     ):
+        # example: with ClientUtility().getFileObject(...) as file: file.write(...)
+        if not os.path.exists(sessionDir):
+            try:
+                os.makedirs(sessionDir)
+            except Exception:
+                logger.exception(
+                    "error - could not make session directory %s", sessionDir
+                )
+            return None
         download_file_path = os.path.join(
             sessionDir,
             PathProvider().getFileName(
@@ -124,6 +133,171 @@ class ClientUtility(object):
         else:
             logger.exception("download error in get file object")
             yield None
+
+    def open(
+        self,
+        repositoryType: str,
+        depId: str,
+        contentType: str,
+        milestone: str,
+        partNumber: int,
+        contentFormat: str,
+        version: str,
+        sessionDir: str,
+    ) -> typing.Optional[io.FileIO]:
+        # obtain file pointer to a downloaded copy of a remote file
+        # after modifying or reading file, must follow with close()
+        # example: fp = ClientUtility().open(...), fp.write(...), ClientUtility().close(fp, ...)
+        if not os.path.exists(sessionDir):
+            try:
+                os.makedirs(sessionDir)
+            except Exception:
+                logger.exception(
+                    "error - could not make session directory %s", sessionDir
+                )
+            return None
+        download_file_path = os.path.join(
+            sessionDir,
+            PathProvider().getFileName(
+                depId, contentType, milestone, partNumber, contentFormat, version
+            ),
+        )
+        downloadFolder = sessionDir
+        allowOverwrite = True  # overwrite pre-existing client file
+        download_response = self.download(
+            repositoryType=repositoryType,
+            depId=depId,
+            contentType=contentType,
+            milestone=milestone,
+            partNumber=partNumber,
+            contentFormat=contentFormat,
+            version=version,
+            downloadFolder=downloadFolder,
+            allowOverwrite=allowOverwrite,
+            chunkSize=None,
+            chunkIndex=None,
+        )
+        if download_response and download_response["status_code"] == 200:
+            # return handle for reading and writing with pointer set to end of file by default
+            # recommended - client should use file.seek prior to reading (file.seek(0)) or writing (file.seek(file.size))
+            fp = open(download_file_path, "ab+")
+            return fp
+        logging.error("error %s", download_response["status_code"])
+        return None
+
+    def close(
+        self,
+        fp: io.FileIO,
+        repositoryType: str,
+        depId: str,
+        contentType: str,
+        milestone: str,
+        partNumber: int,
+        contentFormat: str,
+        version: str,
+        sessionDir: str,
+        allowOverwrite: bool,
+    ):
+        # close file pointer obtained from open()
+        # if allow overwrite, upload modified file
+        # finally, delete temp file
+        try:
+            fp.close()
+        except Exception:
+            pass
+        if not os.path.exists(sessionDir):
+            logger.exception("error - session directory does not exist %s", sessionDir)
+            return None
+        download_file_path = os.path.join(
+            sessionDir,
+            PathProvider().getFileName(
+                depId, contentType, milestone, partNumber, contentFormat, version
+            ),
+        )
+        if not os.path.exists(download_file_path):
+            logger.exception("error - file does not exist %s", download_file_path)
+            return None
+        if allowOverwrite:
+            upload_response = self.upload(
+                download_file_path,
+                repositoryType,
+                depId,
+                contentType,
+                milestone,
+                partNumber,
+                contentFormat,
+                version,
+                decompress=False,
+                allowOverwrite=allowOverwrite,
+                resumable=False,
+            )
+            if upload_response["status_code"] >= 400:
+                logger.exception(
+                    "upload error %d",
+                    upload_response["status_code"],
+                )
+        if os.path.exists(download_file_path):
+            os.unlink(download_file_path)
+        return {"status_code": upload_response["status_code"]}
+
+    def makeDirs(self, repositoryType: str, depId: str):
+        # makes repository type folder and dep id folder
+        if repositoryType not in Definitions().repoTypeList:
+            logger.exception("unrecognized repository type %s", repositoryType)
+            return None
+        url = os.path.join(self.baseUrl, "make-dirs")
+        data = {"repositoryType": repositoryType, "depId": depId}
+        response = requests.post(url, data=data, headers=self.headerD, timeout=None)
+        if response.status_code >= 400:
+            logger.warning("error - %s", response.status_code)
+        return {"status_code": response.status_code}
+
+    def makeDir(self, repositoryType: str, depId: str):
+        # makes dep id folder if repository type folder already exists
+        # if not, throws error
+        if repositoryType not in Definitions().repoTypeList:
+            logger.exception("unrecognized repository type %s", repositoryType)
+            return None
+        url = os.path.join(self.baseUrl, "make-dir")
+        data = {"repositoryType": repositoryType, "depId": depId}
+        response = requests.post(url, data=data, headers=self.headerD, timeout=None)
+        if response.status_code >= 400:
+            logger.warning("error - %s", response.status_code)
+        return {"status_code": response.status_code}
+
+    def join(
+        self,
+        repositoryType,
+        depId,
+        contentType,
+        milestone,
+        partNumber,
+        contentFormat,
+        version,
+    ):
+        # returns non-absolute file path of a hypothetical deposition file on server
+        url = os.path.join(self.baseUrl, "join")
+        parameters = {
+            "repositoryType": repositoryType,
+            "depId": depId,
+            "contentType": contentType,
+            "milestone": milestone,
+            "partNumber": partNumber,
+            "contentFormat": contentFormat,
+            "version": version,
+        }
+        response = requests.get(
+            url, params=parameters, headers=self.headerD, timeout=None
+        )
+        if response.status_code != 200:
+            logger.info("error %s", response.status_code)
+            return {"status_code": response.status_code}
+        result = json.loads(response.text)
+        if result["filePath"]:
+            file_path = result["filePath"]
+            return file_path
+        logger.error("error - could not retrieve file path")
+        return None
 
     # if file parameter is complete file
 

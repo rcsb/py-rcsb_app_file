@@ -68,6 +68,35 @@ async def getFilePath(
     return {"filePath": path}
 
 
+@router.get("/join")
+async def join(
+    repositoryType: str = Query(...),
+    depId: str = Query(...),
+    contentType: str = Query(...),
+    milestone: str = Query(default=""),
+    partNumber: int = Query(default=1),
+    contentFormat: str = Query(...),
+    version: str = Query(default="next"),
+):
+    # join parameters into a valid 1-dep file path
+    # return relative file path on server, assuming file exists
+    # does not test file existence
+    path = None
+    try:
+        path = PathProvider().join(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+        )
+    except HTTPException as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"filePath": path}
+
+
 @router.get("/next-version")
 async def nextVersion(
     repositoryType: str = Query(...),

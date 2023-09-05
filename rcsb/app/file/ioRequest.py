@@ -172,6 +172,24 @@ async def copyDir(
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
+@router.post("/make-dirs", status_code=200)
+async def makeDirs(repositoryType: str = Form(...), depId: str = Form(...)):
+    # return status
+    try:
+        await IoUtility().makeDirs(repositoryType, depId)
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+@router.post("/make-dir", status_code=200)
+async def makeDir(repositoryType: str = Form(...), depId: str = Form(...)):
+    # return status
+    try:
+        await IoUtility().makeDir(repositoryType, depId)
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
 @router.post("/compress-dir", status_code=200)
 async def compressDir(repositoryType: str = Form(...), depId: str = Form(...)):
     # return status

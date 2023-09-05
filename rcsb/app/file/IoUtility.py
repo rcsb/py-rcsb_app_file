@@ -160,6 +160,53 @@ class IoUtility(object):
         except (FileExistsError, OSError) as err:
             raise HTTPException(status_code=400, detail="error %r" % err)
 
+    async def makeDirs(self, repositoryType: str, depId: str):
+        # does not require pre-existence of repository type directory
+        if repositoryType not in self.__pP.repoTypeList:
+            raise HTTPException(
+                status_code=400,
+                detail="error - unknown repository type %s" % repositoryType,
+            )
+        target_path = self.__pP.getDirPath(repositoryType, depId)
+        if not target_path:
+            raise HTTPException(status_code=400, detail="error - path not well formed")
+        if os.path.exists(target_path):
+            raise HTTPException(
+                status_code=403, detail="error - path already exists %s" % target_path
+            )
+        logger.info("making directories %s", target_path)
+        try:
+            os.makedirs(target_path)
+        except Exception as err:
+            raise HTTPException(status_code=400, detail="error %r" % err)
+
+    async def makeDir(self, repositoryType: str, depId: str):
+        # requires pre-existence of repository type directory
+        if repositoryType not in self.__pP.repoTypeList:
+            raise HTTPException(
+                status_code=400,
+                detail="error - unknown repository type %s" % repositoryType,
+            )
+        target_path = self.__pP.getDirPath(repositoryType, depId)
+        if not target_path:
+            raise HTTPException(status_code=400, detail="error - path not well formed")
+        dirname = os.path.dirname(target_path)
+        if not os.path.exists(dirname):
+            logging.exception("error - directory does not exist %s", dirname)
+            raise HTTPException(
+                status_code=404,
+                detail="error - %s directory does not exist" % repositoryType,
+            )
+        if os.path.exists(target_path):
+            raise HTTPException(
+                status_code=403, detail="error - path already exists %s" % target_path
+            )
+        logger.info("making directory %s", target_path)
+        try:
+            os.mkdir(target_path)
+        except Exception as err:
+            raise HTTPException(status_code=400, detail="error %r" % err)
+
     async def moveFile(
         self,
         repositoryTypeSource: str,

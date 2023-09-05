@@ -74,8 +74,10 @@ class ClientTests(unittest.TestCase):
         self.__dataPath = self.__cP.get("REPOSITORY_DIR_PATH")
         self.__repositoryType = "unit-test"
         self.__repositoryType2 = "test"
+        self.__repositoryType3 = "unit-tests"
         self.__unitTestFolder = os.path.join(self.__dataPath, self.__repositoryType)
         self.__unitTestFolder2 = os.path.join(self.__dataPath, self.__repositoryType2)
+        self.__unitTestFolder3 = os.path.join(self.__dataPath, self.__repositoryType3)
         logger.info("self.__dataPath %s", self.__unitTestFolder)
 
         self.__repositoryFile1 = os.path.join(
@@ -152,6 +154,8 @@ class ClientTests(unittest.TestCase):
             shutil.rmtree(self.__unitTestFolder)
         if os.path.exists(self.__unitTestFolder2):
             shutil.rmtree(self.__unitTestFolder2)
+        if os.path.exists(self.__unitTestFolder3):
+            shutil.rmtree(self.__unitTestFolder3)
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         logger.info("Maximum resident memory size %.4f %s", rusageMax / 10**6, unitS)
@@ -923,6 +927,121 @@ class ClientTests(unittest.TestCase):
             fileSize == self.__fileSize, f"error - returned wrong file size {fileSize}"
         )
 
+    def testMakeDirs(self):
+        repoType = self.__repositoryType3
+        depId = "D_1000000001"
+        try:
+            mD = {"repositoryType": repoType, "depId": depId}
+            response = self.__cU.makeDirs(**mD)
+            logger.info("file status %r", response["status_code"])
+            self.assertTrue(
+                response["status_code"] == 200,
+                f"error - status code {response['status_code']}",
+            )
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
+    def testMakeDir(self):
+        repoType = self.__repositoryType
+        depId = "D_111"
+        try:
+            mD = {"repositoryType": repoType, "depId": depId}
+            response = self.__cU.makeDir(**mD)
+            logger.info("file status %r", response["status_code"])
+            self.assertTrue(
+                response["status_code"] == 200,
+                f"error - status code {response['status_code']}",
+            )
+        except Exception as e:
+            logger.exception("Failing with %s", str(e))
+            self.fail()
+
+    def testJoin(self):
+        repoType = self.__repositoryType
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = None
+        partNumber = 1
+        contentFormat = "pdbx"
+        version = 1
+        filepath = self.__cU.join(
+            repoType, depId, contentType, milestone, partNumber, contentFormat, version
+        )
+        self.assertTrue(filepath is not None, "error - null file path")
+        self.assertTrue(
+            filepath != self.__repositoryFile1,
+            "error - absolute file path %s" % filepath,
+        )
+        correct_path = os.path.join(
+            repoType,
+            depId,
+            "%s_%s_P%d.cif.V%d" % (depId, contentType, partNumber, version),
+        )
+        self.assertTrue(filepath == correct_path, "error - file path %s" % filepath)
+
+    def testOpenClose(self):
+        repoType = self.__repositoryType
+        depId = "D_1000000001"
+        contentType = "model"
+        milestone = None
+        partNumber = 1
+        contentFormat = "pdbx"
+        version = 1
+        sessionDir = self.__unitTestFolder2
+        # path of file after download
+        download_file_path = os.path.join(
+            sessionDir,
+            PathProvider().getFileName(
+                depId, contentType, milestone, partNumber, contentFormat, version
+            ),
+        )
+        logger.info("downloaded file path %s", download_file_path)
+        fp = self.__cU.open(
+            repoType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+            sessionDir,
+        )
+        self.assertTrue(fp is not None, "error - returned null file pointer")
+        self.assertTrue(
+            os.path.exists(download_file_path),
+            "error - downloaded file not found %s" % download_file_path,
+        )
+        size1 = os.path.getsize(download_file_path)
+        self.assertTrue(size1 > 0, "error - downloaded file size %d" % size1)
+        fp.seek(size1)
+        fp.write(os.urandom(self.__chunkSize))
+        size2 = os.path.getsize(download_file_path)
+        self.assertTrue(size2 > 0, "error writing to downloaded file")
+        self.assertTrue(size2 > size1, "error - nothing written to downloaded file")
+        allowOverwrite = True
+        response = self.__cU.close(
+            fp,
+            repoType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+            sessionDir,
+            allowOverwrite,
+        )
+        self.assertTrue(response is not None, "error - null response")
+        self.assertTrue(
+            response["status_code"] == 200,
+            "error - status code %s" % response["status_code"],
+        )
+        self.assertFalse(
+            os.path.exists(download_file_path),
+            "error - downloaded file not removed %s" % download_file_path,
+        )
+
     def testFileObject(self):
         repoType = self.__repositoryType
         depId = "D_1000000001"
@@ -1208,6 +1327,10 @@ def client_tests():
     suite.addTest(ClientTests("testFileSize"))
     suite.addTest(ClientTests("testFileExists"))
     suite.addTest(ClientTests("testFileObject"))
+    suite.addTest(ClientTests("testMakeDirs"))
+    suite.addTest(ClientTests("testMakeDir"))
+    suite.addTest(ClientTests("testOpenClose"))
+    suite.addTest(ClientTests("testJoin"))
     return suite
 
 
