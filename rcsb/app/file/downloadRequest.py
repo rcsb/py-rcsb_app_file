@@ -35,14 +35,42 @@ class HashType(str, Enum):
 
 @router.get("/download")
 async def download(
-    repositoryType: str = Query(title="repository type", description="name of outer folder", example="deposit"),
-    depId: str = Query(title="deposit id", description="unique id", example="D_1000000001"),
-    contentType: str = Query(title="content type", description="description of content", example="model"),
-    milestone: str = Query(default="", title="milestone", description="optional descriptor", example="release"),
-    partNumber: int = Query(default=1, title="part number", description="for multipart assemblies", example="3"),
-    contentFormat: str = Query(title="content format", description="file format", example="pdbx"),
-    version: str = Query(default="latest", title="version", description="number or descriptor", example="next"),
-    hashType: HashType = Query(default="MD5", title="hash type", description="file hash algorithm", example="MD5"),
+    repositoryType: str = Query(
+        title="repository type", description="name of outer folder", example="deposit"
+    ),
+    depId: str = Query(
+        title="deposit id", description="unique id", example="D_1000000001"
+    ),
+    contentType: str = Query(
+        title="content type", description="description of content", example="model"
+    ),
+    milestone: str = Query(
+        default="",
+        title="milestone",
+        description="optional descriptor",
+        example="release",
+    ),
+    partNumber: int = Query(
+        default=1,
+        title="part number",
+        description="for multipart assemblies",
+        example="3",
+    ),
+    contentFormat: str = Query(
+        title="content format", description="file format", example="pdbx"
+    ),
+    version: str = Query(
+        default="latest",
+        title="version",
+        description="number or descriptor",
+        example="next",
+    ),
+    hashType: HashType = Query(
+        default="MD5",
+        title="hash type",
+        description="file hash algorithm",
+        example="MD5",
+    ),
     chunkSize: typing.Optional[int] = None,
     chunkIndex: typing.Optional[int] = None,
 ):

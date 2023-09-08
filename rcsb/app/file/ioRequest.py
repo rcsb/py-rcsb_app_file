@@ -20,8 +20,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 
 provider = ConfigProvider()
-jwtDisable = bool(provider.get("JWT_DISABLE"))
-if not jwtDisable:
+bypassAuthorization = bool(provider.get("BYPASS_AUTHORIZATION"))
+if not bypassAuthorization:
     router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["io"])
 else:
     router = APIRouter(tags=["io"])
@@ -168,6 +168,24 @@ async def copyDir(
             depIdTarget,
             overwrite,
         )
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+@router.post("/make-dirs", status_code=200)
+async def makeDirs(repositoryType: str = Form(...), depId: str = Form(...)):
+    # return status
+    try:
+        await IoUtility().makeDirs(repositoryType, depId)
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+@router.post("/make-dir", status_code=200)
+async def makeDir(repositoryType: str = Form(...), depId: str = Form(...)):
+    # return status
+    try:
+        await IoUtility().makeDir(repositoryType, depId)
     except HTTPException as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 

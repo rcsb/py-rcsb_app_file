@@ -1,34 +1,59 @@
 import sys
 import concurrent.futures
 import os
-import gzip
 from concurrent.futures import ThreadPoolExecutor
 import time
 import argparse
 import math
-from rcsb.app.file.PathProvider import PathProvider
 from tqdm import tqdm
-from rcsb.app.client.ClientUtils import ClientUtils
+from rcsb.app.client.ClientUtility import ClientUtility
 from rcsb.app.file.IoUtility import IoUtility
+from rcsb.app.file.UploadUtility import UploadUtility
 
 
 # author James Smith 2023
 
 
 def upload(d):
+    client = ClientUtility()
+    COMPRESSION = client.compressionType
     if not os.path.exists(d["sourceFilePath"]):
         sys.exit(f"error - file does not exist: {d['sourceFilePath']}")
     if d["milestone"].lower() == "none":
         d["milestone"] = ""
-    # compress, then hash, then upload
-    if COMPRESS:
-        tempPath = d["sourceFilePath"] + ".gz"
-        with open(d["sourceFilePath"], "rb") as r:
-            with gzip.open(tempPath, "wb") as w:
-                w.write(r.read())
-        d["sourceFilePath"] = tempPath
+
+    if NO_CHUNKS:
+        extractChunk = True
+        if d["decompress"] or not COMPRESS_CHUNKS:
+            extractChunk = False
+        fileExtension = os.path.splitext(d["sourceFilePath"])[-1]
+        response = client.upload(
+            d["sourceFilePath"],
+            d["repositoryType"],
+            d["depId"],
+            d["contentType"],
+            d["milestone"],
+            d["partNumber"],
+            d["contentFormat"],
+            d["version"],
+            d["decompress"],
+            fileExtension,
+            d["allowOverwrite"],
+            d["resumable"],
+            extractChunk,
+        )
+        if response:
+            status = response["status_code"]
+            if not status == 200:
+                print("error in upload %d" % status_code)
+            else:
+                return status
+        else:
+            print("error in upload - no response")
+        return
+
     # get upload parameters
-    response = ClientUtils().getUploadParameters(
+    response = client.getUploadParameters(
         d["repositoryType"],
         d["depId"],
         d["contentType"],
@@ -45,16 +70,34 @@ def upload(d):
     saveFilePath = response["filePath"]
     chunkIndex = response["chunkIndex"]
     uploadId = response["uploadId"]
-    # compress (externally), then hash, then upload
+    # compress, then hash and compute file size parameter, then upload
+    decompress = d["decompress"]
+    if COMPRESS_FILE:
+        decompress = True
+        print(
+            "compressing file %s size %d"
+            % (d["sourceFilePath"], os.path.getsize(d["sourceFilePath"]))
+        )
+        d["sourceFilePath"] = UploadUtility(client.cP).compressFile(
+            d["sourceFilePath"], saveFilePath, COMPRESSION
+        )
+        print(
+            "new file name %s file size %d"
+            % (d["sourceFilePath"], os.path.getsize(d["sourceFilePath"]))
+        )
     # hash
-    hashType = ClientUtils().cP.get("HASH_TYPE")
+    hashType = client.cP.get("HASH_TYPE")
     fullTestHash = IoUtility().getHashDigest(d["sourceFilePath"], hashType=hashType)
     # compute expected chunks
     fileSize = os.path.getsize(d["sourceFilePath"])
-    chunkSize = int(ClientUtils().cP.get("CHUNK_SIZE"))
+    chunkSize = int(client.cP.get("CHUNK_SIZE"))
     expectedChunks = 1
     if chunkSize < fileSize:
         expectedChunks = math.ceil(fileSize / chunkSize)
+    fileExtension = os.path.splitext(d["sourceFilePath"])[-1]
+    extractChunk = True
+    if decompress or not COMPRESS_CHUNKS:
+        extractChunk = False
     # upload chunks sequentially
     mD = {
         # chunk parameters
@@ -67,20 +110,34 @@ def upload(d):
         "hashDigest": fullTestHash,
         # save file parameters
         "saveFilePath": saveFilePath,
-        "decompress": d["decompress"],
+        "fileSize": fileSize,
+        "fileExtension": fileExtension,
+        "decompress": decompress,
         "allowOverwrite": d["allowOverwrite"],
         "resumable": d["resumable"],
+        "extractChunk": extractChunk,
     }
+    print(
+        "decompress %s extract chunk %s compress chunks %s file size %d chunk size %d expected chunks %d"
+        % (
+            decompress,
+            extractChunk,
+            COMPRESS_CHUNKS,
+            fileSize,
+            chunkSize,
+            expectedChunks,
+        )
+    )
     status = None
     for index in tqdm(
         range(chunkIndex, expectedChunks),
         leave=False,
         total=expectedChunks - chunkIndex,
         desc=os.path.basename(d["sourceFilePath"]),
-        ascii=True,
+        ascii=False,
     ):
         mD["chunkIndex"] = index
-        status = ClientUtils().uploadChunk(d["sourceFilePath"], fileSize, **mD)
+        status = client.uploadChunk(d["sourceFilePath"], **mD)
         if not status == 200:
             print("error in upload %r" % response)
             break
@@ -88,8 +145,9 @@ def upload(d):
 
 
 def download(d):
+    client = ClientUtility()
     # compute expected chunks
-    response = ClientUtils().fileSize(
+    response = client.fileSize(
         d["repositoryType"],
         d["depId"],
         d["contentType"],
@@ -102,71 +160,70 @@ def download(d):
         print("error computing file size")
         return
     fileSize = int(response["fileSize"])
-    chunkSize = ClientUtils().cP.get("CHUNK_SIZE")
+    chunkSize = client.cP.get("CHUNK_SIZE")
     expectedChunks = 1
     if chunkSize < fileSize:
         expectedChunks = math.ceil(fileSize / chunkSize)
+
     # download
-    response = ClientUtils().download(
-        d["repositoryType"],
-        d["depId"],
-        d["contentType"],
-        d["milestone"],
-        d["partNumber"],
-        d["contentFormat"],
-        d["version"],
-        d["downloadFolder"],
-        d["allowOverwrite"],
-        None,
-        None,
-        True,
-    )
-    if response and response["status_code"] == 200:
-        status = response["status_code"]
-        response = response["response"]
-        # write to file
-        downloadFilePath = os.path.join(
-            d["downloadFolder"],
-            PathProvider().getFileName(
-                d["depId"],
-                d["contentType"],
-                d["milestone"],
-                d["partNumber"],
-                d["contentFormat"],
-                d["version"],
-            ),
+    statusCode = 0
+    for chunkIndex in tqdm(
+        range(0, expectedChunks), leave=False, total=expectedChunks, ascii=False
+    ):
+        response = client.download(
+            repositoryType=d["repositoryType"],
+            depId=d["depId"],
+            contentType=d["contentType"],
+            milestone=d["milestone"],
+            partNumber=d["partNumber"],
+            contentFormat=d["contentFormat"],
+            version=d["version"],
+            downloadFolder=d["downloadFolder"],
+            allowOverwrite=d["allowOverwrite"],
+            chunkSize=chunkSize,
+            chunkIndex=chunkIndex,
+            expectedChunks=expectedChunks,
         )
-        with open(downloadFilePath, "ab") as ofh:
-            for chunk in tqdm(
-                response.iter_content(chunk_size=chunkSize),
-                leave=False,
-                total=expectedChunks,
-                desc=os.path.basename(downloadFilePath),
-                ascii=True,
-            ):
-                if chunk:
-                    ofh.write(chunk)
-        # validate hash
-        if (
-            "rcsb_hash_type" in response.headers
-            and "rcsb_hexdigest" in response.headers
-        ):
-            rspHashType = response.headers["rcsb_hash_type"]
-            rspHashDigest = response.headers["rcsb_hexdigest"]
-            hashDigest = IoUtility().getHashDigest(
-                downloadFilePath, hashType=rspHashType
-            )
-            if not hashDigest == rspHashDigest:
-                print("error - hash comparison failed")
-                return None
-        return status
+        if response and response["status_code"] == 200:
+            statusCode = response["status_code"]
+        elif "status_code" in response:
+            print("error - %d" % response["status_code"])
+            return response["status_code"]
+        else:
+            return None
+    return statusCode
+
+
+def copy(d):
+    client = ClientUtility()
+    statusCode = 0
+    response = client.copyFile(**d)
+    if response and response["status_code"] == 200:
+        statusCode = response["status_code"]
     elif "status_code" in response:
+        print("error - %d" % response["status_code"])
         return response["status_code"]
-    return None
+    else:
+        return None
+    return statusCode
+
+
+def move(d):
+    client = ClientUtility()
+    statusCode = 0
+    response = client.moveFile(**d)
+    if response and response["status_code"] == 200:
+        statusCode = response["status_code"]
+    elif "status_code" in response:
+        print("error - %d" % response["status_code"])
+        return response["status_code"]
+    else:
+        return None
+    return statusCode
 
 
 def listDir(r, d):
-    response = ClientUtils().listDir(r, d)
+    response = ClientUtility().listDir(r, d)
     if (
         response
         and "dirList" in response
@@ -195,13 +252,17 @@ if __name__ == "__main__":
     t1 = time.perf_counter()
 
     RESUMABLE = False
-    COMPRESS = False
-    DECOMPRESS = False
+    COMPRESS_FILE = False
+    DECOMPRESS_FILE = False
     OVERWRITE = False
+    COMPRESS_CHUNKS = False
+    NO_CHUNKS = False
     uploadIds = []
     uploadResults = []
     uploadTexts = []
     downloadResults = []
+    copyResults = []
+    moveResults = []
     signature = """
         --------------------------------------------------------
                  FILE ACCESS AND DEPOSITION APPLICATION
@@ -256,6 +317,52 @@ if __name__ == "__main__":
         help="***** list contents of requested directory *****",
     )
     parser.add_argument(
+        "-c",
+        "--copy",
+        nargs=14,
+        action="append",
+        metavar=(
+            "source-repo-type",
+            "source-dep-id",
+            "source-content-type",
+            "source-milestone",
+            "source-part",
+            "source-content-format",
+            "source-version",
+            "target-repo-type",
+            "target-dep-id",
+            "target-content-type",
+            "target-milestone",
+            "target-part",
+            "target-content-format",
+            "target-version",
+        ),
+        help="***** copy file *****",
+    )
+    parser.add_argument(
+        "-m",
+        "--move",
+        nargs=14,
+        action="append",
+        metavar=(
+            "source-repo-type",
+            "source-dep-id",
+            "source-content-type",
+            "source-milestone",
+            "source-part",
+            "source-content-format",
+            "source-version",
+            "target-repo-type",
+            "target-dep-id",
+            "target-content-type",
+            "target-milestone",
+            "target-part",
+            "target-content-format",
+            "target-version",
+        ),
+        help="***** move file *****",
+    )
+    parser.add_argument(
         "-r",
         "--resumable",
         action="store_true",
@@ -268,27 +375,42 @@ if __name__ == "__main__":
         help="***** overwrite files with same name *****",
     )
     parser.add_argument(
-        "-z", "--zip", action="store_true", help="***** zip files prior to upload *****"
+        "-z",
+        "--zip",
+        action="store_true",
+        help="***** zip complete file prior to upload *****",
     )
     parser.add_argument(
         "-x",
         "--expand",
         action="store_true",
-        help="***** unzip files after upload *****",
+        help="***** unzip complete file after upload *****",
+    )
+    parser.add_argument(
+        "-g", "--gzip", action="store_true", help="***** compress chunks *****"
+    )
+    parser.add_argument(
+        "-n", "--nochunks", action="store_true", help="***** no chunking *****"
     )
     args = parser.parse_args()
     uploads = []
     uploadIds = []
     downloads = []
+    copies = []
+    moves = []
     description()
     if args.resumable:
         RESUMABLE = True
     if args.zip:
-        COMPRESS = True
+        COMPRESS_FILE = True
     if args.expand:
-        DECOMPRESS = True
+        DECOMPRESS_FILE = True
     if args.overwrite:
         OVERWRITE = True
+    if args.gzip:
+        COMPRESS_CHUNKS = True
+    if args.nochunks:
+        NO_CHUNKS = True
     if args.upload:
         for arglist in args.upload:
             if len(arglist) < 8:
@@ -315,7 +437,7 @@ if __name__ == "__main__":
                     "partNumber": partNumber,
                     "contentFormat": contentFormat,
                     "version": version,
-                    "decompress": DECOMPRESS,
+                    "decompress": DECOMPRESS_FILE,
                     "allowOverwrite": OVERWRITE,
                     "resumable": RESUMABLE,
                 }
@@ -346,6 +468,88 @@ if __name__ == "__main__":
                 "allowOverwrite": OVERWRITE,
             }
             downloads.append(downloadDict)
+    if args.copy:
+        for arglist in args.copy:
+            if len(arglist) < 8:
+                sys.exit(f"error - wrong number of args to upload: {len(arglist)}")
+            sourceRepositoryType = arglist[0]
+            sourceDepId = arglist[1]
+            sourceContentType = arglist[2]
+            sourceMilestone = arglist[3]
+            if sourceMilestone.lower() == "none":
+                sourceMilestone = ""
+            sourcePartNumber = arglist[4]
+            sourceContentFormat = arglist[5]
+            sourceVersion = arglist[6]
+            targetRepositoryType = arglist[7]
+            targetDepId = arglist[8]
+            targetContentType = arglist[9]
+            targetMilestone = arglist[10]
+            if targetMilestone.lower() == "none":
+                targetMilestone = ""
+            targetPartNumber = arglist[11]
+            targetContentFormat = arglist[12]
+            targetVersion = arglist[13]
+            copies.append(
+                {
+                    "repositoryTypeSource": sourceRepositoryType,
+                    "depIdSource": sourceDepId,
+                    "contentTypeSource": sourceContentType,
+                    "milestoneSource": sourceMilestone,
+                    "partNumberSource": sourcePartNumber,
+                    "contentFormatSource": sourceContentFormat,
+                    "versionSource": sourceVersion,
+                    "repositoryTypeTarget": targetRepositoryType,
+                    "depIdTarget": targetDepId,
+                    "contentTypeTarget": targetContentType,
+                    "milestoneTarget": targetMilestone,
+                    "partNumberTarget": targetPartNumber,
+                    "contentFormatTarget": targetContentFormat,
+                    "versionTarget": targetVersion,
+                    "overwrite": OVERWRITE,
+                }
+            )
+    if args.move:
+        for arglist in args.move:
+            if len(arglist) < 8:
+                sys.exit(f"error - wrong number of args to upload: {len(arglist)}")
+            sourceRepositoryType = arglist[0]
+            sourceDepId = arglist[1]
+            sourceContentType = arglist[2]
+            sourceMilestone = arglist[3]
+            if sourceMilestone.lower() == "none":
+                sourceMilestone = ""
+            sourcePartNumber = arglist[4]
+            sourceContentFormat = arglist[5]
+            sourceVersion = arglist[6]
+            targetRepositoryType = arglist[7]
+            targetDepId = arglist[8]
+            targetContentType = arglist[9]
+            targetMilestone = arglist[10]
+            if targetMilestone.lower() == "none":
+                targetMilestone = ""
+            targetPartNumber = arglist[11]
+            targetContentFormat = arglist[12]
+            targetVersion = arglist[13]
+            moves.append(
+                {
+                    "repositoryTypeSource": sourceRepositoryType,
+                    "depIdSource": sourceDepId,
+                    "contentTypeSource": sourceContentType,
+                    "milestoneSource": sourceMilestone,
+                    "partNumberSource": sourcePartNumber,
+                    "contentFormatSource": sourceContentFormat,
+                    "versionSource": sourceVersion,
+                    "repositoryTypeTarget": targetRepositoryType,
+                    "depIdTarget": targetDepId,
+                    "contentTypeTarget": targetContentType,
+                    "milestoneTarget": targetMilestone,
+                    "partNumberTarget": targetPartNumber,
+                    "contentFormatTarget": targetContentFormat,
+                    "versionTarget": targetVersion,
+                    "overwrite": OVERWRITE,
+                }
+            )
     if len(uploads) > 0:
         # upload concurrent files sequential chunks
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -366,10 +570,30 @@ if __name__ == "__main__":
                 results.append(future.result())
             for status_code in results:
                 downloadResults.append(status_code)
+    if len(copies) > 0:
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(copy, c): c for c in copies}
+            results = []
+            for future in concurrent.futures.as_completed(futures):
+                results.append(future.result())
+            for status_code in results:
+                copyResults.append(status_code)
+    if len(moves) > 0:
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(move, m): m for m in moves}
+            results = []
+            for future in concurrent.futures.as_completed(futures):
+                results.append(future.result())
+            for status_code in results:
+                moveResults.append(status_code)
     if len(uploadResults) > 0:
         print(f"upload results {uploadResults}")
     if len(downloadResults) > 0:
         print(f"download results {downloadResults}")
+    if len(copyResults) > 0:
+        print(f"copy results {copyResults}")
+    if len(moveResults) > 0:
+        print(f"move results {moveResults}")
     if args.list:
         arglist = args.list
         if not len(arglist) == 2:

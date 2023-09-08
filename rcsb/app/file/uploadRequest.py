@@ -4,10 +4,9 @@
 #
 ##
 __docformat__ = "google en"
-__author__ = "James Smith, Ahsan Tanweer"
-__email__ = "james.smith@rcsb.org, ahsan@ebi.ac.uk"
+__author__ = "James Smith"
+__email__ = "james.smith@rcsb.org"
 __license__ = "Apache 2.0"
-
 
 import logging
 from typing import Optional
@@ -19,7 +18,6 @@ from rcsb.app.file.UploadUtility import UploadUtility
 from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 
 logger = logging.getLogger(__name__)
-
 
 provider = ConfigProvider()
 jwtDisable = bool(provider.get("JWT_DISABLE"))
@@ -44,6 +42,7 @@ class UploadResult(BaseModel):
     )
 
 
+# required prior to chunked upload
 @router.get("/getUploadParameters", response_model=UploadResult)
 async def getUploadParameters(
     repositoryType: str = Query(...),
@@ -69,6 +68,7 @@ async def getUploadParameters(
             resumable,
         )
     except HTTPException as exc:
+        logger.exception("error %d %s", exc.status_code, exc.detail)
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
 
 
@@ -86,10 +86,13 @@ async def upload(
     hashDigest: str = Form(None),
     # save file parameters
     filePath: str = Form(...),
+    fileSize: int = Form(None),
+    fileExtension: str = Form(None),
     decompress: bool = Form(False),
     allowOverwrite: bool = Form(False),
     # other
     resumable: bool = Form(False),
+    extractChunk: bool = Form(False),
 ):
     # return status
     try:
@@ -105,21 +108,13 @@ async def upload(
             hashDigest=hashDigest,
             # save file parameters
             filePath=filePath,
+            fileSize=fileSize,
+            fileExtension=fileExtension,
             decompress=decompress,
             allowOverwrite=allowOverwrite,
             resumable=resumable,
+            extractChunk=extractChunk,
         )
     except HTTPException as exc:
+        logger.exception("error %d %s", exc.status_code, exc.detail)
         raise HTTPException(status_code=exc.status_code, detail=exc.detail)
-
-
-# clear kv entries from one user
-@router.post("/clearSession")
-async def clearSession(uploadIds: list = Form(...)):
-    return await UploadUtility().clearSession(uploadIds, None)
-
-
-# purge kv before testing
-@router.post("/clearKv")
-async def clearKv():
-    return await UploadUtility().clearKv()

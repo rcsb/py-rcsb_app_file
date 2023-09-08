@@ -29,17 +29,35 @@ pip3 install .
 
 # Configuration 
 
+The only file to configure should be config.yml, with the exception of the example HTML files.
+
 Edit variables in rcsb/app/config/config.yml.
 
-In particular, edit paths (REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY, SESSION_DIR_PATH, ).
+In particular, edit paths (REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, SESSION_DIR_PATH).
+
+For production, they should point to a remote path on a mounted file system.
+
+For testing, they may point to local paths.
 
 Also edit SERVER_HOST_AND_PORT.
 
-Edit url variables to match server url in example-upload.html, example-download.html, and example-list.html.
+Determine the appropriate settings for the server.
+
+Please note that the client will require a different address than the server, so config.yml will require different settings on each.
+
+For example, client - 100.200.300.400:8000, server - 0.0.0.0:8000.
+
+Please note that a proxy server such as nginx may not work from the browser due to a conflict with the CORS middleware in main.py.
+
+The example HTML files (example-upload.html, example-download.html, and example-list.html) must be configured independently.
+
+The relevant variables should be at the top of the files.
+
+In particular, edit url variables to match server url.
 
 # Endpoints and forwarding
 
-To view documentation, run a server, then visit localhost:8000/docs.
+To view documentation, run a server, then visit localhost:port_number/docs.
 
 The repository has one upload endpoint, one download endpoint, and one list-directory endpoint, among others.
 
@@ -51,13 +69,15 @@ Upload requires some setup by invoking the '/getUploadParameters' endpoint first
 
 To maintain sequential order, the client must wait for each response before sending the next chunk.
 
-The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in IoUtility.
+The repository saves chunks to a temporary file that is named after the upload id and begins with "._" which is configurable from the getTempFilePath function in Sessions.py.
 
 The download endpoint is found at '/download'.
 
 The list directory endpoint is found at '/list-dir'.
 
-To skip endpoints and forward a server-side chunk or file from Python, use functions by the same names in various Utility or Provider files.
+To skip endpoints and forward a server-side chunk or file from Python, use functions in various Utility or Provider files.
+
+Those functions may throw a fastapi.HTTPException, so you will have to enclose function calls in a try except block.
 
 # Uploads and downloads
 
@@ -88,7 +108,22 @@ python3 client.py
 
 ### Hashing and compression
 
-Should hashing be performed before or after compression/decompression? From the client side, the API first compresses, then hashes the complete file, then uploads. From the server side, the API saves, then hashes the complete file, then decompresses.
+Compression of file
+
+- Should hashing be performed before or after compression/decompression? The API performs hashing on the compressed file.
+- For the Python client, from the client side, the API first compresses, then hashes the complete file, then uploads. From the server side, the API saves, then hashes the complete file, then decompresses.
+- From javascript, hashing libraries are less reliable, so hashing is optional. If a hash digest is not sent as a parameter, the API defaults to file size comparison.
+- File size is computed on the compressed file, same as the hash. Please ensure that front-end scripts compute file size in the correct order if compression is used.
+
+Compression of chunks
+
+- When uploading, if the extractChunks parameter is set to True, the API assumes that you have compressed each chunk.
+- It therefore decompresses each chunk on receiving it.
+- The compression type is set in rcsb/app/config/config.yml.
+- Client-side compression is presently only available from the example Python clients.
+- The example HTML files do not have compression since compression frameworks from the browser are less developed.
+- If you add compression from the browser for compression of chunks, ensure that the compression type matches that specified in config.yml.
+- Hashing results are not affected by compression/decompression of chunks.
 
 # Testing
 
@@ -108,15 +143,33 @@ tox
 
 # Deployment
 
-For production, use a Docker container with a Redis database.
+Sqlite cannot be used on a distributed system, therefore it cannot be used in production unless there is only one server and the sqlite database is stored on that server.
 
-Redis with Docker requires Redis in a Docker container.
+Otherwise, to synchronize transactions on multiple servers or containers requires a remote Redis server (do not connect to Redis with 'localhost').
 
-Production with multiple servers will require all servers to coordinate through a single remote Redis server.
+For production, we presume that the file system is a mounted file system.
 
-Since one server could host Redis while others don't, the docker instances could be run differently, or the config files set differently, on each server.
+A Docker container should be used.
 
-Also, multiple servers must connect to a single mounted file system for deposition.
+To enable scale-up to multiple containers, the file system and database should be installed outside the container.
+
+Set paths in config.yml so that all containers coordinate through the same paths.
+
+Note that Docker requires parameters to bind the paths (refer to examples).
+
+If both Docker and Redis are used, it runs best when Redis is also in a (separate) Docker container (refer to examples).
+
+Some sites could use multiple deposition servers, a situation comparable to multiple containers.
+
+As with containers, multiple servers will require all servers to coordinate through a single remote file system and database.
+
+A proxy server such as nginx may not be compatible with HTML uploads due to CORS policy, though Python should work.
+
+Adding CORS headers to the nginx config file creates conflicts with the CORS middleware in main.py.
+
+Removing the CORS middleware does not seem to be an option either.
+
+As stated previously, please find an appropriate gunicorn server configuration rather than using a proxy server.
 
 # Deployment on local server without docker
 
@@ -127,11 +180,23 @@ From base repository directory (in `py-rcsb_app_file/`), start app with:
 
 ./deploy/LAUNCH_GUNICORN.sh
 
+or 
+
+nohup ./deploy/LAUNCH_GUNICORN.sh > /dev/null 2>&1 &
+
 ```
+
+# Database
+
+When uploading resumable chunks, server processes coordinate through a database named KV (key-value)
+
+The value of KV_MODE in config.yml determines whether the database is Redis or Sqlite3.
 
 # Sqlite3
 
-When uploading resumable chunks, server processes coordinate through a database named KV (key-value)
+Sqlite is provided just for testing.
+
+As configured, Sqlite will only work when the app runs on a single server and the file system and database are also stored on that server.
 
 If KV_MODE is set to sqlite in rcsb/app/config/config.yml, chunk information is coordinated with a sqlite3 database
 
@@ -145,7 +210,7 @@ Connect to sqlite and use SQL commands, then ctrl-d to exit
 sqlite3 path/to/kv.sqlite
 .table
 select * from sessions;
-select * from log;
+select * from map;
 
 ```
 
@@ -193,6 +258,8 @@ To view Redis variables
 
 redis-cli
 KEYS *
+GET keyname
+HGETALL hashkey
 exit
 
 ```
@@ -317,19 +384,21 @@ docker build -t fileapp -f Dockerfile.stage .
 
 ```
 
-docker run --name fileapp -p 8000:8000 fileapp
+# port number should match port in config.yml
+
+docker run --name fileapp -p 80:80 fileapp
 
 or, if also running a Redis container on the same machine
 
-docker run --name fileapp -p 8000:8000 --link redis-container:redis fileapp
+docker run --name fileapp -p 80:80 --link redis-container:redis fileapp
 
-or, if mounting folders, change paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH, PDBX_REPOSITORY), enable full permissions for target folder, then
+or, if mounting folders, change paths in rcsb/app/config/config.yml (SESSION_DIR_PATH, REPOSITORY_DIR_PATH, SHARED_LOCK_PATH), enable full permissions for target folder, then
 
-docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 8000:8000 fileapp
+docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 80:80 fileapp
 
 or, if also linking to redis container running on same server
 
-docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 8000:8000 --link redis-container:redis fileapp
+docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 80:80 --link redis-container:redis fileapp
 
 (observe that the link attribute is not necessary for connecting to Redis running in a container on a different server)
 
@@ -341,16 +410,16 @@ docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/sy
 
 `–-name` allows user to choose a name for the container
 
-`-p` allows user to choose a port, 8000:8000 is used in this case, as the port 8000 is exposed in the current dockerfile
+`-p` allows user to choose a port, which should match the port in config.yml
 
 `--link` connects to a Redis container if the container is running on the same machine as the files API 
 
 # Error handling
 
-For production, Redis variables are set to expire periodically. However, hidden files are not, so a cron job should be run periodically to remove lingering hidden files from the deposit or archive directories.
+For production, a cron job should be run periodically to remove lingering hidden files from the deposit or archive directories and remove Redis or Sqlite sessions.
+
+An example cron script is in the deploy folder.
 
 After development testing with a Sqlite database, open the kv.sqlite file and delete the tables, and delete hidden files from the deposit or archives directories.
 
 After development testing with Redis, open the redis-cli and delete the variables, and delete hidden files from the deposit or archives directories.
-
-The hidden files to be deleted are those that start with the value configured in getTempFilePath, referred to above, after checking that the file modification time is beyond a specified threshold.

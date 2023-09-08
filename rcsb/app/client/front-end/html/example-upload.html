@@ -1,36 +1,81 @@
+<!-- author James Smith -->
 <!DOCTYPE html>
 <html lang="en">
 	<head>
         <meta charset="UTF-8">
         <title>HTML UPLOAD EXAMPLE</title>
-        <!-- author James Smith -->
-        <script src = "http://www.myersdaily.org/joseph/javascript/md5.js"></script>
 		<script type="text/javascript">
 			async function handleform() {
               window.event.preventDefault();
+              let start_time = new Date().getTime();
               let base_url = "http://0.0.0.0:8000";
               let upload_parameters_url = `${base_url}/getUploadParameters/`;
               let sequential_chunk_url = `${base_url}/upload/`;
+              let jwt_url = `${base_url}/token`;
+              let validate_jwt_url = `${base_url}/validate-token`;
+              let chunkSize = 1024 * 1024 * 32; // bytes
+              let token = localStorage.getItem('token');
+              console.log(`jwt token ${token}`);
               let jwt_token = '';
+              let new_token = true;
+              let jwt_valid = true;
+              if(token) {
+                  new_token = false;
+                  jwt_token = token;
+                  console.log("found previous token " + token);
+                  jwt_valid = false;
+                  await validateToken(jwt_token);
+                  if (!jwt_valid) {
+                      console.log("token not valid");
+                      new_token = true;
+                  }
+              }
+              if(new_token) {
+                  await getAccessToken();
+                  localStorage.setItem('token', jwt_token);
+                  console.log("generated token " + jwt_token);
+              }
+              console.log(`token now = ${jwt_token}`);
+              if(! jwt_valid){
+                  console.log("jwt token not valid");
+                  return;
+              }
               let file = document.getElementsByName('uploadFile')[0].files[0];
               let fileName = file.name;
               console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
-              // hash file
-              // if file is a zip file, file has been compressed before hashing/upload
-              let hashDigest = null;
               let filePath = null;
               let resumable = document.getElementsByName('resumable')[0].checked;
               let chunkIndex = 0;
               let uploadId = null;
-              await getHashDigest(file);
+              await getUploadParameters().then(() => upload(file));
 
-              async function getHashDigest(file){
-                var reader = new FileReader();
-                reader.addEventListener("load", async () => {
-                    hashDigest = md5(reader.result);
-                    await getUploadParameters().then(() => upload(file));
-                });
-                reader.readAsBinaryString(file);
+              async function getAccessToken(){
+                  url = jwt_url;
+                  await fetch(url, {
+                      method: "GET"
+                  }).then(response => {
+                      if(response && response.status && response.status < 400){
+                          jwt_valid = true;
+                          return response.json();
+                      } else if(response.status){
+                          throw new Error("error - status " + response.status);
+                      } else {
+                          throw new Error("error retrieving token");
+                      }
+                  }).then(json => { jwt_token = json.token; }).catch(err => console.log("error retrieving token " + err));
+              }
+
+              async function validateToken(token){
+                  url = validate_jwt_url + "/" + token;
+                  await fetch(url, { method: "GET" }).then(response => {
+                      if(response && response.status && response.status < 400){
+                          return response.json();
+                      } else if(response.status){
+                          throw new Error("error - status " + response.status);
+                      } else {
+                          throw new Error("error retrieving token");
+                      }
+                  }).then(json => { jwt_valid = json.valid }).catch(err => console.log("error validating token " + err));
               }
 
               async function getUploadParameters() {
@@ -39,6 +84,9 @@
                 let depId = document.getElementsByName('depId')[0].value;
                 let contentType = document.getElementsByName('contentType')[0].value;
                 let milestone = document.getElementsByName('milestone')[0].value;
+                if(milestone.toLowerCase() == "none"){
+                    milestone = "";
+                }
                 let partNumber = document.getElementsByName('partNumber')[0].value;
                 let contentFormat = document.getElementsByName('contentFormat')[0].value;
                 let version = document.getElementsByName('version')[0].value;
@@ -72,26 +120,31 @@
                     return;
                   }
                 var fileSize = file.size;
-                var chunkSize = 1024 * 1024 * 8; // bytes
                 var expectedChunks = Math.ceil((fileSize) / chunkSize);
                 var chunkOffset = chunkIndex * chunkSize;
-                var hashType = "MD5";
                 let decompress = document.getElementsByName('decompress')[0].checked;
+                let fileExtension = fileName.substring(fileName.lastIndexOf("."));
                 let allowOverwrite = document.getElementsByName('allowOverwrite')[0].checked;
-                // console.log(`chunk index ${chunkIndex} expected ${expectedChunks} for ${fileName} ${uploadId} ${filePath}`)
+                console.log(`chunk index ${chunkIndex} expected ${expectedChunks} for ${fileName} ${uploadId} ${filePath}`);
                 readChunks(chunkIndex, chunkOffset, resumable);
 
                 function readChunks(chunkIndex, chunkOffset) {
                   if (chunkIndex >= expectedChunks) {
-                      console.log('upload complete');
+                      let stop_time = new Date().getTime();
+                      let elapsed_time = (stop_time - start_time) / (60 * 24);
+                      console.log(`upload complete ${elapsed_time} s`);
                       return;
                   }
                     // remove comments (then re-comment) to test resumable upload
                     // if(chunkIndex >= 3){
                     //     return;
                     // }
-                  // console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
-                  var blob = file.slice(chunkOffset, chunkOffset + chunkSize);
+                  console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
+                  bounds = chunkOffset + chunkSize;
+                  if(bounds > fileSize){
+                      bounds = fileSize;
+                  }
+                  var blob = file.slice(chunkOffset, bounds);
                   postChunk(blob);
                 }
 
@@ -109,17 +162,21 @@
                   formdata.append("expectedChunks", expectedChunks);
                   // upload file parameters
                   formdata.append("uploadId", uploadId);
-                  formdata.append("hashType", hashType);
-                  formdata.append("hashDigest", hashDigest);
+                  formdata.append("hashType", "");
+                  formdata.append("hashDigest", "");
                   // save file parameters
                   formdata.append("filePath", filePath);
+                  formdata.append("fileSize", fileSize);
+                  formdata.append("fileExtension", fileExtension);
                   formdata.append("decompress", decompress);
                   formdata.append("allowOverwrite", allowOverwrite);
                   formdata.append("resumable", resumable);
                   fetch(sequential_chunk_url, {
-                    method: "POST",
-                    headers: {"Authorization": `Bearer ${jwt_token}`},
-                    body: formdata
+                      method: "POST",
+                      headers: {
+                          "Authorization": `Bearer ${jwt_token}`
+                      },
+                      body: formdata
                   }).then(response => {
                       if(response) {
                           if(response.status && response.status < 400)
@@ -154,7 +211,7 @@
 	</head>
 	<body>
 		<div>
-		<form action="http://0.0.0.0:8000/upload" method="POST" enctype="multipart/form-data" onsubmit="return handleform();">
+		<form action="http://0.0.0.0:80/upload" method="POST" enctype="multipart/form-data" onsubmit="return handleform();">
 			<label>Upload file</label>
 			<input type="file" name="uploadFile">
             <label>Repository type</label>

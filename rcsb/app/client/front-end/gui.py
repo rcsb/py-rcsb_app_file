@@ -3,15 +3,13 @@ from tkinter import ttk
 from tkinter.filedialog import askopenfilename, askdirectory
 import sys
 import os
-import gzip
 from PIL import ImageTk, Image
 import math
 import time
-from rcsb.app.file.PathProvider import PathProvider
-from rcsb.app.client.ClientUtils import ClientUtils
+from rcsb.app.client.ClientUtility import ClientUtility
 from rcsb.app.file.Definitions import Definitions
 from rcsb.app.file.IoUtility import IoUtility
-
+from rcsb.app.file.UploadUtility import UploadUtility
 
 # author James Smith 2023
 
@@ -21,17 +19,20 @@ class Gui(tk.Frame):
         super().__init__(master)
         # master.geometry("500x500")
         master.title("FILE ACCESS AND DEPOSITION APPLICATION")
-        self.__cU = ClientUtils()
+        self.__cU = ClientUtility()
+        self._COMPRESSION = self.__cU.compressionType
 
         self.tabs = ttk.Notebook(master)
         self.splashTab = ttk.Frame(master)
         self.uploadTab = ttk.Frame(master)
         self.downloadTab = ttk.Frame(master)
         self.listTab = ttk.Frame(master)
-        self.tabs.add(self.splashTab, text="HOME")
+        self.copymoveTab = ttk.Frame(master)
+        self.tabs.add(self.splashTab, text="START")
         self.tabs.add(self.uploadTab, text="UPLOAD")
         self.tabs.add(self.downloadTab, text="DOWNLOAD")
         self.tabs.add(self.listTab, text="LIST")
+        self.tabs.add(self.copymoveTab, text="COPY/MOVE")
         self.tabs.pack(expand=1, fill="both")
 
         HERE = os.path.abspath(os.path.dirname(__file__))
@@ -46,7 +47,7 @@ class Gui(tk.Frame):
         repoTypeList = dF.getRepoTypeList()
         contentTypeInfoD = dF.getContentTypeD()
         milestoneList = dF.getMilestoneList()
-        milestoneList.append("none")
+        # milestoneList.append("none")
         fileFormatExtensionD = dF.getFileFormatExtD()
 
         # UPLOADS
@@ -62,6 +63,8 @@ class Gui(tk.Frame):
         self.allow_overwrite = tk.IntVar(master)
         self.compress = tk.IntVar(master)
         self.decompress = tk.IntVar(master)
+        self.compress_chunks = tk.IntVar(master)
+        self.no_chunks = tk.IntVar(master)
         self.upload_status = tk.StringVar(master)
         self.upload_status.set("0%")
         self.file_path = None
@@ -136,13 +139,34 @@ class Gui(tk.Frame):
         )
         self.allowOverwriteButton.pack(anchor=tk.W)
         self.compressCheckbox = ttk.Checkbutton(
-            self.upload_group, text="compress", variable=self.compress
+            self.upload_group,
+            text="compress complete file",
+            variable=self.compress,
+            command=self.resetChunks,
         )
         self.compressCheckbox.pack(anchor=tk.W)
         self.decompressCheckbox = ttk.Checkbutton(
-            self.upload_group, text="decompress after upload", variable=self.decompress
+            self.upload_group,
+            text="decompress after upload",
+            variable=self.decompress,
+            command=self.resetChunks,
         )
         self.decompressCheckbox.pack(anchor=tk.W)
+        self.upload_group.pack()
+        self.compressChunksCheckbox = ttk.Checkbutton(
+            self.upload_group,
+            text="compress chunks",
+            variable=self.compress_chunks,
+            command=self.resetCompress,
+        )
+        self.compressChunksCheckbox.pack(anchor=tk.W)
+        self.noChunksCheckbox = ttk.Checkbutton(
+            self.upload_group,
+            text="don't chunk file",
+            variable=self.no_chunks,
+            command=self.resetChunks,
+        )
+        self.noChunksCheckbox.pack(anchor=tk.W)
         self.upload_group.pack()
 
         self.uploadButton = ttk.Button(
@@ -166,6 +190,7 @@ class Gui(tk.Frame):
         self.download_file_format = tk.StringVar(master)
         self.download_version_number = tk.StringVar(master)
         self.download_allow_overwrite = tk.IntVar(master)
+        self.download_chunked_file = tk.IntVar(master)
         self.download_status = tk.StringVar(master)
         self.download_status.set("0%")
         self.download_file_path = None
@@ -185,6 +210,13 @@ class Gui(tk.Frame):
             variable=self.download_allow_overwrite,
         )
         self.download_allowOverwrite.pack()
+
+        self.download_chunkedFile = ttk.Checkbutton(
+            self.downloadTab,
+            text="chunk file",
+            variable=self.download_chunked_file,
+        )
+        self.download_chunkedFile.pack()
 
         self.download_repoTypeLabel = ttk.Label(
             self.downloadTab, text="REPOSITORY TYPE"
@@ -291,12 +323,267 @@ class Gui(tk.Frame):
         self.listButton.pack()
 
         self.list_Listbox = tk.Listbox(self.listTab, exportselection=0, width=50)
-        self.list_Listbox.pack(pady=50)
+        self.list_Listbox.pack(pady=1)
 
         self.list_resetButton = ttk.Button(
             self.listTab, text="reset", command=self.reset
         )
         self.list_resetButton.pack()
+
+        # COPY/MOVE
+
+        self.copymove_radio = tk.IntVar(master)
+        self.copymove_radio.set(1)
+        self.copymove_repo_type1 = tk.StringVar(master)
+        self.copymove_dep_id1 = tk.StringVar(master)
+        self.copymove_content_type1 = tk.StringVar(master)
+        self.copymove_mile_stone1 = tk.StringVar(master)
+        self.copymove_part_number1 = tk.StringVar(master)
+        self.copymove_file_format1 = tk.StringVar(master)
+        self.copymove_version_number1 = tk.StringVar(master)
+        self.copymove_repo_type2 = tk.StringVar(master)
+        self.copymove_dep_id2 = tk.StringVar(master)
+        self.copymove_content_type2 = tk.StringVar(master)
+        self.copymove_mile_stone2 = tk.StringVar(master)
+        self.copymove_part_number2 = tk.StringVar(master)
+        self.copymove_file_format2 = tk.StringVar(master)
+        self.copymove_version_number2 = tk.StringVar(master)
+        self.copymove_allow_overwrite = tk.IntVar(master)
+        self.copymove_status = tk.StringVar(master)
+        self.copymove_status.set("0%")
+        self.copymove_file_path = None
+
+        self.copymove_group4 = ttk.Frame(self.copymoveTab)
+
+        self.copymove_group3 = ttk.Frame(self.copymove_group4)
+
+        self.copymove_group1 = ttk.Frame(self.copymove_group3)
+
+        self.copymove_repoTypeLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE REPOSITORY TYPE"
+        )
+        self.copymove_repoTypeLabel1.pack()
+        self.copymove_repoTypeListbox1 = ttk.Combobox(
+            self.copymove_group1,
+            exportselection=0,
+            textvariable=self.copymove_repo_type1,
+        )
+        self.copymove_repoTypeListbox1.pack()
+        self.copymove_repoTypeListbox1["values"] = repoTypeList
+        self.copymove_repoTypeListbox1.current()
+
+        self.copymove_depIdLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE DEPOSIT ID"
+        )
+        self.copymove_depIdLabel1.pack()
+        self.copymove_depIdEntry1 = ttk.Entry(
+            self.copymove_group1, textvariable=self.copymove_dep_id1
+        )
+        self.copymove_depIdEntry1.pack()
+
+        self.copymove_contentTypeLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE CONTENT TYPE"
+        )
+        self.copymove_contentTypeLabel1.pack()
+        self.copymove_contentTypeListbox1 = ttk.Combobox(
+            self.copymove_group1,
+            exportselection=0,
+            textvariable=self.copymove_content_type1,
+        )
+        self.copymove_contentTypeListbox1.pack()
+        self.copymove_contentTypeListbox1["values"] = [
+            key for key in contentTypeInfoD.keys()
+        ]
+
+        self.copymove_milestoneLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE MILESTONE"
+        )
+        self.copymove_milestoneLabel1.pack()
+        self.copymove_milestoneListbox1 = ttk.Combobox(
+            self.copymove_group1,
+            exportselection=0,
+            textvariable=self.copymove_mile_stone1,
+        )
+        self.copymove_milestoneListbox1.pack()
+        self.copymove_milestoneListbox1["values"] = milestoneList
+        self.copymove_milestoneListbox1.current()
+
+        self.copymove_partLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE PART NUMBER"
+        )
+        self.copymove_partLabel1.pack()
+        self.copymove_partNumberEntry1 = ttk.Entry(
+            self.copymove_group1, textvariable=self.copymove_part_number1
+        )
+        self.copymove_partNumberEntry1.insert(1, "1")
+        self.copymove_partNumberEntry1.pack()
+
+        self.copymove_contentFormatLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE CONTENT FORMAT"
+        )
+        self.copymove_contentFormatLabel1.pack()
+        self.copymove_contentFormatListbox1 = ttk.Combobox(
+            self.copymove_group1,
+            exportselection=0,
+            textvariable=self.copymove_file_format1,
+        )
+        self.copymove_contentFormatListbox1.pack()
+        self.copymove_contentFormatListbox1["values"] = [
+            key for key in fileFormatExtensionD.keys()
+        ]
+
+        self.copymove_versionLabel1 = ttk.Label(
+            self.copymove_group1, text="SOURCE VERSION"
+        )
+        self.copymove_versionLabel1.pack()
+        self.copymove_versionEntry1 = ttk.Entry(
+            self.copymove_group1, textvariable=self.copymove_version_number1
+        )
+        self.copymove_versionEntry1.insert(1, "1")
+        self.copymove_versionEntry1.pack()
+
+        self.copymove_group1.pack(side=tk.LEFT)
+
+        self.copymove_group2 = ttk.Frame(self.copymove_group3)
+
+        self.copymove_repoTypeLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET REPOSITORY TYPE"
+        )
+        self.copymove_repoTypeLabel2.pack()
+        self.copymove_repoTypeListbox2 = ttk.Combobox(
+            self.copymove_group2,
+            exportselection=0,
+            textvariable=self.copymove_repo_type2,
+        )
+        self.copymove_repoTypeListbox2.pack()
+        self.copymove_repoTypeListbox2["values"] = repoTypeList
+        self.copymove_repoTypeListbox2.current()
+
+        self.copymove_depIdLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET DEPOSIT ID"
+        )
+        self.copymove_depIdLabel2.pack()
+        self.copymove_depIdEntry2 = ttk.Entry(
+            self.copymove_group2, textvariable=self.copymove_dep_id2
+        )
+        self.copymove_depIdEntry2.pack()
+
+        self.copymove_contentTypeLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET CONTENT TYPE"
+        )
+        self.copymove_contentTypeLabel2.pack()
+        self.copymove_contentTypeListbox2 = ttk.Combobox(
+            self.copymove_group2,
+            exportselection=0,
+            textvariable=self.copymove_content_type2,
+        )
+        self.copymove_contentTypeListbox2.pack()
+        self.copymove_contentTypeListbox2["values"] = [
+            key for key in contentTypeInfoD.keys()
+        ]
+
+        self.copymove_milestoneLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET MILESTONE"
+        )
+        self.copymove_milestoneLabel2.pack()
+        self.copymove_milestoneListbox2 = ttk.Combobox(
+            self.copymove_group2,
+            exportselection=0,
+            textvariable=self.copymove_mile_stone2,
+        )
+        self.copymove_milestoneListbox2.pack()
+        self.copymove_milestoneListbox2["values"] = milestoneList
+        self.copymove_milestoneListbox2.current()
+
+        self.copymove_partLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET PART NUMBER"
+        )
+        self.copymove_partLabel2.pack()
+        self.copymove_partNumberEntry2 = ttk.Entry(
+            self.copymove_group2, textvariable=self.copymove_part_number2
+        )
+        self.copymove_partNumberEntry2.insert(1, "1")
+        self.copymove_partNumberEntry2.pack()
+
+        self.copymove_contentFormatLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET CONTENT FORMAT"
+        )
+        self.copymove_contentFormatLabel2.pack()
+        self.copymove_contentFormatListbox2 = ttk.Combobox(
+            self.copymove_group2,
+            exportselection=0,
+            textvariable=self.copymove_file_format2,
+        )
+        self.copymove_contentFormatListbox2.pack()
+        self.copymove_contentFormatListbox2["values"] = [
+            key for key in fileFormatExtensionD.keys()
+        ]
+
+        self.copymove_versionLabel2 = ttk.Label(
+            self.copymove_group2, text="TARGET VERSION"
+        )
+        self.copymove_versionLabel2.pack()
+        self.copymove_versionEntry2 = ttk.Entry(
+            self.copymove_group2, textvariable=self.copymove_version_number2
+        )
+        self.copymove_versionEntry2.insert(1, "1")
+        self.copymove_versionEntry2.pack()
+
+        self.copymove_group2.pack(side=tk.RIGHT)
+        self.copymove_group3.pack()
+
+        self.copymove_radio_group = ttk.Frame(self.copymove_group4)
+
+        self.copymove_copy_radio = ttk.Radiobutton(
+            self.copymove_radio_group,
+            text="copy file",
+            variable=self.copymove_radio,
+            value=1,
+        )
+        self.copymove_copy_radio.pack(anchor=tk.W)
+        self.copymove_move_radio = ttk.Radiobutton(
+            self.copymove_radio_group,
+            text="move file",
+            variable=self.copymove_radio,
+            value=2,
+        )
+        self.copymove_move_radio.pack(anchor=tk.W)
+
+        self.copymove_allowOverwrite = ttk.Checkbutton(
+            self.copymove_radio_group,
+            text="allow overwrite",
+            variable=self.copymove_allow_overwrite,
+        )
+        self.copymove_allowOverwrite.pack(anchor=tk.W)
+
+        self.copymoveButton = ttk.Button(
+            self.copymove_radio_group, text="submit", command=self.copymove
+        )
+        self.copymoveButton.pack()
+
+        self.copymove_statusLabel = ttk.Label(
+            self.copymove_radio_group, textvariable=self.copymove_status
+        )
+        self.copymove_statusLabel.pack()
+
+        self.copymove_resetButton = ttk.Button(
+            self.copymove_radio_group, text="reset", command=self.reset
+        )
+        self.copymove_resetButton.pack()
+
+        self.copymove_radio_group.pack()
+
+        self.copymove_group4.pack(pady=50)
+
+    def resetCompress(self):
+        self.compress.set(0)
+        self.decompress.set(0)
+        self.no_chunks.set(0)
+        self.master.update()
+
+    def resetChunks(self):
+        self.compress_chunks.set(0)
+        self.master.update()
 
     def selectFile(self):
         self.file_path = askopenfilename()
@@ -316,8 +603,12 @@ class Gui(tk.Frame):
         contentFormat = self.file_format.get()
         version = self.version_number.get()
         readFilePath = self.file_path
-        COMPRESS = self.compress.get() == 1
-        DECOMPRESS = self.decompress.get() == 1
+        COMPRESS_FILE = self.compress.get() == 1
+        DECOMPRESS_FILE = self.decompress.get() == 1
+        if COMPRESS_FILE:
+            DECOMPRESS_FILE = True
+        COMPRESS_CHUNKS = self.compress_chunks.get() == 1
+        NO_CHUNKS = self.no_chunks.get() == 1
         allowOverwrite = self.allow_overwrite.get() == 1
         resumable = self.resumable.get() == 1
         if (
@@ -335,13 +626,38 @@ class Gui(tk.Frame):
             sys.exit(f"error - file does not exist: {readFilePath}")
         if milestone.lower() == "none":
             milestone = ""
-        # compress, then hash, then upload
-        if COMPRESS:
-            tempPath = readFilePath + ".gz"
-            with open(readFilePath, "rb") as r:
-                with gzip.open(tempPath, "wb") as w:
-                    w.write(r.read())
-            readFilePath = tempPath
+
+        if NO_CHUNKS:
+            decompress = False
+            fileExtension = ""
+            extractChunk = True
+            response = self.__cU.upload(
+                readFilePath,
+                repositoryType,
+                depId,
+                contentType,
+                milestone,
+                partNumber,
+                contentFormat,
+                version,
+                decompress,
+                fileExtension,
+                allowOverwrite,
+                resumable,
+                extractChunk,
+            )
+            if response:
+                status_code = response["status_code"]
+                if not status_code == 200:
+                    print("error in upload %d" % status_code)
+                else:
+                    self.upload_status.set("100%")
+                    self.master.update()
+            else:
+                print("error in upload - no response")
+            print(f"time {time.perf_counter() - t1} s")
+            return
+
         # get upload parameters
         response = self.__cU.getUploadParameters(
             repositoryType,
@@ -360,7 +676,13 @@ class Gui(tk.Frame):
         saveFilePath = response["filePath"]
         chunkIndex = response["chunkIndex"]
         uploadId = response["uploadId"]
-        # compress (externally), then hash, then upload
+        # compress, then hash and compute file size parameter, then upload
+        if COMPRESS_FILE:
+            print("compressing file")
+            readFilePath = UploadUtility(self.__cU.cP).compressFile(
+                readFilePath, saveFilePath, self._COMPRESSION
+            )
+            print("new file name %s" % readFilePath)
         # hash
         hashType = self.__cU.cP.get("HASH_TYPE")
         fullTestHash = IoUtility().getHashDigest(readFilePath, hashType=hashType)
@@ -370,6 +692,10 @@ class Gui(tk.Frame):
         expectedChunks = 1
         if chunkSize < fileSize:
             expectedChunks = math.ceil(fileSize / chunkSize)
+        fileExtension = os.path.splitext(readFilePath)[-1]
+        extractChunk = True
+        if DECOMPRESS_FILE or not COMPRESS_CHUNKS:
+            extractChunk = False
         # upload chunks sequentially
         mD = {
             # chunk parameters
@@ -382,16 +708,23 @@ class Gui(tk.Frame):
             "hashDigest": fullTestHash,
             # save file parameters
             "saveFilePath": saveFilePath,
-            "decompress": DECOMPRESS,
+            "fileSize": fileSize,
+            "fileExtension": fileExtension,
+            "decompress": DECOMPRESS_FILE,
             "allowOverwrite": allowOverwrite,
             "resumable": resumable,
+            "extractChunk": extractChunk,
         }
         self.upload_status.set("0%")
+        print(
+            "decompress %s extract chunk %s compress chunks %s expected chunks %d"
+            % (DECOMPRESS_FILE, extractChunk, COMPRESS_CHUNKS, expectedChunks)
+        )
         for index in range(chunkIndex, expectedChunks):
             mD["chunkIndex"] = index
-            status_code = self.__cU.uploadChunk(readFilePath, fileSize, **mD)
+            status_code = self.__cU.uploadChunk(readFilePath, **mD)
             if not status_code == 200:
-                print("error in upload %r" % response)
+                print("error in upload %d" % status_code)
                 break
             percentage = ((index + 1) / expectedChunks) * 100
             self.upload_status.set("%.0f%%" % percentage)
@@ -409,6 +742,7 @@ class Gui(tk.Frame):
         version = self.download_version_number.get()
         folderPath = self.file_path
         allowOverwrite = self.download_allow_overwrite.get() == 1
+        chunkFile = self.download_chunked_file.get() == 1
         if (
             not folderPath
             or not repositoryType
@@ -445,54 +779,33 @@ class Gui(tk.Frame):
         fileSize = int(response["fileSize"])
         chunkSize = self.__cU.cP.get("CHUNK_SIZE")
         expectedChunks = 1
-        if chunkSize < fileSize:
+        if not chunkFile:
+            chunkSize = None
+        elif chunkSize < fileSize:
             expectedChunks = math.ceil(fileSize / chunkSize)
 
-        response = self.__cU.download(
-            repositoryType,
-            depId,
-            contentType,
-            milestone,
-            partNumber,
-            contentFormat,
-            version,
-            folderPath,
-            allowOverwrite,
-            None,
-            None,
-            True,
-        )
-        if response and response["status_code"] == 200:
-            response = response["response"]
-            # write to file
-            downloadFilePath = os.path.join(
-                folderPath,
-                PathProvider().getFileName(
-                    depId, contentType, milestone, partNumber, contentFormat, version
-                ),
+        for chunkIndex in range(0, expectedChunks):
+            response = self.__cU.download(
+                repositoryType=repositoryType,
+                depId=depId,
+                contentType=contentType,
+                milestone=milestone,
+                partNumber=partNumber,
+                contentFormat=contentFormat,
+                version=version,
+                downloadFolder=folderPath,
+                allowOverwrite=allowOverwrite,
+                chunkSize=chunkSize,
+                chunkIndex=chunkIndex,
+                expectedChunks=expectedChunks,
             )
-            with open(downloadFilePath, "ab") as ofh:
-                index = 0
-                for chunk in response.iter_content(chunk_size=chunkSize):
-                    if chunk:
-                        ofh.write(chunk)
-                        index += 1
-                        percentage = (index / expectedChunks) * 100
-                        self.download_status.set("%.0f%%" % percentage)
-                        self.master.update()
-            # validate hash
-            if (
-                "rcsb_hash_type" in response.headers
-                and "rcsb_hexdigest" in response.headers
-            ):
-                rspHashType = response.headers["rcsb_hash_type"]
-                rspHashDigest = response.headers["rcsb_hexdigest"]
-                hashDigest = IoUtility().getHashDigest(
-                    downloadFilePath, hashType=rspHashType
-                )
-                if not hashDigest == rspHashDigest:
-                    print("error - hash comparison failed")
-                    return None
+            if response and response["status_code"] == 200:
+                percentage = ((chunkIndex + 1) / expectedChunks) * 100
+                self.download_status.set("%.0f%%" % percentage)
+                self.master.update()
+            else:
+                print("error - %d" % response["status_code"])
+                return None
 
         print(f"time {time.perf_counter() - t1} s")
 
@@ -517,12 +830,83 @@ class Gui(tk.Frame):
             print("\nerror - not found\n")
         print(f"time {time.perf_counter() - t1} s")
 
+    def copymove(self):
+        t1 = time.perf_counter()
+        copy_or_move = self.copymove_radio.get()
+        repositoryType1 = self.copymove_repo_type1.get()
+        depId1 = self.copymove_dep_id1.get()
+        contentType1 = self.copymove_content_type1.get()
+        milestone1 = self.copymove_mile_stone1.get()
+        partNumber1 = self.copymove_part_number1.get()
+        contentFormat1 = self.copymove_file_format1.get()
+        version1 = self.copymove_version_number1.get()
+        repositoryType2 = self.copymove_repo_type2.get()
+        depId2 = self.copymove_dep_id2.get()
+        contentType2 = self.copymove_content_type2.get()
+        milestone2 = self.copymove_mile_stone2.get()
+        partNumber2 = self.copymove_part_number2.get()
+        contentFormat2 = self.copymove_file_format2.get()
+        version2 = self.copymove_version_number2.get()
+        allowOverwrite = self.copymove_allow_overwrite.get() == 1
+        if milestone1.lower() == "none":
+            milestone1 = ""
+        if milestone2.lower() == "none":
+            milestone2 = ""
+
+        response = None
+        if copy_or_move == 1:
+            response = self.__cU.copyFile(
+                repositoryTypeSource=repositoryType1,
+                depIdSource=depId1,
+                contentTypeSource=contentType1,
+                milestoneSource=milestone1,
+                partNumberSource=partNumber1,
+                contentFormatSource=contentFormat1,
+                versionSource=version1,
+                repositoryTypeTarget=repositoryType2,
+                depIdTarget=depId2,
+                contentTypeTarget=contentType2,
+                milestoneTarget=milestone2,
+                partNumberTarget=partNumber2,
+                contentFormatTarget=contentFormat2,
+                versionTarget=version2,
+                overwrite=allowOverwrite,
+            )
+        elif copy_or_move == 2:
+            response = self.__cU.moveFile(
+                repositoryTypeSource=repositoryType1,
+                depIdSource=depId1,
+                contentTypeSource=contentType1,
+                milestoneSource=milestone1,
+                partNumberSource=partNumber1,
+                contentFormatSource=contentFormat1,
+                versionSource=version1,
+                repositoryTypeTarget=repositoryType2,
+                depIdTarget=depId2,
+                contentTypeTarget=contentType2,
+                milestoneTarget=milestone2,
+                partNumberTarget=partNumber2,
+                contentFormatTarget=contentFormat2,
+                versionTarget=version2,
+                overwrite=allowOverwrite,
+            )
+
+        if response and response["status_code"] == 200:
+            self.copymove_status.set("100%")
+            self.master.update()
+        else:
+            print("error - %d" % response["status_code"])
+            return None
+
+        print(f"time {time.perf_counter() - t1} s")
+
     def reset(self):
         self.fileButton.config(text="select")
         self.download_fileButton.config(text="select")
         self.list_Listbox.delete(0, tk.END)
         self.upload_status.set("0%")
         self.download_status.set("0%")
+        self.copymove_status.set("0%")
 
         self.repo_type.set("")
         self.dep_id.set("")
@@ -534,6 +918,9 @@ class Gui(tk.Frame):
         self.allow_overwrite.set(0)
         self.compress.set(0)
         self.decompress.set(0)
+        self.resumable.set(0)
+        self.compress_chunks.set(0)
+        self.no_chunks.set(0)
 
         self.download_repo_type.set("")
         self.download_dep_id.set("")
@@ -543,9 +930,27 @@ class Gui(tk.Frame):
         self.download_file_format.set("")
         self.download_version_number.set("1")
         self.download_allow_overwrite.set(0)
+        self.download_chunked_file.set(0)
 
         self.list_repo_type.set("")
         self.list_dep_id.set("")
+
+        self.copymove_radio.set(1)
+        self.copymove_repo_type1.set("")
+        self.copymove_dep_id1.set("")
+        self.copymove_content_type1.set("")
+        self.copymove_mile_stone1.set("")
+        self.copymove_part_number1.set("1")
+        self.copymove_file_format1.set("")
+        self.copymove_version_number1.set("1")
+        self.copymove_repo_type2.set("")
+        self.copymove_dep_id2.set("")
+        self.copymove_content_type2.set("")
+        self.copymove_mile_stone2.set("")
+        self.copymove_part_number2.set("1")
+        self.copymove_file_format2.set("")
+        self.copymove_version_number2.set("1")
+        self.copymove_allow_overwrite.set(0)
 
         self.master.update()
 

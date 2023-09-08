@@ -11,8 +11,8 @@ from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 from rcsb.app.file.PathProvider import PathProvider
 
 provider = ConfigProvider()
-jwtDisable = bool(provider.get("JWT_DISABLE"))
-if not jwtDisable:
+bypassAuthorization = bool(provider.get("BYPASS_AUTHORIZATION"))
+if not bypassAuthorization:
     router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["path"])
 else:
     router = APIRouter(tags=["path"])
@@ -35,9 +35,7 @@ async def listDir(repositoryType: str = Query(), depId: str = Query()):
     try:
         dirList = await PathProvider().listDir(repositoryType, depId)
     except HTTPException as exc:
-        raise HTTPException(
-            status_code=exc.status_code, detail=exc.detail
-        )
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
     return {"dirList": dirList}
 
 
@@ -57,6 +55,35 @@ async def getFilePath(
     path = None
     try:
         path = PathProvider().getVersionedPath(
+            repositoryType,
+            depId,
+            contentType,
+            milestone,
+            partNumber,
+            contentFormat,
+            version,
+        )
+    except HTTPException as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"filePath": path}
+
+
+@router.get("/join")
+async def join(
+    repositoryType: str = Query(...),
+    depId: str = Query(...),
+    contentType: str = Query(...),
+    milestone: str = Query(default=""),
+    partNumber: int = Query(default=1),
+    contentFormat: str = Query(...),
+    version: str = Query(default="next"),
+):
+    # join parameters into a valid 1-dep file path
+    # return relative file path on server, assuming file exists
+    # does not test file existence
+    path = None
+    try:
+        path = PathProvider().join(
             repositoryType,
             depId,
             contentType,
@@ -97,12 +124,7 @@ async def latestVersion(
     contentFormat: str = Query(...),
 ):
     version = PathProvider().getLatestVersion(
-        repositoryType,
-        depId,
-        contentType,
-        milestone,
-        partNumber,
-        contentFormat
+        repositoryType, depId, contentType, milestone, partNumber, contentFormat
     )
     if version:
         return {"version": version}

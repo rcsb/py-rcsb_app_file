@@ -17,6 +17,7 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 
 logging.basicConfig(level=logging.INFO)
 
+
 class DownloadTest(unittest.TestCase):
     def setUp(self):
         self.__cP = ConfigProvider()
@@ -24,8 +25,7 @@ class DownloadTest(unittest.TestCase):
         self.__configFilePath = self.__cP.getConfigFilePath()
         subject = self.__cP.get("JWT_SUBJECT")
         self.__headerD = {
-            "Authorization": "Bearer "
-            + JWTAuthToken().createToken({}, subject)
+            "Authorization": "Bearer " + JWTAuthToken().createToken({}, subject)
         }
         self.__chunkSize = self.__cP.get("CHUNK_SIZE")
         self.__hashType = self.__cP.get("HASH_TYPE")
@@ -43,19 +43,27 @@ class DownloadTest(unittest.TestCase):
         if self.__contentFormat == "pdbx":
             self.__convertedContentFormat = "cif"
         else:
-            logging.error("error - please refer to upload functions for other examples of content format conversion")
+            logging.error(
+                "error - please refer to upload functions for other examples of content format conversion"
+            )
             sys.exit()
         self.__version = "1"
         if not re.match(r"^\d+$", self.__version):
-            logging.error("error - have not encoded logic for non-numeric version numbers")
+            logging.error(
+                "error - have not encoded logic for non-numeric version numbers"
+            )
             sys.exit()
         self.__repoFileName = f"{self.__depId}_{self.__contentType}{self.__convertedMilestone}_P{self.__partNumber}.{self.__convertedContentFormat}.V{self.__version}"
         self.__unitTestFolder = os.path.join(self.__dataPath, self.__repositoryType)
         logging.info("self.__dataPath %s", self.__dataPath)
 
-        self.__repositoryFile = os.path.join(self.__unitTestFolder, self.__depId, self.__repoFileName)
+        self.__repositoryFile = os.path.join(
+            self.__unitTestFolder, self.__depId, self.__repoFileName
+        )
         if not os.path.exists(self.__repositoryFile):
-            os.makedirs(os.path.dirname(self.__repositoryFile), mode=0o757, exist_ok=True)
+            os.makedirs(
+                os.path.dirname(self.__repositoryFile), mode=0o757, exist_ok=True
+            )
             nB = self.__chunkSize * 2
             with open(self.__repositoryFile, "wb") as out:
                 out.write(os.urandom(nB))
@@ -67,7 +75,11 @@ class DownloadTest(unittest.TestCase):
             os.unlink(self.__downloadFile)
 
         self.__startTime = time.time()
-        logging.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
+        logging.info(
+            "Starting %s at %s",
+            self.id(),
+            time.strftime("%Y %m %d %H:%M:%S", time.localtime()),
+        )
 
     def tearDown(self):
         if os.path.exists(self.__repositoryFile):
@@ -78,7 +90,12 @@ class DownloadTest(unittest.TestCase):
         if os.path.exists(self.__unitTestFolder):
             shutil.rmtree(self.__unitTestFolder)
         endTime = time.time()
-        logging.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
+        logging.info(
+            "Completed %s at %s (%.4f seconds)",
+            self.id(),
+            time.strftime("%Y %m %d %H:%M:%S", time.localtime()),
+            endTime - self.__startTime,
+        )
 
     def testSimpleDownload(self):
         downloadUrlPrefix = os.path.join(self.__baseUrl, "download")
@@ -89,9 +106,7 @@ class DownloadTest(unittest.TestCase):
         resp = None
         # test download file, return http response
         with TestClient(app) as client:
-            response = client.get(
-                downloadUrl, headers=self.__headerD, timeout=None
-            )
+            response = client.get(downloadUrl, headers=self.__headerD, timeout=None)
             if response and response.status_code == 200:
                 with open(self.__downloadFile, "wb") as ofh:
                     ofh.write(response.content)
@@ -100,11 +115,16 @@ class DownloadTest(unittest.TestCase):
                 hashDigest = IoUtility().getHashDigest(
                     self.__downloadFile, hashType=rspHashType
                 )
-                self.assertTrue(hashDigest == rspHashDigest, f"error - hash comparison failed")
+                self.assertTrue(
+                    hashDigest == rspHashDigest, f"error - hash comparison failed"
+                )
                 if not hashDigest == rspHashDigest:
                     logging.error("Hash comparison failed")
                     return None
-                self.assertTrue(response.status_code == 200, f"error - status code {response.status_code}")
+                self.assertTrue(
+                    response.status_code == 200,
+                    f"error - status code {response.status_code}",
+                )
                 resp = response.status_code
                 return resp
 
@@ -123,15 +143,19 @@ class DownloadTest(unittest.TestCase):
             if mimeType == "txt":
                 self.assertEqual(utility.getMimeType(mimeType), "text/plain")
             if mimeType == "pic":
-                self.assertEqual(utility.getMimeType(mimeType), "application/python-pickle")
+                self.assertEqual(
+                    utility.getMimeType(mimeType), "application/python-pickle"
+                )
             if mimeType == "other":
                 self.assertEqual(utility.getMimeType(mimeType), "text/plain")
+
 
 def download_tests():
     suite = unittest.TestSuite()
     suite.addTest(DownloadTest("testSimpleDownload"))
     suite.addTest(DownloadTest("testGetMimeType"))
     return suite
+
 
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(failfast=True)

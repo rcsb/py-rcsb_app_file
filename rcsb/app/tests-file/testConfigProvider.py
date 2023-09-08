@@ -27,7 +27,10 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file import __version__
 
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s",
+)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -51,14 +54,23 @@ class ConfigProviderTests(unittest.TestCase):
             raise Exception("Could not make config dictionary")
 
         logger.debug("Running tests on version %s", __version__)
-        logger.info("Starting %s at %s", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()))
+        logger.info(
+            "Starting %s at %s",
+            self.id(),
+            time.strftime("%Y %m %d %H:%M:%S", time.localtime()),
+        )
 
     def tearDown(self):
         unitS = "MB" if platform.system() == "Darwin" else "GB"
         rusageMax = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-        logger.info("Maximum resident memory size %.4f %s", rusageMax / 10 ** 6, unitS)
+        logger.info("Maximum resident memory size %.4f %s", rusageMax / 10**6, unitS)
         endTime = time.time()
-        logger.info("Completed %s at %s (%.4f seconds)", self.id(), time.strftime("%Y %m %d %H:%M:%S", time.localtime()), endTime - self.__startTime)
+        logger.info(
+            "Completed %s at %s (%.4f seconds)",
+            self.id(),
+            time.strftime("%Y %m %d %H:%M:%S", time.localtime()),
+            endTime - self.__startTime,
+        )
 
     def testConfigAccessors(self):
         """Test -configuration accessors"""
@@ -80,6 +92,5 @@ def configAccessorsSuite():
 
 
 if __name__ == "__main__":
-
     mySuite = configAccessorsSuite()
     unittest.TextTestRunner(verbosity=2).run(mySuite)

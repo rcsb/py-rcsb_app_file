@@ -1,9 +1,8 @@
 ##
 # File: serverStatusRequest.py
 # Date: 11-Aug-2020
-#
+# Updates: James Smith 2023
 ##
-# pylint: skip-file
 
 __docformat__ = "google en"
 __author__ = "John Westbrook"
@@ -25,14 +24,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.get("/uptime", tags=["status"])
+@router.get("/", tags=["status"])
+def root():
+    return serverStatus()
+
+
+@router.get("/status", tags=["status"])
+def serverStatus():
+    # status of file app gunicorn server and remote repository file system
+    status = {"server running": True}
+    uptime = getUptime()
+    status.update(uptime)
+    storage = getServerStorage()
+    status.update(storage)
+    # red = getRedisStatus()
+    # status.update(red)
+    return status
+
+
 def getUptime():
-    global TOPDIR
     HERE = os.path.dirname(__file__)
     TOPDIR = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
     uptime_file = os.path.join(TOPDIR, "uptime.txt")
     uptime_start = 0
-    with open(uptime_file, "r") as read:
+    with open(uptime_file, "r", encoding="UTF-8") as read:
         uptime_start = float(read.read())
     uptime_stop = time.time()
     seconds = uptime_stop - uptime_start
@@ -40,10 +55,16 @@ def getUptime():
     hours = minutes / 60
     days = minutes / 24
     # report total uptime in either hours, minutes, or seconds (i.e. total hours, or total minutes, or total seconds)
-    return {"days_total": int(days), "hours_total": int(hours), "minutes_total": int(minutes), "seconds_total": int(seconds), "start": int(uptime_start), "stop": int(uptime_stop)}
+    return {
+        "uptime days total": int(days),
+        "uptime hours total": int(hours),
+        "uptime minutes total": int(minutes),
+        "uptime seconds total": int(seconds),
+        "uptime start": int(uptime_start),
+        "uptime now": int(uptime_stop),
+    }
 
 
-@router.get("/redis-status", tags=["status"])
 def getRedisStatus():
     # create database if not exists
     # create table if not exists
@@ -58,10 +79,9 @@ def getRedisStatus():
         result = r.ping() == True  # noqa: E712
     except Exception:
         result = False
-    return {"running": result}
+    return {"redis running": result}
 
 
-@router.get("/storage", tags=["status"])
 def getServerStorage():
     percent_ram_used = psutil.virtual_memory()[2]
     cP = ConfigProvider()
@@ -71,22 +91,19 @@ def getServerStorage():
     disk_used = disk_usage[1]
     disk_free = disk_usage[2]
     percent_disk_used = (disk_used / disk_total) * 100
-    return {"percent_ram_used": percent_ram_used, "percent_disk_used": percent_disk_used, "total": disk_total, "used": disk_used, "free": disk_free}
+    return {
+        "server percent ram used": percent_ram_used,
+        "repository percent disk used": percent_disk_used,
+        "repository disk total": disk_total,
+        "repository disk used": disk_used,
+        "repository disk free": disk_free,
+    }
 
 
-@router.get("/status", tags=["status"])
-def serverStatus():
+@router.get("/processStatus", tags=["status"])
+def processStatus():
+    # status of machine that server is on
     cP = ConfigProvider()
     psU = ProcessStatusUtil()
     psD = psU.getInfo()
     return {"msg": "Status is nominal!", "version": cP.getVersion(), "status": psD}
-
-
-@router.get("/", tags=["status"])
-def rootServerStatus():
-    return {"msg": "Service is up!"}
-
-
-@router.get("/healthcheck", tags=["status"])
-def rootHealthCheck():
-    return "UP"
