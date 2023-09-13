@@ -74,6 +74,7 @@ class Locking(object):
         self.is_dir = is_dir
         # time properties
         self.start_time = time.time()
+        self.wait_time = 1  # seconds
         # max seconds to wait to obtain a lock, set to zero for infinite wait
         self.timeout = timeout
         # appropriate wait time before second traversal is hard to predict, especially with async functions - can't be too long (so async ok)
@@ -86,18 +87,39 @@ class Locking(object):
         if bool(self.uselock) is False:
             return
         try:
+            second_traversal_done = False
             # busy wait to acquire target lock
             while True:
+                no_conflicts_found = True
                 found_nothing = True
                 # find overlaps with other lock files
                 # lock file name = repositoryType~filename~mode~uid
                 thisfile = "%s~%s" % (self.repositoryType, self.filename)
+                # should never find more than one exclusive lock
+                exclusive_locks_found = 0
+                for thatpath in glob.iglob("%s/%s*" % (self.lockdir, thisfile)):
+                    thatfile = os.path.basename(thatpath)
+                    if thatfile.startswith(thisfile) and thatfile != self.lockfilename:
+                        that_mode = thatfile.split("~")[2]
+                        if that_mode == self.exclusive_lock_mode:
+                            exclusive_locks_found += 1
+                            if exclusive_locks_found > 1:
+                                if self.lockfilename is not None:
+                                    lockfilepath = os.path.join(
+                                        self.lockdir, self.lockfilename
+                                    )
+                                    if os.path.exists(lockfilepath):
+                                        os.unlink(lockfilepath)
+                                raise OSError(
+                                    "error - conflicting exclusive locks found %s removing %s"
+                                    % (thatfile, self.lockfilename)
+                                )
                 logging.debug("dirname %s basename %s", self.lockdir, thisfile)
+                # traverse and evaluate conflicts
                 # if find nothing or resolve conflict, acquire target lock
                 # if find conflict, wait (and possibly acquire transitory lock) and traverse again
-                acquired_target = False
-                # traverse and evaluate conflicts
                 for thatpath in glob.iglob("%s/%s*" % (self.lockdir, thisfile)):
+                    found_nothing = False
                     thatfile = os.path.basename(thatpath)
                     logging.debug("traversed to filename %s", thatfile)
                     if thatfile.startswith(thisfile) and thatfile != self.lockfilename:
@@ -116,7 +138,7 @@ class Locking(object):
                                 or that_mode == self.transitory_lock_mode
                             ):
                                 # wait, then traverse again
-                                found_nothing = False
+                                no_conflicts_found = False
                                 break  # from for loop
                             elif that_mode == self.shared_lock_mode:
                                 # traverse all matching files, if just find shared locks then acquire lock
@@ -127,12 +149,12 @@ class Locking(object):
                                 )
                         # I requested exclusive lock
                         elif self.start_mode == self.exclusive_lock_mode:
-                            found_nothing = False
                             # found exclusive or shared lock, must wait
                             if (
                                 that_mode == self.exclusive_lock_mode
                                 or that_mode == self.shared_lock_mode
                             ):
+                                no_conflicts_found = False
                                 # I have transitory lock?
                                 if self.mode == self.transitory_lock_mode:
                                     # if yes, wait, then traverse again
@@ -173,38 +195,8 @@ class Locking(object):
                                     t1 = self.start_time
                                     t2 = Locking.getLockStartTime(thatpath)
                                     if t1 < t2:
-                                        # won tiebreaker, acquire target lock
-                                        # delete transitory file, replace with target lock file (by renaming)
-                                        transitory_lock_file_path = os.path.join(
-                                            self.lockdir,
-                                            "%s~%s~%s~%s"
-                                            % (
-                                                self.repositoryType,
-                                                self.filename,
-                                                self.transitory_lock_mode,
-                                                self.uid,
-                                            ),
-                                        )
-                                        self.mode = self.start_mode
-                                        self.lockfilename = "%s~%s~%s~%s" % (
-                                            self.repositoryType,
-                                            self.filename,
-                                            self.mode,
-                                            self.uid,
-                                        )
-                                        lockfilepath = os.path.join(
-                                            self.lockdir, self.lockfilename
-                                        )
-                                        if os.path.exists(transitory_lock_file_path):
-                                            os.replace(
-                                                transitory_lock_file_path, lockfilepath
-                                            )
-                                        else:
-                                            raise OSError(
-                                                "error - transitory lock file does not exist"
-                                            )
-                                        acquired_target = True  # stop waiting
-                                        break  # from for loop
+                                        # won tiebreaker, might acquire target lock
+                                        continue  # for loop
                                     elif t1 == t2:
                                         # very unlikely
                                         # deadlock - neither lock knows who wins
@@ -220,6 +212,7 @@ class Locking(object):
                                         )
                                     else:
                                         # lost tiebreaker, wait on other lock
+                                        no_conflicts_found = False
                                         break  # from for loop
                                 else:
                                     # if no, acquire transitory lock, then wait
@@ -248,6 +241,7 @@ class Locking(object):
                                         "created transitory lock file %s", lockfilepath
                                     )
                                     # wait
+                                    no_conflicts_found = False
                                     break  # from for loop
                             else:
                                 raise OSError(
@@ -258,10 +252,15 @@ class Locking(object):
                     raise FileExistsError(
                         "error - lock timed out on %s" % self.filename
                     )
-                # optional second traversal on exclusive and shared locks
-                if self.use_second_traversal and self.mode != self.transitory_lock_mode:
-                    # still have risk of two users requesting lock at exactly same time
+                # still have risk of two users requesting lock at exactly same time
+                # optional second traversal to prevent simultaneity, only if found nothing on first traversal
+                if (
+                    self.use_second_traversal
+                    and second_traversal_done == False
+                    and found_nothing == True
+                ):
                     await asyncio.sleep(self.wait_before_second_traversal)
+                    # if found nothing then does not have uid or lock file name yet
                     if self.uid is None:
                         self.uid = uuid.uuid4().hex
                     self.lockfilename = "%s~%s~%s~%s" % (
@@ -271,18 +270,11 @@ class Locking(object):
                         self.uid,
                     )
                     # re-traverse to detect new race conditions
-                    if not self.secondTraversal():
-                        # roll back locking transaction
-                        if os.path.exists(
-                            os.path.join(self.lockdir, self.lockfilename)
-                        ):
-                            os.unlink(os.path.join(self.lockdir, self.lockfilename))
-                        # keep waiting
-                        await asyncio.sleep(1)
-                        continue
+                    second_traversal_done = True
+                    continue  # while loop
                 # exit loop condition
-                if found_nothing:
-                    # if have transitory lock and other lock went away
+                if no_conflicts_found:
+                    # if have transitory lock and won tiebreaker or other lock went away
                     if self.mode == self.transitory_lock_mode:
                         logging.debug("converting transitory lock to target lock")
                         # delete transitory file, replace with target lock file (by renaming)
@@ -305,6 +297,7 @@ class Locking(object):
                         )
                         lockfilepath = os.path.join(self.lockdir, self.lockfilename)
                         if os.path.exists(transitory_lock_file_path):
+                            # acquire target lock
                             os.replace(transitory_lock_file_path, lockfilepath)
                         else:
                             raise OSError("error - transitory lock file does not exist")
@@ -322,60 +315,19 @@ class Locking(object):
                             self.uid,
                         )
                         lockfilepath = os.path.join(self.lockdir, self.lockfilename)
+                        # acquire target lock
                         # do not make async or use await - otherwise, time before second traversal is unpredictable
                         with open(lockfilepath, "w", encoding="UTF-8") as w:
                             w.write("%d\n" % self.proc)
                             w.write("%s\n" % self.hostname)
                             w.write("%f\n" % self.start_time)
                     break  # from while loop
-                if acquired_target:
-                    # file already created
-                    break
                 # otherwise, wait and traverse again
-                await asyncio.sleep(1)
+                await asyncio.sleep(self.wait_time)
         except FileExistsError as exc:
             raise FileExistsError("%r" % exc)
         except OSError as exc:
             raise OSError("%r" % exc)
-
-    def secondTraversal(self):
-        # a non-transitory lock, having just acquired lock, waits a few seconds and then traverses directory again to ensure no new conflicting locks are present
-        thislockfilepath = os.path.join(self.lockdir, self.lockfilename)
-        pattern = "%s~%s" % (self.repositoryType, self.filename)
-        logging.debug("second traversal on %s %s", self.lockdir, pattern)
-        # traverse to detect new locks
-        for thatlockfilepath in glob.iglob("%s/%s*" % (self.lockdir, pattern)):
-            thatlockfilename = os.path.basename(thatlockfilepath)
-            logging.debug("filename %s", thatlockfilename)
-            if (
-                thatlockfilename.startswith(pattern)
-                and thatlockfilename != self.lockfilename
-            ):
-                that_mode = thatlockfilename.split("~")[2]
-                if that_mode == self.exclusive_lock_mode:
-                    if self.mode == self.shared_lock_mode:
-                        # shared lock defers to simultaneous exclusive lock
-                        return False
-                    elif self.mode == self.exclusive_lock_mode:
-                        # tiebreaker between simultaneous exclusive locks
-                        thisstarttime = Locking.getLockStartTime(thislockfilepath)
-                        thatstarttime = Locking.getLockStartTime(thatlockfilepath)
-                        if thisstarttime < thatstarttime:
-                            # acquire lock
-                            break
-                        elif thisstarttime == thatstarttime:
-                            # deadlock - remove lock file
-                            if os.path.exists(thislockfilepath):
-                                os.unlink(thislockfilepath)
-                            raise OSError("error - locks have same start times")
-                        else:
-                            return False
-                elif that_mode == self.shared_lock_mode:
-                    if self.mode == self.exclusive_lock_mode:
-                        # acquire lock
-                        break
-        # traversed all files and found nothing, so acquire lock
-        return True
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if not self.uselock:
