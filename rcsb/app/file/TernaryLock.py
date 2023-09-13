@@ -11,6 +11,8 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 
 logging.basicConfig(level=logging.DEBUG)
 
+# tasks - convert to Redis lock with similar functionality
+
 
 class Locking(object):
     """
@@ -37,7 +39,9 @@ class Locking(object):
         logging.error("error %r", err)
     """
 
-    def __init__(self, filepath, mode, is_dir=False, timeout=60, second_traversal=True):
+    def __init__(
+        self, filepath, mode, is_dir=False, timeout=60, second_traversal=False
+    ):
         logging.debug("initializing")
         provider = ConfigProvider()
         self.uselock = provider.get("LOCK_TRANSACTIONS")
@@ -77,25 +81,20 @@ class Locking(object):
         self.wait_time = 1  # seconds
         # max seconds to wait to obtain a lock, set to zero for infinite wait
         self.timeout = timeout
-        # appropriate wait time before second traversal is hard to predict, especially with async functions - can't be too long (so async ok)
-        # ensure that this value does not conflict with or approach timeout value
-        self.wait_before_second_traversal = 5  # if too high, slows chunked downloads, if too low, second traversal maybe pointless
-        self.use_second_traversal = second_traversal
         logging.debug("initialized")
 
     async def __aenter__(self):
         if bool(self.uselock) is False:
             return
         try:
-            second_traversal_done = False
             # busy wait to acquire target lock
             while True:
                 no_conflicts_found = True
-                found_nothing = True
                 # find overlaps with other lock files
                 # lock file name = repositoryType~filename~mode~uid
                 thisfile = "%s~%s" % (self.repositoryType, self.filename)
-                # should never find more than one exclusive lock
+                # should never find more than one exclusive lock unless simultaneity occurred
+                # prevent simultaneity by removing one of the locks
                 exclusive_locks_found = 0
                 for thatpath in glob.iglob("%s/%s*" % (self.lockdir, thisfile)):
                     thatfile = os.path.basename(thatpath)
@@ -119,7 +118,6 @@ class Locking(object):
                 # if find nothing or resolve conflict, acquire target lock
                 # if find conflict, wait (and possibly acquire transitory lock) and traverse again
                 for thatpath in glob.iglob("%s/%s*" % (self.lockdir, thisfile)):
-                    found_nothing = False
                     thatfile = os.path.basename(thatpath)
                     logging.debug("traversed to filename %s", thatfile)
                     if thatfile.startswith(thisfile) and thatfile != self.lockfilename:
@@ -175,7 +173,7 @@ class Locking(object):
                                     )
                                     # create file
                                     if not os.path.exists(lockfilepath):
-                                        # do not make async or use await - otherwise, time before second traversal is unpredictable
+                                        # do not make async or use await
                                         with open(
                                             lockfilepath, "w", encoding="UTF-8"
                                         ) as w:
@@ -230,7 +228,7 @@ class Locking(object):
                                     )
                                     # create file
                                     if not os.path.exists(lockfilepath):
-                                        # do not make async or use await - otherwise, time before second traversal is unpredictable
+                                        # do not make async or use await
                                         with open(
                                             lockfilepath, "w", encoding="UTF-8"
                                         ) as w:
@@ -252,26 +250,6 @@ class Locking(object):
                     raise FileExistsError(
                         "error - lock timed out on %s" % self.filename
                     )
-                # still have risk of two users requesting lock at exactly same time
-                # optional second traversal to prevent simultaneity, only if found nothing on first traversal
-                if (
-                    self.use_second_traversal
-                    and second_traversal_done == False
-                    and found_nothing == True
-                ):
-                    await asyncio.sleep(self.wait_before_second_traversal)
-                    # if found nothing then does not have uid or lock file name yet
-                    if self.uid is None:
-                        self.uid = uuid.uuid4().hex
-                    self.lockfilename = "%s~%s~%s~%s" % (
-                        self.repositoryType,
-                        self.filename,
-                        self.mode,
-                        self.uid,
-                    )
-                    # re-traverse to detect new race conditions
-                    second_traversal_done = True
-                    continue  # while loop
                 # exit loop condition
                 if no_conflicts_found:
                     # if have transitory lock and won tiebreaker or other lock went away
@@ -316,7 +294,7 @@ class Locking(object):
                         )
                         lockfilepath = os.path.join(self.lockdir, self.lockfilename)
                         # acquire target lock
-                        # do not make async or use await - otherwise, time before second traversal is unpredictable
+                        # do not make async or use await
                         with open(lockfilepath, "w", encoding="UTF-8") as w:
                             w.write("%d\n" % self.proc)
                             w.write("%s\n" % self.hostname)
