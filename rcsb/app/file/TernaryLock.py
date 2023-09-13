@@ -81,6 +81,8 @@ class Locking(object):
         self.wait_time = 1  # seconds
         # max seconds to wait to obtain a lock, set to zero for infinite wait
         self.timeout = timeout
+        # required for compatibility with DefaultLock
+        self.second_traversal = second_traversal
         logging.debug("initialized")
 
     async def __aenter__(self):
