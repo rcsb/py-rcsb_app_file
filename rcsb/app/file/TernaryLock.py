@@ -83,6 +83,7 @@ class Locking(object):
         self.timeout = timeout
         # attempt to prevent simultaneity
         self.second_traversal = second_traversal
+        self.wait_before_second_traversal = 3
         logging.debug("initialized")
 
     async def __aenter__(self):
