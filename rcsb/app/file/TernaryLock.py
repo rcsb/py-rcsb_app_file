@@ -40,13 +40,13 @@ class Locking(object):
     """
 
     def __init__(
-        self, filepath, mode, is_dir=False, timeout=20, second_traversal=False
+        self, filepath, mode, is_dir=False, timeout=60, second_traversal=False
     ):
-        logging.info("initializing")
+        logging.debug("initializing")
         provider = ConfigProvider()
         self.uselock = provider.get("LOCK_TRANSACTIONS")
         if bool(self.uselock) is False:
-            logging.info("use lock false, skipping file locks")
+            logging.debug("use lock false, skipping file locks")
             return
         self.lockdir = provider.get("SHARED_LOCK_PATH")
         # target file path
@@ -83,7 +83,7 @@ class Locking(object):
         self.timeout = timeout
         # attempt to prevent simultaneity
         self.second_traversal = second_traversal
-        logging.info("initialized")
+        logging.debug("initialized")
 
     async def __aenter__(self):
         if bool(self.uselock) is False:
@@ -96,18 +96,18 @@ class Locking(object):
                 # find overlaps with other lock files
                 # lock file name = repositoryType~filename~mode~uid
                 thisfile = "%s~%s" % (self.repositoryType, self.filename)
-                logging.info("dirname %s basename %s", self.lockdir, thisfile)
+                logging.debug("dirname %s basename %s", self.lockdir, thisfile)
                 # traverse and evaluate conflicts
                 # if find nothing or resolve conflict, acquire target lock
                 # if find conflict, wait (and possibly acquire transitory lock) and traverse again
                 for thatpath in glob.iglob("%s/%s*" % (self.lockdir, thisfile)):
                     found_nothing = False
                     thatfile = os.path.basename(thatpath)
-                    logging.info("traversed to filename %s", thatfile)
+                    logging.debug("traversed to filename %s", thatfile)
                     if thatfile.startswith(thisfile) and thatfile != self.lockfilename:
                         # found different lock on same file, may have conflict
                         that_mode = thatfile.split("~")[2]
-                        logging.info(
+                        logging.debug(
                             "this mode %s start mode %s that mode %s",
                             self.mode,
                             self.start_mode,
@@ -164,7 +164,7 @@ class Locking(object):
                                             w.write("%d\n" % self.proc)
                                             w.write("%s\n" % self.hostname)
                                             w.write("%f\n" % self.start_time)
-                                    logging.info(
+                                    logging.debug(
                                         "created transitory lock file %s", lockfilepath
                                     )
                                     # wait
@@ -219,7 +219,7 @@ class Locking(object):
                                             w.write("%d\n" % self.proc)
                                             w.write("%s\n" % self.hostname)
                                             w.write("%f\n" % self.start_time)
-                                    logging.info(
+                                    logging.debug(
                                         "created transitory lock file %s", lockfilepath
                                     )
                                     # wait
@@ -238,7 +238,7 @@ class Locking(object):
                 if no_conflicts_found:
                     # if have transitory lock and won tiebreaker or other lock went away
                     if self.mode == self.transitory_lock_mode:
-                        logging.info("converting transitory lock to target lock")
+                        logging.debug("converting transitory lock to target lock")
                         # delete transitory file, replace with target lock file (by renaming)
                         transitory_lock_file_path = os.path.join(
                             self.lockdir,
@@ -263,7 +263,7 @@ class Locking(object):
                             os.replace(transitory_lock_file_path, lockfilepath)
                         else:
                             raise OSError("error - transitory lock file does not exist")
-                        logging.info("completed conversion")
+                        logging.debug("completed conversion")
                     # create file if not exists
                     elif not self.lockfilename or not os.path.exists(
                         os.path.join(self.lockdir, self.lockfilename)
@@ -310,11 +310,11 @@ class Locking(object):
         # a non-transitory lock, having just acquired lock, waits a few seconds and then traverses directory again to ensure no new conflicting locks are present
         thislockfilepath = os.path.join(self.lockdir, self.lockfilename)
         pattern = "%s~%s" % (self.repositoryType, self.filename)
-        logging.info("second traversal on %s %s", self.lockdir, pattern)
+        logging.debug("second traversal on %s %s", self.lockdir, pattern)
         # traverse to detect new locks
         for thatlockfilepath in glob.iglob("%s/%s*" % (self.lockdir, pattern)):
             thatlockfilename = os.path.basename(thatlockfilepath)
-            logging.info("filename %s", thatlockfilename)
+            logging.debug("filename %s", thatlockfilename)
             if (
                 thatlockfilename.startswith(pattern)
                 and thatlockfilename != self.lockfilename
@@ -346,7 +346,7 @@ class Locking(object):
         return True
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if not self.uselock:
+        if bool(self.uselock) is False:
             return
         if self.mode is not None:
             if self.lockfilename is not None and os.path.exists(
@@ -354,7 +354,7 @@ class Locking(object):
             ):
                 try:
                     # comment out to test locking
-                    pass # os.unlink(os.path.join(self.lockdir, self.lockfilename))
+                    os.unlink(os.path.join(self.lockdir, self.lockfilename))
                 except Exception:
                     logging.warning(
                         "error - could not remove lock file %s", self.lockfilename
