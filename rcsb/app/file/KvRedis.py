@@ -15,6 +15,7 @@ class KvRedis(object):
         self.duration = self.__cP.get("KV_MAX_SECONDS")
         self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
         self.mapTable = self.__cP.get("KV_MAP_TABLE_NAME")
+        self.lockTable = self.__cP.get("KV_LOCK_TABLE_NAME")
         self.redis_host = self.__cP.get("REDIS_HOST")  # localhost, redis, or url
         # create database if not exists
         # create table if not exists
@@ -140,11 +141,9 @@ class KvRedis(object):
         self.kV.hdel(hashvar, key)
         return True
 
-    # mathematical functions
-
     # increment session val
     # presumes key has a numeric value
-    def inc(self, hashvar, key):
+    def inc_session_val(self, hashvar, key):
         # validate args
         if not hashvar or not key:
             return False
@@ -154,3 +153,62 @@ class KvRedis(object):
             self.kV.expire(hashvar, self.duration)
         self.kV.hincrby(hashvar, key, 1)
         return True
+
+    # locking functions
+
+    def getLockAll(self):
+        if not self.kV.exists(self.lockTable):
+            return None
+        return self.kV.hgetall(self.lockTable)
+
+    def getLock(self, key, index=0):
+        if not key:
+            return None
+        if not self.kV.hexists(self.lockTable, key):
+            return None
+        lst = self.kV.hget(self.lockTable, key)
+        if lst is not None:
+            lst = eval(lst)
+            return lst[index]
+        return None
+
+    def setLock(self, key, val, index=0, start_val=""):
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        lst = eval(self.kV.hget(self.lockTable, key))
+        lst[index] = val
+        self.kV.hset(self.lockTable, key, str(lst))
+        return True
+
+    # increment val
+    def incLock(self, key, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        lst = eval(self.kV.hget(self.lockTable, key))
+        lst[0] += 1
+        self.kV.hset(self.lockTable, key, str(lst))
+        return True
+
+    # decrement val
+    def decLock(self, key, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        lst = eval(self.kV.hget(self.lockTable, key))
+        lst[0] -= 1
+        self.kV.hset(self.lockTable, key, str(lst))
+        return True
+
+    # remove lock variable
+    def remLock(self, key):
+        if not key:
+            return False
+        if self.kV.hexists(self.lockTable, key):
+            self.kV.hdel(self.lockTable, key)

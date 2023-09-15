@@ -11,11 +11,12 @@ from rcsb.app.file.KvSqlite import KvSqlite
 
 
 class KvBase:
-    def __init__(self, cP: typing.Type[ConfigProvider]):
+    def __init__(self, cP: typing.Type[ConfigProvider] = None):
         self.kV = None
         self.__cP = cP if cP else ConfigProvider()
         self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
         self.mapTable = self.__cP.get("KV_MAP_TABLE_NAME")
+        self.lockTable = self.__cP.get("KV_LOCK_TABLE_NAME")
         KV_MODE = self.__cP.get("KV_MODE")
         if KV_MODE == "sqlite":
             self.kV = KvSqlite(self.__cP)
@@ -63,3 +64,23 @@ class KvBase:
 
     def clearSessionVal(self, key1, key2):
         return self.kV.clearSessionVal(key1, key2)
+
+    # locking functions (redis lock only, though works with sqlite for testing purposes)
+
+    def getLockAll(self):
+        return self.kV.getLockAll()
+
+    def getLock(self, key, index=0):
+        return self.kV.getLock(key, index)
+
+    def setLock(self, key, val, index=0, start_val=""):
+        return self.kV.setLock(key, val, index, start_val)
+
+    def incLock(self, key, start_val):
+        return self.kV.incLock(key, start_val)
+
+    def decLock(self, key, start_val):
+        return self.kV.decLock(key, start_val)
+
+    def remLock(self, key):
+        return self.kV.remLock(key)

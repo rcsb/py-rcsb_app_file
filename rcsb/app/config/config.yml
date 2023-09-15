@@ -14,11 +14,13 @@ configuration:
   SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks
   SESSION_DIR_PATH: rcsb/app/tests-file/data/sessions
   LOCK_TRANSACTIONS: True
+  LOCK_TYPE: redis  # default, ternary, or redis (even if kv mode is sqlite)
   # database parameters
-  KV_MODE: sqlite # redis (for multiple machines or containers) or sqlite (for one machine or container)
+  KV_MODE: sqlite # redis or sqlite, redis for multiple machines or containers, sqlite possible for one machine or container only
   REDIS_HOST: localhost # localhost, redis, or url
   KV_SESSION_TABLE_NAME: sessions
   KV_MAP_TABLE_NAME: map
+  KV_LOCK_TABLE_NAME: lock
   KV_MAX_SECONDS: 14400 # session duration
   KV_FILE_PATH: ./kv.sqlite # sqlite only
   # file parameters

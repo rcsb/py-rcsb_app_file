@@ -83,6 +83,8 @@ class Locking(object):
         logging.debug("initialized")
 
     async def __aenter__(self):
+        if bool(self.uselock) is False:
+            return
         logging.debug("attempting to get lock path for %s", self.filepath)
         if self.uselock is not None and self.mode is not None:
             # busy wait to acquire lock
@@ -138,7 +140,7 @@ class Locking(object):
                     raise FileExistsError("lock timed out on %s" % self.filepath)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if not self.uselock:
+        if bool(self.uselock) is False:
             return
         if self.mode is not None:
             if self.lockfilepath is not None and os.path.exists(self.lockfilepath):

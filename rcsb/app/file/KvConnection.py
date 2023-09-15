@@ -9,10 +9,11 @@ from fastapi.exceptions import HTTPException
 
 
 class KvConnection(object):
-    def __init__(self, filepath, sessionTable, logTable):
+    def __init__(self, filepath, sessionTable, logTable, lockTable):
         self.filePath = filepath
         self.sessionTable = sessionTable
         self.logTable = logTable
+        self.lockTable = lockTable
         try:
             with self.getConnection() as connection:
                 connection.cursor().execute(
@@ -20,6 +21,9 @@ class KvConnection(object):
                 )
                 connection.cursor().execute(
                     f"CREATE TABLE IF NOT EXISTS {self.logTable} (key,val)"
+                )
+                connection.cursor().execute(
+                    f"CREATE TABLE IF NOT EXISTS {self.lockTable} (key,val)"
                 )
         except Exception as exc:
             raise HTTPException(
@@ -39,6 +43,18 @@ class KvConnection(object):
                     .execute(f"SELECT val FROM {table} WHERE key = '{key}'")
                     .fetchone()[0]
                 )
+        except Exception:
+            pass
+        return res
+
+    def getAll(self, table):
+        res = None
+        try:
+            with self.getConnection() as connection:
+                res = (
+                    connection.cursor()
+                    .execute(f"SELECT * FROM {table}")
+                ).fetchall()
         except Exception:
             pass
         return res
