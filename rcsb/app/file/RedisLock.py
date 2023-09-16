@@ -56,9 +56,10 @@ class Locking(object):
         self.keyname = "%s~%s" % (self.repositoryType, self.filename)
         self.proc = os.getpid()
         self.hostname = str(socket.gethostname()).split(".")[0]
-        self.second_traversal = False
         # waitlist value - fair lock for one writer
         self.uid = uuid.uuid4().hex
+        # not used - provided for compatibility with other locks
+        self.second_traversal = second_traversal
 
     def lockHasWaitList(self):
         # find out from kv if lock is waitlisted
@@ -182,25 +183,25 @@ class Locking(object):
     @staticmethod
     async def cleanup(save_unexpired=False, timeout=60):
         kV = KvBase()
-        hash = kV.getLockAll()
-        if not hash:
+        hashvar = kV.getLockAll()
+        if not hashvar:
             logging.warning("error - could not find hash")
             return
-        if not isinstance(hash, dict):
-            if isinstance(hash, list):
+        if not isinstance(hashvar, dict):
+            if isinstance(hashvar, list):
                 temp = {}
-                for x in range(0, len(hash)):
-                    tpl = hash[x]
+                for x in range(0, len(hashvar)):
+                    tpl = hashvar[x]
                     key = tpl[0]
                     val = tpl[1]
                     temp[key] = val
-                hash = temp
-        keys = hash.keys()
+                hashvar = temp
+        keys = hashvar.keys()
         for key in keys:
-            lst = hash[key]
+            lst = hashvar[key]
             if lst is None:
                 continue
-            lst = eval(lst)
+            lst = eval(lst)  # pylint: disable=W0123
             that_host_name = lst[1]
             pid = int(lst[2])
             creation_time = float(lst[3])

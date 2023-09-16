@@ -172,7 +172,7 @@ class KvSqlite(object):
         table = self.lockTable
         lst = self.kV.get(key, table)
         if lst is not None:
-            lst = eval(lst)
+            lst = eval(lst)  # pylint: disable=W0123
             return lst[index]
         return None
 
@@ -183,7 +183,7 @@ class KvSqlite(object):
             self.kV.set(key, start_val, table)
             lst = self.kV.get(key, table)
         if lst is not None:
-            lst = eval(lst)
+            lst = eval(lst)  # pylint: disable=W0123
             lst[index] = val
             return self.kV.set(key, str(lst), table)
         return None
@@ -197,7 +197,7 @@ class KvSqlite(object):
         if lst is None:
             self.kV.set(key, start_val, table)
             lst = self.kV.get(key, table)
-        lst = eval(lst)
+        lst = eval(lst)  # pylint: disable=W0123
         lst[0] += 1
         self.kV.set(key, str(lst), table)
 
@@ -210,7 +210,7 @@ class KvSqlite(object):
         if lst is None:
             self.kV.set(key, start_val, table)
             lst = self.kV.get(key, table)
-        lst = eval(lst)
+        lst = eval(lst)  # pylint: disable=W0123
         lst[0] -= 1
         self.kV.set(key, str(lst), table)
 

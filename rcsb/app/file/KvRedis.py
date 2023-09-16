@@ -168,7 +168,7 @@ class KvRedis(object):
             return None
         lst = self.kV.hget(self.lockTable, key)
         if lst is not None:
-            lst = eval(lst)
+            lst = eval(lst)  # pylint: disable=W0123
             return lst[index]
         return None
 
@@ -177,7 +177,7 @@ class KvRedis(object):
             return False
         if not self.kV.hexists(self.lockTable, key):
             self.kV.hset(self.lockTable, key, start_val)
-        lst = eval(self.kV.hget(self.lockTable, key))
+        lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
         lst[index] = val
         self.kV.hset(self.lockTable, key, str(lst))
         return True
@@ -189,7 +189,7 @@ class KvRedis(object):
             return False
         if not self.kV.hexists(self.lockTable, key):
             self.kV.hset(self.lockTable, key, start_val)
-        lst = eval(self.kV.hget(self.lockTable, key))
+        lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
         lst[0] += 1
         self.kV.hset(self.lockTable, key, str(lst))
         return True
@@ -201,7 +201,7 @@ class KvRedis(object):
             return False
         if not self.kV.hexists(self.lockTable, key):
             self.kV.hset(self.lockTable, key, start_val)
-        lst = eval(self.kV.hget(self.lockTable, key))
+        lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
         lst[0] -= 1
         self.kV.hset(self.lockTable, key, str(lst))
         return True
