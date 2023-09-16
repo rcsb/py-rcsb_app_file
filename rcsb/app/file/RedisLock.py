@@ -60,7 +60,7 @@ class Locking(object):
         # waitlist value - fair lock for one writer
         self.uid = uuid.uuid4().hex
 
-    def isWaitListed(self):
+    def lockHasWaitList(self):
         # find out from kv if lock is waitlisted
         index = 4
         return str(self.kV.getLock(self.keyname, index)) != "-1"
@@ -72,7 +72,6 @@ class Locking(object):
 
     def reservedWaitList(self):
         # true if I reserved the lock, false otherwise
-        index = 4
         return self.getWaitList() == self.uid
 
     def setWaitList(self):
@@ -109,7 +108,7 @@ class Locking(object):
                         # writer has lock
                         await asyncio.sleep(self.wait_time)
                         continue
-                    elif self.isWaitListed():
+                    elif self.lockHasWaitList():
                         # lock is waitlisted
                         if count == 0:
                             self.resetWaitList()
@@ -137,11 +136,11 @@ class Locking(object):
                     if count != 0:
                         # reader or writer has lock
                         # try to claim next lock
-                        if not self.isWaitListed():
+                        if not self.lockHasWaitList():
                             self.setWaitList()
                         await asyncio.sleep(self.wait_time)
                         continue
-                    elif not self.isWaitListed() or self.reservedWaitList():
+                    elif not self.lockHasWaitList() or self.reservedWaitList():
                         # no one has lock
                         # lock is not waitlisted or I waitlisted it
                         # acquire exclusive lock
@@ -205,7 +204,6 @@ class Locking(object):
             that_host_name = lst[1]
             pid = int(lst[2])
             creation_time = float(lst[3])
-            waitlist = lst[4]
             # optionally skip over unexpired locks
             if save_unexpired and time.time() - creation_time <= timeout:
                 continue
