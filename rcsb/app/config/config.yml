@@ -11,10 +11,10 @@ configuration:
   # paths to mounted or local folders
   # relative paths within the repository will work when running the app from within the repository
   REPOSITORY_DIR_PATH: rcsb/app/tests-file/data/repository
-  SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks
   SESSION_DIR_PATH: rcsb/app/tests-file/data/sessions
+  SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks  # default or ternary lock only
   LOCK_TRANSACTIONS: True
-  LOCK_TYPE: redis  # default, ternary, or redis (even if kv mode is sqlite)
+  LOCK_TYPE: redis  # default, ternary, or redis (need not agree with kv mode)
   # database parameters
   KV_MODE: sqlite # redis or sqlite, redis for multiple machines or containers, sqlite possible for one machine or container only
   REDIS_HOST: localhost # localhost, redis, or url

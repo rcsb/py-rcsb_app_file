@@ -57,32 +57,33 @@ class Locking(object):
         self.proc = os.getpid()
         self.hostname = str(socket.gethostname()).split(".")[0]
         self.second_traversal = False
-        # fair lock for one writer
-        self.waitlist = (
-            -1
-        )  # though uuid is a hexadecimal, set -1 when no one is wait listed, otherwise set to uid of next user
+        # waitlist value - fair lock for one writer
+        self.uid = uuid.uuid4().hex
 
     def isWaitListed(self):
-        # find out from kv if lock is waitlisted by someone else
+        # find out from kv if lock is waitlisted
         index = 4
         return str(self.kV.getLock(self.keyname, index)) != "-1"
 
     def getWaitList(self):
         # return kv lock waitlist value
-        # does not return self.waitlist value
         index = 4
         return self.kV.getLock(self.keyname, index)
 
-    def setWaitList(self):
-        # set both self.waitlist value and kv lock waitlist value
+    def reservedWaitList(self):
+        # true if I reserved the lock, false otherwise
         index = 4
-        self.waitlist = uuid.uuid4().hex
-        return self.kV.setLock(self.keyname, self.waitlist, index, self.start_val)
+        return self.getWaitList() == self.uid
+
+    def setWaitList(self):
+        # set kv lock waitlist value
+        index = 4
+        return self.kV.setLock(self.keyname, self.uid, index, self.start_val)
 
     def resetWaitList(self):
+        # reset kv waitlist value
         index = 4
-        self.waitlist = -1
-        return self.kV.setLock(self.keyname, self.waitlist, index, self.start_val)
+        return self.kV.setLock(self.keyname, -1, index, self.start_val)
 
     async def __aenter__(self):
         if bool(self.uselock) is False:
@@ -93,7 +94,7 @@ class Locking(object):
                 self.kV.setLock(self.keyname, self.hostname, 1, self.start_val)
                 self.kV.setLock(self.keyname, self.proc, 2, self.start_val)
                 self.kV.setLock(self.keyname, self.start_time, 3, self.start_val)
-                self.kV.setLock(self.keyname, self.waitlist, 4, self.start_val)
+                self.kV.setLock(self.keyname, self.uid, 4, self.start_val)
             # blocking wait to acquire lock
             while True:
                 if time.time() - self.start_time > self.timeout:
@@ -103,17 +104,24 @@ class Locking(object):
                 # requesting shared lock
                 if self.mode == self.shared_lock_mode:
                     # readers ok, writers will block
-                    if self.kV.getLock(self.keyname) < 0:
+                    count = self.kV.getLock(self.keyname)
+                    if count < 0:
                         # writer has lock
+                        await asyncio.sleep(self.wait_time)
+                        continue
+                    elif self.isWaitListed():
+                        # lock is waitlisted
+                        if count == 0:
+                            self.resetWaitList()
+                            logging.warning(
+                                "error - lock is waitlisted but no one has the lock for %s",
+                                self.keyname,
+                            )
                         await asyncio.sleep(self.wait_time)
                         continue
                     else:
                         # reader or no one has lock
-                        # first test for waitlist
-                        if self.isWaitListed():
-                            # lock is waitlisted
-                            await asyncio.sleep(self.wait_time)
-                            continue
+                        # lock is not waitlisted by a writer
                         # acquire shared lock
                         # increment value to alert others
                         self.kV.incLock(self.keyname, self.start_val)
@@ -133,18 +141,24 @@ class Locking(object):
                             self.setWaitList()
                         await asyncio.sleep(self.wait_time)
                         continue
-                    else:
+                    elif not self.isWaitListed() or self.reservedWaitList():
                         # no one has lock
+                        # lock is not waitlisted or I waitlisted it
                         # acquire exclusive lock
                         # set negative value to alert others
                         self.kV.decLock(self.keyname, self.start_val)
                         break
+                    else:
+                        # lock is waitlisted by someone else
+                        await asyncio.sleep(self.wait_time)
+                        continue
         except FileExistsError as err:
             raise FileExistsError("lock error %r" % err)
         except OSError as err:
             raise OSError("lock error %r" % err)
         finally:
-            if self.waitlist != -1:
+            # if I waitlisted lock, reset waitlist value
+            if self.reservedWaitList():
                 self.resetWaitList()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -158,7 +172,7 @@ class Locking(object):
             if self.kV.getLock(self.keyname) is not None:
                 self.kV.incLock(self.keyname, self.start_val)
         # test if I had waitlist
-        if self.waitlist != -1:
+        if self.reservedWaitList():
             self.resetWaitList()
         # remove lock if unused
         val = self.kV.getLock(self.keyname)
@@ -188,10 +202,10 @@ class Locking(object):
             if lst is None:
                 continue
             lst = eval(lst)
-            lock_count = int(lst[0])
             that_host_name = lst[1]
             pid = int(lst[2])
             creation_time = float(lst[3])
+            waitlist = lst[4]
             # optionally skip over unexpired locks
             if save_unexpired and time.time() - creation_time <= timeout:
                 continue
