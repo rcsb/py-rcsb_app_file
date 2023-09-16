@@ -6,6 +6,7 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.KvConnection import KvConnection
 from fastapi.exceptions import HTTPException
 
+
 # map redis-style hash vars to sql queries
 # not valid across multiple machines or containers
 
@@ -17,10 +18,13 @@ class KvSqlite(object):
         self.filePath = self.__cP.get("KV_FILE_PATH")
         self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
         self.mapTable = self.__cP.get("KV_MAP_TABLE_NAME")
+        self.lockTable = self.__cP.get("KV_LOCK_TABLE_NAME")
         # create database if not exists
         # create table if not exists
         try:
-            self.kV = KvConnection(self.filePath, self.sessionTable, self.mapTable)
+            self.kV = KvConnection(
+                self.filePath, self.sessionTable, self.mapTable, self.lockTable
+            )
         except Exception:
             # table already exists
             pass
@@ -137,13 +141,11 @@ class KvSqlite(object):
         table = self.sessionTable
         return self.__clearDictionaryVal(key1, key2, table)
 
-    # functions for integers
-
-    def inc(self, key, val):
+    def inc_session_val(self, key, val):
         table = self.sessionTable
-        return self.__incrementDictionaryValue(key, val, table)
+        return self.__incrementSessionValue(key, val, table)
 
-    def __incrementDictionaryValue(self, key, val, table):
+    def __incrementSessionValue(self, key, val, table):
         _s = self.kV.get(key, table)
         if _s is None:
             self.kV.set(key, self.convert({}), table)
@@ -156,3 +158,62 @@ class KvSqlite(object):
             _d = self.deconvert(_s)
         _d[val] += 1
         self.kV.set(key, self.convert(_d), table)
+
+    # locking functions
+
+    def getLockAll(self):
+        table = self.lockTable
+        result = self.kV.getAll(table)
+        if result is not None:
+            return result
+        return None
+
+    def getLock(self, key, index=0):
+        table = self.lockTable
+        lst = self.kV.get(key, table)
+        if lst is not None:
+            lst = eval(lst)  # pylint: disable=W0123
+            return lst[index]
+        return None
+
+    def setLock(self, key, val, index=0, start_val=""):
+        table = self.lockTable
+        lst = self.kV.get(key, table)
+        if lst is None:
+            self.kV.set(key, start_val, table)
+            lst = self.kV.get(key, table)
+        if lst is not None:
+            lst = eval(lst)  # pylint: disable=W0123
+            lst[index] = val
+            return self.kV.set(key, str(lst), table)
+        return None
+
+    def incLock(self, key, start_val=""):
+        table = self.lockTable
+        return self.__incrementLockValue(key, table, start_val)
+
+    def __incrementLockValue(self, key, table, start_val=""):
+        lst = self.kV.get(key, table)
+        if lst is None:
+            self.kV.set(key, start_val, table)
+            lst = self.kV.get(key, table)
+        lst = eval(lst)  # pylint: disable=W0123
+        lst[0] += 1
+        self.kV.set(key, str(lst), table)
+
+    def decLock(self, key, start_val=""):
+        table = self.lockTable
+        return self.__decrementLockValue(key, table, start_val)
+
+    def __decrementLockValue(self, key, table, start_val=""):
+        lst = self.kV.get(key, table)
+        if lst is None:
+            self.kV.set(key, start_val, table)
+            lst = self.kV.get(key, table)
+        lst = eval(lst)  # pylint: disable=W0123
+        lst[0] -= 1
+        self.kV.set(key, str(lst), table)
+
+    def remLock(self, key):
+        table = self.lockTable
+        return self.kV.clear(key, table)

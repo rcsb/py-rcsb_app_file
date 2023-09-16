@@ -24,7 +24,16 @@ from fastapi.responses import FileResponse, Response
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.Definitions import Definitions
 from rcsb.app.file.IoUtility import IoUtility
-from rcsb.app.file.TernaryLock import Locking
+from rcsb.app.file.ConfigProvider import ConfigProvider
+
+provider = ConfigProvider()
+locktype = provider.get("LOCK_TYPE")
+if locktype == "redis":
+    from rcsb.app.file.RedisLock import Locking
+elif locktype == "ternary":
+    from rcsb.app.file.TernaryLock import Locking
+else:
+    from rcsb.app.file.DefaultLock import Locking
 
 
 logger = logging.getLogger(__name__)

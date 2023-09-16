@@ -143,9 +143,7 @@ tox
 
 # Deployment
 
-Sqlite cannot be used on a distributed system, therefore it cannot be used in production unless there is only one server and the sqlite database is stored on that server.
-
-Otherwise, to synchronize transactions on multiple servers or containers requires a remote Redis server (do not connect to Redis with 'localhost').
+To synchronize transactions on multiple servers or containers requires a remote Redis server (do not connect to Redis with 'localhost').
 
 For production, we presume that the file system is a mounted file system.
 
@@ -188,9 +186,13 @@ nohup ./deploy/LAUNCH_GUNICORN.sh > /dev/null 2>&1 &
 
 # Database
 
+The database is used for resumable uploads (if resumable = true) and file locking (if lock type is set to redis).
+
 When uploading resumable chunks, server processes coordinate through a database named KV (key-value)
 
 The value of KV_MODE in config.yml determines whether the database is Redis or Sqlite3.
+
+A variety of lock modules have been provided, where RedisLock uses a database.
 
 # Sqlite3
 
