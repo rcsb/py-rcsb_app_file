@@ -1,3 +1,6 @@
+# file - SoftLock.py
+# author - James Smith 2023
+
 import asyncio
 import signal
 import sys
@@ -10,6 +13,8 @@ import logging
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
 logging.basicConfig(level=logging.DEBUG)
+
+# tasks - convert to random wait time to prevent simultaneously synchronized waiters
 
 
 class Locking(object):

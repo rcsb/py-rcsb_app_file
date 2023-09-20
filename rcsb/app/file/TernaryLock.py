@@ -1,3 +1,6 @@
+# file - TernaryLock.py
+# author - James Smith 2023
+
 import asyncio
 import signal
 import sys
@@ -11,12 +14,12 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 
 logging.basicConfig(level=logging.DEBUG)
 
-# tasks - convert to Redis lock with similar functionality
+# tasks - convert to random wait time to prevent simultaneously synchronized waiters
 
 
 class Locking(object):
     """
-    similar to default lock with added ability for writer to access heavily read files
+    similar to soft lock with added ability for writer to access heavily read files
     ternary lock - has three modes - exclusive, shared, and transitory
     the transitory mode is only for internal use - prevents bug where endless readers block writer access
     instead, writer waiting on a lock gets a transitory lock that essentially queues them as next in line for the lock
