@@ -1,3 +1,6 @@
+# file - RedisLock.py
+# author - James Smith 2023
+
 import asyncio
 import os
 import socket
@@ -16,6 +19,7 @@ class Locking(object):
     secondary keys based on file name to be locked
     values are a list of [lock count, hostname, process number, start time, waitlist]
     lock count = -1 (writer), 0 (no one), > 0 (readers)
+    advantage - Redis single-threading should prevent simultaneity
     """
 
     def __init__(
@@ -40,7 +44,7 @@ class Locking(object):
             raise OSError("error - could not connect to database")
         # configuration
         self.start_time = time.time()
-        self.wait_time = 1
+        self.wait_time = 1 # should not need random wait time due to single-threading?
         self.timeout = timeout
         self.filename = None
         if not is_dir:

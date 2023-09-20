@@ -15,6 +15,15 @@ from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.KvRedis import KvRedis
 from rcsb.app.file.KvSqlite import KvSqlite
 
+provider = ConfigProvider()
+locktype = provider.get("LOCK_TYPE")
+if locktype == "redis":
+    from rcsb.app.file.RedisLock import Locking
+elif locktype == "ternary":
+    from rcsb.app.file.TernaryLock import Locking
+else:
+    from rcsb.app.file.SoftLock import Locking
+
 logging.basicConfig(level=logging.INFO)
 
 # session maintenance for one upload
@@ -337,6 +346,11 @@ class Sessions(object):
                     # remove placeholder file
                     if os.path.exists(placeholder_path):
                         os.unlink(placeholder_path)
+        # remove locks over 1 hour old by default
+        timeout = cP.get("REMOVE_LOCKS_AFTER")
+        if not isinstance(timeout, int):
+            timeout = 3600
+        await Locking.cleanup(True, timeout)
 
 
 # invoke with arg 0 to remove all sessions

@@ -163,11 +163,7 @@ As with containers, multiple servers will require all servers to coordinate thro
 
 A proxy server such as nginx may not be compatible with HTML uploads due to CORS policy, though Python should work.
 
-Adding CORS headers to the nginx config file creates conflicts with the CORS middleware in main.py.
-
-Removing the CORS middleware does not seem to be an option either.
-
-As stated previously, please find an appropriate gunicorn server configuration rather than using a proxy server.
+Please find an appropriate gunicorn server configuration rather than using a proxy server.
 
 # Deployment on local server without docker
 

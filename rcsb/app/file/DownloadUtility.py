@@ -33,7 +33,7 @@ if locktype == "redis":
 elif locktype == "ternary":
     from rcsb.app.file.TernaryLock import Locking
 else:
-    from rcsb.app.file.DefaultLock import Locking
+    from rcsb.app.file.SoftLock import Locking
 
 
 logger = logging.getLogger(__name__)
