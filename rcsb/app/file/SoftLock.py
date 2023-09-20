@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 # tasks - convert to random wait time to prevent simultaneously synchronized waiters
 
+
 class Locking(object):
     """
     cooperative file lock that synchronizes transactions across multiple processes, machines, and containers

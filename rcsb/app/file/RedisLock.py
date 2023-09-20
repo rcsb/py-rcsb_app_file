@@ -44,7 +44,7 @@ class Locking(object):
             raise OSError("error - could not connect to database")
         # configuration
         self.start_time = time.time()
-        self.wait_time = 1 # should not need random wait time due to single-threading?
+        self.wait_time = 1  # should not need random wait time due to single-threading?
         self.timeout = timeout
         self.filename = None
         if not is_dir:
