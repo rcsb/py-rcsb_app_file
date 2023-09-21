@@ -15,7 +15,7 @@ configuration:
   SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks  # default or ternary lock only
   LOCK_TRANSACTIONS: True
   LOCK_TYPE: redis # soft, ternary, or redis (need not agree with kv mode)
-  REMOVE_LOCKS_AFTER: 3600 # seconds ... remove after 1 hour of inactivity
+  LOCK_TIMEOUT: 60
   # database parameters
   KV_MODE: sqlite # redis or sqlite, redis for multiple machines or containers, sqlite possible for one machine or container only
   REDIS_HOST: localhost # localhost, redis, or url

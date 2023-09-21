@@ -13,17 +13,25 @@ from rcsb.app.file.KvBase import KvBase
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
 
+# tasks - second traversal, unit tests
+# second traversal - thinks no one has lock so acquires (r or w), hasn't waited, wait to verify
+# Redis is single threaded but still have pseudo-simultaneity (from queued server requests from different machines) so need second traversal
+# (multiple writers simultaneously) if decLock happens multiple times, wait will detect invalid value (not -1)
+# (reader and writer simultaneously) decLock and incLock cancel out to zero
+# problem - could end up with unpredictable value
+# strategy - set expected value, then wait and verify still has expected value
+# if second wait detects problem, keep lock and try to correct, or delete?
+
 class Locking(object):
     """
     root key = lock table name
     secondary keys based on file name to be locked
     values are a list of [lock count, hostname, process number, start time, waitlist]
     lock count = -1 (writer), 0 (no one), > 0 (readers)
-    advantage - Redis single-threading should prevent simultaneity
     """
 
     def __init__(
-        self, filepath, mode, is_dir=False, timeout=60, second_traversal=False
+        self, filepath, mode, is_dir=False, timeout=60, second_traversal=True
     ):
         provider = ConfigProvider()
         self.uselock = provider.get("LOCK_TRANSACTIONS")
@@ -62,13 +70,14 @@ class Locking(object):
         self.hostname = str(socket.gethostname()).split(".")[0]
         # waitlist value - fair lock for one writer
         self.uid = uuid.uuid4().hex
-        # not used - provided for compatibility with other locks
         self.second_traversal = second_traversal
+        self.second_wait_time = 3
 
-    def lockHasWaitList(self):
+    def lockHasWaitList(self) -> bool:
         # find out from kv if lock is waitlisted
         index = 4
-        return str(self.kV.getLock(self.keyname, index)) != "-1"
+        s = str(self.kV.getLock(self.keyname, index))
+        return bool(s != "-1")
 
     def getWaitList(self):
         # return kv lock waitlist value
@@ -87,6 +96,8 @@ class Locking(object):
     def resetWaitList(self):
         # reset kv waitlist value
         index = 4
+        if not self.kV.getLock(self.keyname):
+            return False
         return self.kV.setLock(self.keyname, -1, index, self.start_val)
 
     async def __aenter__(self):
@@ -98,8 +109,9 @@ class Locking(object):
                 self.kV.setLock(self.keyname, self.hostname, 1, self.start_val)
                 self.kV.setLock(self.keyname, self.proc, 2, self.start_val)
                 self.kV.setLock(self.keyname, self.start_time, 3, self.start_val)
-                self.kV.setLock(self.keyname, self.uid, 4, self.start_val)
-            # blocking wait to acquire lock
+                self.kV.setLock(self.keyname, -1, 4, self.start_val)
+            # blocking wait to acquire lock (server may suspend, but code execution will wait for outcome of lock)
+            waited = False
             while True:
                 if time.time() - self.start_time > self.timeout:
                     raise FileExistsError(
@@ -116,11 +128,12 @@ class Locking(object):
                     elif self.lockHasWaitList():
                         # lock is waitlisted
                         if count == 0:
-                            self.resetWaitList()
                             logging.warning(
-                                "error - lock is waitlisted but no one has the lock for %s",
+                                "error - lock is waitlisted %s but no one has the lock for %s",
+                                self.getWaitList(),
                                 self.keyname,
                             )
+                            self.resetWaitList()
                         await asyncio.sleep(self.wait_time)
                         continue
                     else:
@@ -129,6 +142,15 @@ class Locking(object):
                         # acquire shared lock
                         # increment value to alert others
                         self.kV.incLock(self.keyname, self.start_val)
+                        # if haven't had to wait yet, wait briefly and verify expected value still remains
+                        if self.second_traversal and not waited:
+                            expected_value = count + 1
+                            await asyncio.sleep(self.second_wait_time)
+                            count = self.kV.getLock(self.keyname)
+                            if count != expected_value:
+                                # delete lock (for all clients)
+                                self.stopLock()
+                                raise FileExistsError("error - simultaneous read writes")
                         break
                 # requesting exclusive lock
                 elif self.mode == self.exclusive_lock_mode:
@@ -151,17 +173,27 @@ class Locking(object):
                         # acquire exclusive lock
                         # set negative value to alert others
                         self.kV.decLock(self.keyname, self.start_val)
+                        # if haven't had to wait yet, wait briefly and verify expected value still remains
+                        if self.second_traversal and not waited:
+                            expected_value = count - 1
+                            await asyncio.sleep(self.second_wait_time)
+                            count = self.kV.getLock(self.keyname)
+                            if count != expected_value:
+                                # delete lock (for all clients)
+                                self.stopLock()
+                                raise FileExistsError("error - simultaneous read writes")
                         break
                     else:
                         # lock is waitlisted by someone else
                         await asyncio.sleep(self.wait_time)
                         continue
+                waited = True
         except FileExistsError as err:
             raise FileExistsError("lock error %r" % err)
         except OSError as err:
             raise OSError("lock error %r" % err)
         finally:
-            # if I waitlisted lock, reset waitlist value
+            # if I waitlisted lock, reset waitlist value (unless second traversal deleted lock)
             if self.reservedWaitList():
                 self.resetWaitList()
 
@@ -183,15 +215,26 @@ class Locking(object):
         if val is not None and val == 0:
             self.kV.remLock(self.keyname)
 
+    async def stopLock(self):
+        """ stop process and release resources
+        """
+        self.kV.remLock(self.keyname)
+        try:
+            os.kill(self.proc, signal.SIGSTOP)
+        except ProcessLookupError:
+            pass
+
     # remove all lock files and processes
     @staticmethod
     async def cleanup(save_unexpired=False, timeout=60):
         kV = KvBase()
+        # retrieve lock 'table'
         hashvar = kV.getLockAll()
         if not hashvar:
             logging.warning("error - could not find hash")
             return
         if not isinstance(hashvar, dict):
+            # if not Redis then Sqlite
             if isinstance(hashvar, list):
                 temp = {}
                 for x in range(0, len(hashvar)):
@@ -200,7 +243,9 @@ class Locking(object):
                     val = tpl[1]
                     temp[key] = val
                 hashvar = temp
+        # retrieve all locks
         keys = hashvar.keys()
+        # remove locks
         for key in keys:
             lst = hashvar[key]
             if lst is None:

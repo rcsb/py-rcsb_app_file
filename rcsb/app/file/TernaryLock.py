@@ -12,7 +12,7 @@ import uuid
 import logging
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # tasks - convert to random wait time to prevent simultaneously synchronized waiters
 
@@ -43,7 +43,7 @@ class Locking(object):
     """
 
     def __init__(
-        self, filepath, mode, is_dir=False, timeout=60, second_traversal=False
+        self, filepath, mode, is_dir=False, timeout=60, second_traversal=True
     ):
         logging.debug("initializing")
         provider = ConfigProvider()
@@ -306,8 +306,26 @@ class Locking(object):
                 # otherwise, wait and traverse again
                 await asyncio.sleep(self.wait_time)
         except FileExistsError as exc:
+            if self.lockfilename is not None and os.path.exists(
+                os.path.join(self.lockdir, self.lockfilename)
+            ):
+                try:
+                    os.unlink(os.path.join(self.lockdir, self.lockfilename))
+                except Exception:
+                    logging.warning(
+                        "error - could not remove lock file %s", self.lockfilename
+                    )
             raise FileExistsError("%r" % exc)
         except OSError as exc:
+            if self.lockfilename is not None and os.path.exists(
+                os.path.join(self.lockdir, self.lockfilename)
+            ):
+                try:
+                    os.unlink(os.path.join(self.lockdir, self.lockfilename))
+                except Exception:
+                    logging.warning(
+                        "error - could not remove lock file %s", self.lockfilename
+                    )
             raise OSError("%r" % exc)
 
     def secondTraversal(self):
@@ -352,17 +370,16 @@ class Locking(object):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if bool(self.uselock) is False:
             return
-        if self.mode is not None:
-            if self.lockfilename is not None and os.path.exists(
-                os.path.join(self.lockdir, self.lockfilename)
-            ):
-                try:
-                    # comment out to test locking
-                    os.unlink(os.path.join(self.lockdir, self.lockfilename))
-                except Exception:
-                    logging.warning(
-                        "error - could not remove lock file %s", self.lockfilename
-                    )
+        if self.lockfilename is not None and os.path.exists(
+            os.path.join(self.lockdir, self.lockfilename)
+        ):
+            try:
+                # comment out to test locking
+                os.unlink(os.path.join(self.lockdir, self.lockfilename))
+            except Exception:
+                logging.warning(
+                    "error - could not remove lock file %s", self.lockfilename
+                )
         if exc_type or exc_val or exc_tb:
             logging.warning("errors in exit lock for %s", self.lockfilename)
             raise OSError("errors in exit lock")

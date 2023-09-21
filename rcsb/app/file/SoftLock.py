@@ -12,7 +12,7 @@ import uuid
 import logging
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # tasks - convert to random wait time to prevent simultaneously synchronized waiters
 
@@ -136,9 +136,25 @@ class Locking(object):
                             break
                 except FileExistsError:
                     logging.warning("error - lock file already exists")
+                    if self.lockfilepath is not None and os.path.exists(self.lockfilepath):
+                        try:
+                            # comment out to test locking
+                            os.unlink(self.lockfilepath)
+                        except Exception:
+                            logging.warning(
+                                "error - could not remove lock file %s", self.lockfilepath
+                            )
                     break
                 except OSError:
                     logging.warning("unknown error in locking module")
+                    if self.lockfilepath is not None and os.path.exists(self.lockfilepath):
+                        try:
+                            # comment out to test locking
+                            os.unlink(self.lockfilepath)
+                        except Exception:
+                            logging.warning(
+                                "error - could not remove lock file %s", self.lockfilepath
+                            )
                     break
                 if self.timeout > 0 and time.time() - self.start > self.timeout:
                     logging.warning("lock timed out")
@@ -147,15 +163,14 @@ class Locking(object):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if bool(self.uselock) is False:
             return
-        if self.mode is not None:
-            if self.lockfilepath is not None and os.path.exists(self.lockfilepath):
-                try:
-                    # comment out to test locking
-                    os.unlink(self.lockfilepath)
-                except Exception:
-                    logging.warning(
-                        "error - could not remove lock file %s", self.lockfilepath
-                    )
+        if self.lockfilepath is not None and os.path.exists(self.lockfilepath):
+            try:
+                # comment out to test locking
+                os.unlink(self.lockfilepath)
+            except Exception:
+                logging.warning(
+                    "error - could not remove lock file %s", self.lockfilepath
+                )
         if exc_type or exc_val or exc_tb:
             logging.warning("errors in exit lock for %s", self.lockfilepath)
             raise OSError("errors in exit lock")
