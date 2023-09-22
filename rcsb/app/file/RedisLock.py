@@ -13,26 +13,31 @@ from rcsb.app.file.KvBase import KvBase
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
 
-# tasks - second traversal, unit tests
-# second traversal - thinks no one has lock so acquires (r or w), hasn't waited, wait to verify
-# Redis is single threaded but still have pseudo-simultaneity (from queued server requests from different machines) so need second traversal
-# (multiple writers simultaneously) if decLock happens multiple times, wait will detect invalid value (not -1)
-# (reader and writer simultaneously) decLock and incLock cancel out to zero
-# problem - could end up with unpredictable value
-# strategy - set expected value, then wait and verify still has expected value
-# if second wait detects problem, keep lock and try to correct, or delete?
-
 class Locking(object):
     """
     root key = lock table name
     secondary keys based on file name to be locked
-    values are a list of [lock count, hostname, process number, start time, waitlist]
-    lock count = -1 (writer), 0 (no one), > 0 (readers)
+    values are a list of [modality, count, hostname, process number, start time, waitlist] in a string
+    modality = -1 (writer), 0 (no one), > 0 (readers)
+    count = number of lock holders
+    throws FileExistsError or OSError (because most other lock packages use those error types)
+    example (exclusive)
+    try:
+        async with Locking(filepath, "w"):
+            async with aiofiles.open(filepath, "w") as w:
+                await w.write(text)
+    except (FileExistsError, OSError) as err:
+        logging.error("error %r", err)
+    example (shared)
+    try:
+        async with Locking(filepath, "r")
+            async with aiofiles.open(filepath, "r") as r:
+                text = await r.read()
+    except (FileExistsError, OSError) as err:
+        logging.error("error %r", err)
     """
 
-    def __init__(
-        self, filepath, mode, is_dir=False, timeout=60, second_traversal=True
-    ):
+    def __init__(self, filepath, mode, is_dir=False, timeout=60, second_traversal=True):
         provider = ConfigProvider()
         self.uselock = provider.get("LOCK_TRANSACTIONS")
         if bool(self.uselock) is False:
@@ -42,17 +47,19 @@ class Locking(object):
         self.shared_lock_mode = "r"
         if mode not in [self.exclusive_lock_mode, self.shared_lock_mode]:
             raise OSError("error - unrecognized locking mode %s" % mode)
-        # mode for internal use only - for public visibility, mode is implicit from the lock count
+        # mode for internal use only - for public visibility, mode is implicit from the modality
         self.mode = mode
-        # add zero for each property in the value
-        self.start_val = "[0,0,0,0,0]"
+        # add zero for each property in the value - modality, count, hostname, process number, start time, waitlist
+        self.start_val = "[0,0,0,0,0,0]"
         # redis preferred - sqlite only works on one machine
         self.kV = KvBase()
         if not self.kV:
             raise OSError("error - could not connect to database")
         # configuration
         self.start_time = time.time()
-        self.wait_time = 1  # should not need random wait time due to single-threading?
+        self.wait_time = (
+            1  # should not need random wait time due to Redis single threading?
+        )
         self.timeout = timeout
         self.filename = None
         if not is_dir:
@@ -70,18 +77,69 @@ class Locking(object):
         self.hostname = str(socket.gethostname()).split(".")[0]
         # waitlist value - fair lock for one writer
         self.uid = uuid.uuid4().hex
+        # second wait to prevent simultaneity
+        # because get + dec requests are not atomic, have chance of pseudo-simultaneity problem
+        # example race condition - machine1 get mod = 0, machine2 get mod = 0, machine1 dec mod = -1, machine2 dec mod = -2
+        # strategy - save count value, wait briefly after acquisition, test new count value, verify equals expected count value
         self.second_traversal = second_traversal
         self.second_wait_time = 3
 
+    def getToken(self, tokname):
+        indices = ["mod", "count", "host", "proc", "start", "waitlist"]
+        index = None
+        try:
+            index = indices.index(tokname)
+        except ValueError:
+            return -1
+        return self.kV.getLock(self.keyname, index)
+
+    def getMod(self):
+        return self.kV.getLock(self.keyname, 0)
+
+    def incMod(self):
+        self.kV.incLock(self.keyname, index=0, start_val=self.start_val)
+
+    def decMod(self):
+        self.kV.decLock(self.keyname, index=0, start_val=self.start_val)
+
+    def getCount(self):
+        return self.kV.getLock(self.keyname, 1)
+
+    def incCount(self):
+        self.kV.incLock(self.keyname, index=1, start_val=self.start_val)
+
+    def decCount(self):
+        self.kV.decLock(self.keyname, index=1, start_val=self.start_val)
+
+    # atomic operations (prevent intervening simultaneous request between the two functions)
+
+    def getModAndCount(self):
+        mod, count = self.kV.getLock(self.keyname, 0, 1)
+        return mod, count
+
+    def incModIncCount(self):
+        self.kV.incIncLock(self.keyname, 0, 1, self.start_val)
+
+    def incModDecCount(self):
+        self.kV.incDecLock(self.keyname, 0, 1, self.start_val)
+
+    def decModDecCount(self):
+        self.kV.decDecLock(self.keyname, 0, 1, self.start_val)
+
+    def decModIncCount(self):
+        self.kV.decIncLock(self.keyname, 0, 1, self.start_val)
+
+    # waitlist functions
+
     def lockHasWaitList(self) -> bool:
         # find out from kv if lock is waitlisted
-        index = 4
+        index = 5
         s = str(self.kV.getLock(self.keyname, index))
         return bool(s != "-1")
 
     def getWaitList(self):
         # return kv lock waitlist value
-        index = 4
+        index = 5
         return self.kV.getLock(self.keyname, index)
 
     def reservedWaitList(self):
@@ -90,13 +148,13 @@ class Locking(object):
 
     def setWaitList(self):
         # set kv lock waitlist value
-        index = 4
+        index = 5
         return self.kV.setLock(self.keyname, self.uid, index, self.start_val)
 
     def resetWaitList(self):
         # reset kv waitlist value
-        index = 4
-        if not self.kV.getLock(self.keyname):
+        index = 5
+        if not self.kV.getLock(self.keyname, 0):
             return False
         return self.kV.setLock(self.keyname, -1, index, self.start_val)
 
@@ -104,14 +162,38 @@ class Locking(object):
         if bool(self.uselock) is False:
             return
         try:
-            if self.kV.getLock(self.keyname) is None:
-                self.kV.setLock(self.keyname, 0, 0, self.start_val)
-                self.kV.setLock(self.keyname, self.hostname, 1, self.start_val)
-                self.kV.setLock(self.keyname, self.proc, 2, self.start_val)
-                self.kV.setLock(self.keyname, self.start_time, 3, self.start_val)
-                self.kV.setLock(self.keyname, -1, 4, self.start_val)
-            # blocking wait to acquire lock (server may suspend, but code execution will wait for outcome of lock)
-            waited = False
+            if self.kV.getLock(self.keyname, 0) is None:
+                # set modality
+                self.kV.setLock(
+                    key=self.keyname, val=0, index=0, start_val=self.start_val
+                )
+                # set count
+                self.kV.setLock(
+                    key=self.keyname, val=0, index=1, start_val=self.start_val
+                )
+                # set hostname
+                self.kV.setLock(
+                    key=self.keyname,
+                    val=self.hostname,
+                    index=2,
+                    start_val=self.start_val,
+                )
+                # set process number
+                self.kV.setLock(
+                    key=self.keyname, val=self.proc, index=3, start_val=self.start_val
+                )
+                # set start time
+                self.kV.setLock(
+                    key=self.keyname,
+                    val=self.start_time,
+                    index=4,
+                    start_val=self.start_val,
+                )
+                # set waitlist
+                self.kV.setLock(
+                    key=self.keyname, val=-1, index=5, start_val=self.start_val
+                )
+            # busy wait to acquire lock
             while True:
                 if time.time() - self.start_time > self.timeout:
                     raise FileExistsError(
@@ -120,14 +202,14 @@ class Locking(object):
                 # requesting shared lock
                 if self.mode == self.shared_lock_mode:
                     # readers ok, writers will block
-                    count = self.kV.getLock(self.keyname)
-                    if count < 0:
+                    mod, count = self.getModAndCount()
+                    if mod < 0:
                         # writer has lock
                         await asyncio.sleep(self.wait_time)
                         continue
                     elif self.lockHasWaitList():
                         # lock is waitlisted
-                        if count == 0:
+                        if mod == 0:
                             logging.warning(
                                 "error - lock is waitlisted %s but no one has the lock for %s",
                                 self.getWaitList(),
@@ -137,57 +219,65 @@ class Locking(object):
                         await asyncio.sleep(self.wait_time)
                         continue
                     else:
-                        # reader or no one has lock
-                        # lock is not waitlisted by a writer
+                        # reader or no one has lock, lock is not waitlisted by a writer
                         # acquire shared lock
-                        # increment value to alert others
-                        self.kV.incLock(self.keyname, self.start_val)
-                        # if haven't had to wait yet, wait briefly and verify expected value still remains
-                        if self.second_traversal and not waited:
-                            expected_value = count + 1
+                        # increment value to alert others, add reader to count
+                        self.incModIncCount()
+                        # wait briefly and verify expected value still remains
+                        if self.second_traversal:
+                            expected_count = count + 1
                             await asyncio.sleep(self.second_wait_time)
-                            count = self.kV.getLock(self.keyname)
-                            if count != expected_value:
+                            observed_count = self.getCount()
+                            if observed_count < expected_count:
+                                # simultaneous writer has acquired lock
                                 # delete lock (for all clients)
                                 self.stopLock()
-                                raise FileExistsError("error - simultaneous read writes")
+                                raise FileExistsError(
+                                    "error - simultaneous read writes"
+                                )
                         break
                 # requesting exclusive lock
                 elif self.mode == self.exclusive_lock_mode:
                     # readers will block, writers will block
-                    count = self.kV.getLock(self.keyname)
-                    if count is None:
+                    mod, count = self.getModAndCount()
+                    if mod is None:
                         raise OSError(
                             "error - could not find keyname %s" % self.keyname
                         )
-                    if count != 0:
+                    if mod != 0:
                         # reader or writer has lock
                         # try to claim next lock
                         if not self.lockHasWaitList():
                             self.setWaitList()
                         await asyncio.sleep(self.wait_time)
                         continue
-                    elif not self.lockHasWaitList() or self.reservedWaitList():
-                        # no one has lock
-                        # lock is not waitlisted or I waitlisted it
+                    elif (
+                        count == 0
+                        and not self.lockHasWaitList()
+                        or self.reservedWaitList()
+                    ):
+                        # no one has lock, lock is not waitlisted or I waitlisted it
                         # acquire exclusive lock
-                        # set negative value to alert others
-                        self.kV.decLock(self.keyname, self.start_val)
-                        # if haven't had to wait yet, wait briefly and verify expected value still remains
-                        if self.second_traversal and not waited:
-                            expected_value = count - 1
+                        # set negative mod value to alert others, add writer to count
+                        self.decModIncCount()
+                        # wait briefly and verify expected value still remains
+                        if self.second_traversal:
+                            expected_count = count + 1
                             await asyncio.sleep(self.second_wait_time)
-                            count = self.kV.getLock(self.keyname)
-                            if count != expected_value:
+                            observed_count = self.getCount()
+                            if observed_count != expected_count:
                                 # delete lock (for all clients)
                                 self.stopLock()
-                                raise FileExistsError("error - simultaneous read writes")
+                                raise FileExistsError(
+                                    "error - simultaneous read writes"
+                                )
                         break
                     else:
-                        # lock is waitlisted by someone else
+                        # lock is probably waitlisted by someone else
+                        if count == 0:
+                            logging.warning("count = 0 but modality = %d", mod)
                         await asyncio.sleep(self.wait_time)
                         continue
-                waited = True
         except FileExistsError as err:
             raise FileExistsError("lock error %r" % err)
         except OSError as err:
@@ -202,22 +292,27 @@ class Locking(object):
             return
         # comment out to test lock
         if self.mode == self.shared_lock_mode:
-            if self.kV.getLock(self.keyname) is not None:
-                self.kV.decLock(self.keyname, self.start_val)
+            if self.kV.getLock(self.keyname, 0) is not None:
+                # reduce mod value
+                self.decMod()
+                # subtract reader from count
+                self.decCount()
         elif self.mode == self.exclusive_lock_mode:
-            if self.kV.getLock(self.keyname) is not None:
-                self.kV.incLock(self.keyname, self.start_val)
+            if self.kV.getLock(self.keyname, 0) is not None:
+                # return mod to zero
+                self.incMod()
+                # subtract writer from count
+                self.decCount()
         # test if I had waitlist
         if self.reservedWaitList():
             self.resetWaitList()
         # remove lock if unused
-        val = self.kV.getLock(self.keyname)
+        val = self.kV.getLock(self.keyname, 0)
         if val is not None and val == 0:
             self.kV.remLock(self.keyname)
 
     async def stopLock(self):
-        """ stop process and release resources
-        """
+        """stop process and release resources"""
         self.kV.remLock(self.keyname)
         try:
             os.kill(self.proc, signal.SIGSTOP)
@@ -251,9 +346,9 @@ class Locking(object):
             if lst is None:
                 continue
             lst = eval(lst)  # pylint: disable=W0123
-            that_host_name = lst[1]
-            pid = int(lst[2])
-            creation_time = float(lst[3])
+            that_host_name = lst[2]
+            pid = int(lst[3])
+            creation_time = float(lst[4])
             # optionally skip over unexpired locks
             if save_unexpired and time.time() - creation_time <= timeout:
                 continue

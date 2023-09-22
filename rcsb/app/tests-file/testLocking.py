@@ -9,8 +9,6 @@ from rcsb.app.file.PathProvider import PathProvider
 
 logging.basicConfig(level=logging.INFO)
 
-# tasks - convert to Fastapi TestClient
-
 
 class LockTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -68,7 +66,7 @@ class LockTest(unittest.TestCase):
             logging.warning("writer error %r", err)
         # test two readers
         logging.info("TESTING TWO READERS")
-        version = 9
+        version = 2
         filename = PathProvider().getFileName(
             depId, contentType, milestone, partNumber, contentFormat, version
         )

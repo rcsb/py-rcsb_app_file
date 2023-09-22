@@ -289,6 +289,7 @@ class Locking(object):
                             w.write("%f\n" % self.start_time)
                     if found_nothing and self.second_traversal:
                         # even if found nothing, still have risk of simultaneous request by another user
+                        # if didn't find nothing in directory, only way to acquire lock is with t lock that has priority, so second traversal not relevant
                         # after both create lock files, both wait briefly and traverse again
                         await asyncio.sleep(self.wait_before_second_traversal)
                         # on finding each other's lock files, a tiebreaker is performed and one of the lock files is rolled back

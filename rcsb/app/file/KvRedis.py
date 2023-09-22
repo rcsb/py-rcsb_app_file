@@ -2,6 +2,7 @@
 # author - James Smith 2023
 
 import redis
+import redis_lock
 import typing
 import logging
 from fastapi.exceptions import HTTPException
@@ -161,15 +162,34 @@ class KvRedis(object):
             return None
         return self.kV.hgetall(self.lockTable)
 
-    def getLock(self, key, index=0):
+    def getLock(self, key, *indices):
         if not key:
-            return None
+            if len(indices) == 1:
+                return None
+            elif len(indices) == 2:
+                return None, None
+            else:
+                return None
         if not self.kV.hexists(self.lockTable, key):
-            return None
+            if len(indices) == 1:
+                return None
+            elif len(indices) == 2:
+                return None, None
+            else:
+                return None
         lst = self.kV.hget(self.lockTable, key)
+        vals = []
         if lst is not None:
             lst = eval(lst)  # pylint: disable=W0123
-            return lst[index]
+            for i in indices:
+                vals.append(lst[i])
+            if len(vals) == 1:
+                return vals[0]
+            elif len(vals) == 2:
+                return vals[0], vals[1]
+            else:
+                return vals
+            # return lst[index]
         return None
 
     def setLock(self, key, val, index=0, start_val=""):
@@ -183,28 +203,108 @@ class KvRedis(object):
         return True
 
     # increment val
-    def incLock(self, key, start_val=""):
+    def incLock(self, key, index=0, start_val=""):
         # validate args
         if not key:
             return False
         if not self.kV.hexists(self.lockTable, key):
             self.kV.hset(self.lockTable, key, start_val)
         lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
-        lst[0] += 1
+        try:
+            lst[index] += 1
+        except:
+            return False
         self.kV.hset(self.lockTable, key, str(lst))
         return True
 
     # decrement val
-    def decLock(self, key, start_val=""):
+    def decLock(self, key, index=0, start_val=""):
         # validate args
         if not key:
             return False
         if not self.kV.hexists(self.lockTable, key):
             self.kV.hset(self.lockTable, key, start_val)
         lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
-        lst[0] -= 1
+        try:
+            lst[index] -= 1
+        except:
+            return False
         self.kV.hset(self.lockTable, key, str(lst))
         return True
+
+    # atomic operations
+
+    def incIncLock(self, key, index1=0, index2=1, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        result = True
+        with redis_lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            try:
+                lst[index1] += 1
+                lst[index2] += 1
+            except:
+                result = False
+            else:
+                self.kV.hset(self.lockTable, key, str(lst))
+        return result
+
+    def incDecLock(self, key, index1=0, index2=1, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        result = True
+        with redis_lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            try:
+                lst[index1] += 1
+                lst[index2] -= 1
+            except:
+                result = False
+            else:
+                self.kV.hset(self.lockTable, key, str(lst))
+        return result
+
+    def decDecLock(self, key, index1=0, index2=1, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        result = True
+        with redis_lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            try:
+                lst[index1] -= 1
+                lst[index2] -= 1
+            except:
+                result = False
+            else:
+                self.kV.hset(self.lockTable, key, str(lst))
+        return result
+
+    def decIncLock(self, key, index1=0, index2=1, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        result = True
+        with redis_lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            try:
+                lst[index1] -= 1
+                lst[index2] += 1
+            except:
+                result = False
+            else:
+                self.kV.hset(self.lockTable, key, str(lst))
+        return result
 
     # remove lock variable
     def remLock(self, key):
