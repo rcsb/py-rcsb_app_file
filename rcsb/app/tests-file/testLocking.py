@@ -10,7 +10,7 @@ from rcsb.app.file.PathProvider import PathProvider
 logging.basicConfig(level=logging.INFO)
 
 
-class LockTest(unittest.TestCase):
+class LockTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self) -> None:
         pass
 
@@ -129,7 +129,6 @@ class LockTest(unittest.TestCase):
                 )
         except (FileExistsError, OSError) as err:
             logging.warning("error %r", err)
-
 
 def tests():
     suite = unittest.TestSuite()
