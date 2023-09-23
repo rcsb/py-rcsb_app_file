@@ -18,15 +18,15 @@ class LockTest(unittest.TestCase):
         pass
 
     def testRedisLock(self):
-        logging.info("TESTING REDIS LOCK")
+        logging.info("----- TESTING REDIS LOCK -----")
         asyncio.run(self.testLock(redisLock))
 
     def testTernaryLock(self):
-        logging.info("TESTING TERNARY LOCK")
+        logging.info("---- TESTING TERNARY LOCK ----")
         asyncio.run(self.testLock(ternaryLock))
 
     def testSoftLock(self):
-        logging.info("TESTING SOFT LOCK")
+        logging.info("---- TESTING SOFT LOCK ----")
         asyncio.run(self.testLock(softLock))
 
     async def testLock(self, lock):
@@ -86,6 +86,49 @@ class LockTest(unittest.TestCase):
                 )
         except (FileExistsError, OSError) as err:
             logging.warning("reader error %r", err)
+        # test reader writer
+        logging.info("TESTING READER WRITER")
+        version = 3
+        filename = PathProvider().getFileName(
+            depId, contentType, milestone, partNumber, contentFormat, version
+        )
+        filepath = os.path.join(folder, filename)
+        try:
+            # second traversal required to detect simultaneity otherwise ternary lock has infinite loop
+            async with lock(filepath, "r", timeout=60, second_traversal=True):
+                testVal = 1
+                try:
+                    async with lock(filepath, "w", timeout=5, second_traversal=True):
+                        testVal = 0
+                except (FileExistsError, OSError) as err:
+                    logging.warning("reader error %r", err)
+                self.assertFalse(testVal == 0, "read lock error - test val = 0")
+                self.assertTrue(
+                    testVal == 1, "read lock error - test val %d" % testVal
+                )
+        except (FileExistsError, OSError) as err:
+            logging.warning("reader error %r", err)
+        # test writer reader
+        logging.info("TESTING WRITER READER")
+        version = 4
+        filename = PathProvider().getFileName(
+            depId, contentType, milestone, partNumber, contentFormat, version
+        )
+        filepath = os.path.join(folder, filename)
+        try:
+            async with lock(filepath, "w", timeout=60):
+                testVal = 1
+                try:
+                    async with lock(filepath, "r", timeout=5):
+                        testVal = 0
+                except (FileExistsError, OSError) as err:
+                    logging.warning("writer error %r", err)
+                self.assertFalse(testVal == 0, "lock error - test val = 0")
+                self.assertTrue(
+                    testVal == 1, "lock error - test val %d" % testVal
+                )
+        except (FileExistsError, OSError) as err:
+            logging.warning("error %r", err)
 
 
 def tests():

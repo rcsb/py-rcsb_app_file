@@ -2,7 +2,7 @@
 # author - James Smith 2023
 
 import redis
-import redis_lock
+# import redis_lock
 import typing
 import logging
 from fastapi.exceptions import HTTPException
@@ -241,7 +241,8 @@ class KvRedis(object):
         if not self.kV.hexists(self.lockTable, key):
             self.kV.hset(self.lockTable, key, start_val)
         result = True
-        with redis_lock.Lock(self.kV, key):
+        # with redis_lock.Lock(self.kV, key):
+        with redis.lock.Lock(self.kV, key):
             lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
             try:
                 lst[index1] += 1
@@ -259,7 +260,8 @@ class KvRedis(object):
         if not self.kV.hexists(self.lockTable, key):
             self.kV.hset(self.lockTable, key, start_val)
         result = True
-        with redis_lock.Lock(self.kV, key):
+        # with redis_lock.Lock(self.kV, key):
+        with redis.lock.Lock(self.kV, key):
             lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
             try:
                 lst[index1] += 1
@@ -277,7 +279,8 @@ class KvRedis(object):
         if not self.kV.hexists(self.lockTable, key):
             self.kV.hset(self.lockTable, key, start_val)
         result = True
-        with redis_lock.Lock(self.kV, key):
+        # with redis_lock.Lock(self.kV, key):
+        with redis.lock.Lock(self.kV, key):
             lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
             try:
                 lst[index1] -= 1
@@ -295,7 +298,8 @@ class KvRedis(object):
         if not self.kV.hexists(self.lockTable, key):
             self.kV.hset(self.lockTable, key, start_val)
         result = True
-        with redis_lock.Lock(self.kV, key):
+        # with redis_lock.Lock(self.kV, key):
+        with redis.lock.Lock(self.kV, key):
             lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
             try:
                 lst[index1] -= 1
