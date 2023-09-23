@@ -19,15 +19,15 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
 
     def testRedisLock(self):
         logging.info("----- TESTING REDIS LOCK -----")
-        asyncio.run(self.testLock(redisLock))
+        asyncio.run(self.testLock(lock=redisLock))
 
     def testTernaryLock(self):
         logging.info("---- TESTING TERNARY LOCK ----")
-        asyncio.run(self.testLock(ternaryLock))
+        asyncio.run(self.testLock(lock=ternaryLock))
 
     def testSoftLock(self):
         logging.info("---- TESTING SOFT LOCK ----")
-        asyncio.run(self.testLock(softLock))
+        asyncio.run(self.testLock(lock=softLock))
 
     async def testLock(self, lock):
         testVal = -1
