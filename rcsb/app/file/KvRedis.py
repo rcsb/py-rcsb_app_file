@@ -2,6 +2,7 @@
 # author - James Smith 2023
 
 import redis
+
 # import redis_lock
 import typing
 import logging
@@ -212,7 +213,7 @@ class KvRedis(object):
         lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
         try:
             lst[index] += 1
-        except:
+        except Exception:
             return False
         self.kV.hset(self.lockTable, key, str(lst))
         return True
@@ -227,7 +228,7 @@ class KvRedis(object):
         lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
         try:
             lst[index] -= 1
-        except:
+        except Exception:
             return False
         self.kV.hset(self.lockTable, key, str(lst))
         return True
@@ -247,7 +248,7 @@ class KvRedis(object):
             try:
                 lst[index1] += 1
                 lst[index2] += 1
-            except:
+            except Exception:
                 result = False
             else:
                 self.kV.hset(self.lockTable, key, str(lst))
@@ -266,7 +267,7 @@ class KvRedis(object):
             try:
                 lst[index1] += 1
                 lst[index2] -= 1
-            except:
+            except Exception:
                 result = False
             else:
                 self.kV.hset(self.lockTable, key, str(lst))
@@ -285,7 +286,7 @@ class KvRedis(object):
             try:
                 lst[index1] -= 1
                 lst[index2] -= 1
-            except:
+            except Exception:
                 result = False
             else:
                 self.kV.hset(self.lockTable, key, str(lst))
@@ -304,7 +305,7 @@ class KvRedis(object):
             try:
                 lst[index1] -= 1
                 lst[index2] += 1
-            except:
+            except Exception:
                 result = False
             else:
                 self.kV.hset(self.lockTable, key, str(lst))

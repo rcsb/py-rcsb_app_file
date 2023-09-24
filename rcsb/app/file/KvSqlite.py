@@ -209,7 +209,7 @@ class KvSqlite(object):
         lst = eval(lst)  # pylint: disable=W0123
         try:
             lst[index] += 1
-        except:
+        except Exception:
             return
         self.kV.set(key, str(lst), table)
 
@@ -225,7 +225,7 @@ class KvSqlite(object):
         lst = eval(lst)  # pylint: disable=W0123
         try:
             lst[index] -= 1
-        except:
+        except Exception:
             return
         self.kV.set(key, str(lst), table)
 
@@ -242,7 +242,7 @@ class KvSqlite(object):
         try:
             lst[index1] += 1
             lst[index2] += 1
-        except:
+        except Exception:
             return
         self.kV.set(key, str(lst), table)
 
@@ -259,7 +259,7 @@ class KvSqlite(object):
         try:
             lst[index1] += 1
             lst[index2] -= 1
-        except:
+        except Exception:
             return
         self.kV.set(key, str(lst), table)
 
@@ -276,7 +276,7 @@ class KvSqlite(object):
         try:
             lst[index1] -= 1
             lst[index2] -= 1
-        except:
+        except Exception:
             return
         self.kV.set(key, str(lst), table)
 
@@ -293,7 +293,7 @@ class KvSqlite(object):
         try:
             lst[index1] -= 1
             lst[index2] += 1
-        except:
+        except Exception:
             return
         self.kV.set(key, str(lst), table)
 
