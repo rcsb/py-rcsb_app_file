@@ -52,6 +52,7 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         return filepath
 
 
+# moved outside of class to pass azure testing (otherwise self variable was disappearing on awaiting coroutine)
 async def testLock(self, lock):
     testVal = -1
     r = lock.shared_lock_mode
