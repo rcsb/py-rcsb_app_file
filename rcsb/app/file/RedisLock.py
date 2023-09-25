@@ -12,6 +12,8 @@ import logging
 from rcsb.app.file.KvBase import KvBase
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
+logging.basicConfig(level=logging.INFO)
+
 
 class Locking(object):
     """
@@ -56,7 +58,8 @@ class Locking(object):
         if not self.kV:
             raise OSError("error - could not connect to database")
         # configuration
-        self.start_time = time.time()
+        self.precision = 4
+        self.start_time = round(time.time(), self.precision)
         self.wait_time = (
             1  # should not need random wait time due to Redis single threading?
         )
@@ -83,80 +86,6 @@ class Locking(object):
         # strategy - save count value, wait briefly after acquisition, test new count value, verify equals expected count value
         self.second_traversal = second_traversal
         self.second_wait_time = 3
-
-    def getToken(self, tokname):
-        indices = ["mod", "count", "host", "proc", "start", "waitlist"]
-        index = None
-        try:
-            index = indices.index(tokname)
-        except ValueError:
-            return -1
-        return self.kV.getLock(self.keyname, index)
-
-    def getMod(self):
-        return self.kV.getLock(self.keyname, 0)
-
-    def incMod(self):
-        self.kV.incLock(self.keyname, index=0, start_val=self.start_val)
-
-    def decMod(self):
-        self.kV.decLock(self.keyname, index=0, start_val=self.start_val)
-
-    def getCount(self):
-        return self.kV.getLock(self.keyname, 1)
-
-    def incCount(self):
-        self.kV.incLock(self.keyname, index=1, start_val=self.start_val)
-
-    def decCount(self):
-        self.kV.decLock(self.keyname, index=1, start_val=self.start_val)
-
-    # atomic operations (prevent intervening simultaneous request between the two functions)
-
-    def getModAndCount(self):
-        mod, count = self.kV.getLock(self.keyname, 0, 1)
-        return mod, count
-
-    def incModIncCount(self):
-        self.kV.incIncLock(self.keyname, 0, 1, self.start_val)
-
-    def incModDecCount(self):
-        self.kV.incDecLock(self.keyname, 0, 1, self.start_val)
-
-    def decModDecCount(self):
-        self.kV.decDecLock(self.keyname, 0, 1, self.start_val)
-
-    def decModIncCount(self):
-        self.kV.decIncLock(self.keyname, 0, 1, self.start_val)
-
-    # waitlist functions
-
-    def lockHasWaitList(self) -> bool:
-        # find out from kv if lock is waitlisted
-        index = 5
-        s = str(self.kV.getLock(self.keyname, index))
-        return bool(s != "-1")
-
-    def getWaitList(self):
-        # return kv lock waitlist value
-        index = 5
-        return self.kV.getLock(self.keyname, index)
-
-    def reservedWaitList(self):
-        # true if I reserved the lock, false otherwise
-        return self.getWaitList() == self.uid
-
-    def setWaitList(self):
-        # set kv lock waitlist value
-        index = 5
-        return self.kV.setLock(self.keyname, self.uid, index, self.start_val)
-
-    def resetWaitList(self):
-        # reset kv waitlist value
-        index = 5
-        if not self.kV.getLock(self.keyname, 0):
-            return False
-        return self.kV.setLock(self.keyname, -1, index, self.start_val)
 
     async def __aenter__(self):
         if bool(self.uselock) is False:
@@ -235,6 +164,8 @@ class Locking(object):
                                 raise FileExistsError(
                                     "error - simultaneous read writes"
                                 )
+                        logging.info("acquired shared lock on %s", self.keyname)
+                        # do not set hostname and process id since multiple readers may hold lock
                         break
                 # requesting exclusive lock
                 elif self.mode == self.exclusive_lock_mode:
@@ -271,6 +202,9 @@ class Locking(object):
                                 raise FileExistsError(
                                     "error - simultaneous read writes"
                                 )
+                        logging.info("acquired exclusive lock on %s", self.keyname)
+                        # establish ownership
+                        self.setHostnameProcessStart()
                         break
                     else:
                         # lock is probably waitlisted by someone else
@@ -287,7 +221,7 @@ class Locking(object):
             if self.reservedWaitList():
                 self.resetWaitList()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type=None, exc_val=None, exc_tb=None):
         if bool(self.uselock) is False:
             return
         # comment out to test lock
@@ -306,18 +240,133 @@ class Locking(object):
         # test if I had waitlist
         if self.reservedWaitList():
             self.resetWaitList()
-        # remove lock if unused
-        val = self.kV.getLock(self.keyname, 0)
-        if val is not None and val == 0:
+        # remove lock if unused (potential simultaneity problems - could try other solution like cron job - comment out from here to switch to cron job)
+        await asyncio.sleep(
+            3
+        )  # mitigate simultaneity problems (when commented out, some tests fail)
+        mod = self.kV.getLock(self.keyname, 0)
+        count = self.kV.getLock(self.keyname, 1)
+        if mod is not None and mod == 0 and count is not None and count == 0:
             self.kV.remLock(self.keyname)
 
+    # utility functions
+
+    def getToken(self, tokname):
+        indices = ["mod", "count", "host", "proc", "start", "waitlist"]
+        index = None
+        try:
+            index = indices.index(tokname)
+        except ValueError:
+            return -1
+        return self.kV.getLock(self.keyname, index)
+
+    def getMod(self):
+        return self.kV.getLock(self.keyname, 0)
+
+    def incMod(self):
+        self.kV.incLock(self.keyname, index=0, start_val=self.start_val)
+
+    def decMod(self):
+        self.kV.decLock(self.keyname, index=0, start_val=self.start_val)
+
+    def getCount(self):
+        return self.kV.getLock(self.keyname, 1)
+
+    def incCount(self):
+        self.kV.incLock(self.keyname, index=1, start_val=self.start_val)
+
+    def decCount(self):
+        self.kV.decLock(self.keyname, index=1, start_val=self.start_val)
+
     async def stopLock(self):
-        """stop process and release resources"""
+        """delete redis key and stop process"""
         self.kV.remLock(self.keyname)
         try:
             os.kill(self.proc, signal.SIGSTOP)
         except ProcessLookupError:
             pass
+
+    def setHostnameProcessStart(self):
+        index = 2
+        self.kV.setLock(self.keyname, self.hostname, index, self.start_val)
+        index = 3
+        self.kV.setLock(self.keyname, self.proc, index, self.start_val)
+        index = 4
+        self.kV.setLock(self.keyname, self.start_time, index, self.start_val)
+
+    # atomic operations (prevent intervening simultaneous request between the two functions)
+
+    def getModAndCount(self):
+        mod, count = self.kV.getLock(self.keyname, 0, 1)
+        return mod, count
+
+    def incModIncCount(self):
+        self.kV.incIncLock(self.keyname, 0, 1, self.start_val)
+
+    def incModDecCount(self):
+        self.kV.incDecLock(self.keyname, 0, 1, self.start_val)
+
+    def decModDecCount(self):
+        self.kV.decDecLock(self.keyname, 0, 1, self.start_val)
+
+    def decModIncCount(self):
+        self.kV.decIncLock(self.keyname, 0, 1, self.start_val)
+
+    # waitlist functions
+
+    def lockHasWaitList(self) -> bool:
+        # find out from kv if lock is waitlisted
+        index = 5
+        s = str(self.kV.getLock(self.keyname, index))
+        return bool(s != "-1")
+
+    def getWaitList(self):
+        # return kv lock waitlist value
+        index = 5
+        return self.kV.getLock(self.keyname, index)
+
+    def reservedWaitList(self):
+        # true if I reserved the lock, false otherwise
+        return self.getWaitList() == self.uid
+
+    def setWaitList(self):
+        # set kv lock waitlist value
+        index = 5
+        return self.kV.setLock(self.keyname, self.uid, index, self.start_val)
+
+    def resetWaitList(self):
+        # reset kv waitlist value
+        index = 5
+        if not self.kV.getLock(self.keyname, 0):
+            return False
+        return self.kV.setLock(self.keyname, -1, index, self.start_val)
+
+    # ownership test - exclusive lock only
+    def hasLock(self):
+        if not self.lockExists():
+            return False
+        host = self.kV.getLock(self.keyname, 2)
+        proc = self.kV.getLock(self.keyname, 3)
+        start = self.kV.getLock(self.keyname, 4)
+        return (
+            (host == self.hostname)
+            and (str(proc) == str(self.proc))
+            and (str(start) == str(self.start_time))
+        )
+
+    # ownership test for shared locks - result not guaranteed to prove ownership as no single process owns a shared lock
+    def lockExists(self):
+        return self.kV.getLock(self.keyname, 0) is not None
+
+    def lockIsReader(self):
+        index = 0  # modality
+        mod = self.kV.getLock(self.keyname, index)
+        return mod is not None and mod > 0
+
+    def lockIsWriter(self):
+        index = 0  # modality
+        mod = self.kV.getLock(self.keyname, index)
+        return mod is not None and mod < 0
 
     # remove all lock files and processes
     @staticmethod
