@@ -12,15 +12,15 @@ logging.basicConfig(level=logging.INFO)
 
 
 class LockTest(unittest.IsolatedAsyncioTestCase):
-
     async def asyncSetUp(self) -> None:
-        self.repositoryType = "unit-test"
-        self.depId = "D_000"
-        self.contentType = "model"
-        self.milestone = "upload"
-        self.partNumber = 1
-        self.contentFormat = "pdbx"
-        self.version = 0
+        # recommended by Python docs at https://docs.python.org/3/library/unittest.html
+        self.repositoryType = "unit-test"  # pylint: disable=W0201
+        self.depId = "D_000"  # pylint: disable=W0201
+        self.contentType = "model"  # pylint: disable=W0201
+        self.milestone = "upload"  # pylint: disable=W0201
+        self.partNumber = 1  # pylint: disable=W0201
+        self.contentFormat = "pdbx"  # pylint: disable=W0201
+        self.version = 0  # pylint: disable=W0201
 
     async def asyncTearDown(self) -> None:
         pass
@@ -41,7 +41,12 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         folder = PathProvider().getDirPath(self.repositoryType, self.depId)
         self.version += 1
         filename = PathProvider().getFileName(
-            self.depId, self.contentType, self.milestone, self.partNumber, self.contentFormat, self.version
+            self.depId,
+            self.contentType,
+            self.milestone,
+            self.partNumber,
+            self.contentFormat,
+            self.version,
         )
         filepath = os.path.join(folder, filename)
         return filepath

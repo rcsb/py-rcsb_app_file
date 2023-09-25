@@ -17,6 +17,6 @@
  1-Mar-2023  - V0.23 Updates to and reorganization of client utilities
  10-Mar-2023 - V0.24 Rewrote config file path, jwt, shell scripts, and client context
  18-Apr-2023 - V0.25 Streamlined Redis transactions
- 5-Jun-2023  - V0.26 Reorganized Python files, streamlined server files and tox tests, removed router prefixes
- 1-Aug-2023  - V0.27 Expedite Python client, session maintenance module, example cron file
-24-Sep-2023  - V0.28 Locking modules with unit test
+ 5-Jun-2023  - V1.0 Reorganized Python files, streamlined server files and tox tests, removed router prefixes
+ 1-Aug-2023  - V1.1.0 Expedite Python client, session maintenance module, example cron file
+24-Sep-2023  - V1.1.1 Locking modules with unit test
