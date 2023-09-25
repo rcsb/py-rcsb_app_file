@@ -42,6 +42,10 @@ class Locking(object):
         logging.error("error %r", err)
     """
 
+    shared_lock_mode = "r"
+    exclusive_lock_mode = "w"
+    transitory_lock_mode = "t"  # internal use only
+
     def __init__(self, filepath, mode, is_dir=False, timeout=60, second_traversal=True):
         logging.debug("initializing")
         provider = ConfigProvider()
@@ -68,9 +72,6 @@ class Locking(object):
         self.proc = os.getpid()
         self.hostname = str(socket.gethostname()).split(".")[0]
         # mode
-        self.shared_lock_mode = "r"
-        self.exclusive_lock_mode = "w"
-        self.transitory_lock_mode = "t"  # internal use only
         if mode not in [self.shared_lock_mode, self.exclusive_lock_mode]:
             raise OSError("error - unknown locking mode %s" % mode)
         self.mode = mode

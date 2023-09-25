@@ -39,14 +39,15 @@ class Locking(object):
         logging.error("error %r", err)
     """
 
+    exclusive_lock_mode = "w"
+    shared_lock_mode = "r"
+
     def __init__(self, filepath, mode, is_dir=False, timeout=60, second_traversal=True):
         provider = ConfigProvider()
         self.uselock = provider.get("LOCK_TRANSACTIONS")
         if bool(self.uselock) is False:
             logging.debug("use lock false, skipping file locks")
             return
-        self.exclusive_lock_mode = "w"
-        self.shared_lock_mode = "r"
         if mode not in [self.exclusive_lock_mode, self.shared_lock_mode]:
             raise OSError("error - unrecognized locking mode %s" % mode)
         # mode for internal use only - for public visibility, mode is implicit from the modality

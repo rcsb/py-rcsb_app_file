@@ -54,6 +54,9 @@ class Locking(object):
         exclusive lock - 4. finds nothing - acquire lock, 2. finds new shared lock - acquire lock, 3. finds new exclusive lock - tiebreaker - alphabetical by uid
     """
 
+    shared_lock_mode = "r"
+    exclusive_lock_mode = "w"
+
     def __init__(self, filepath, mode, is_dir=False, timeout=60, second_traversal=True):
         logging.debug("initializing")
         provider = ConfigProvider()
@@ -70,8 +73,6 @@ class Locking(object):
         self.proc = os.getpid()
         self.hostname = str(socket.gethostname()).split(".")[0]
         # mode
-        self.shared_lock_mode = "r"
-        self.exclusive_lock_mode = "w"
         if mode not in [self.shared_lock_mode, self.exclusive_lock_mode]:
             raise OSError("error - unknown locking mode %s" % mode)
         self.mode = mode
