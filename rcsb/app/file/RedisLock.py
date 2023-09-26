@@ -85,6 +85,8 @@ class Locking(object):
         # because get + dec requests are not atomic, have chance of pseudo-simultaneity problem
         # example race condition - machine1 get mod = 0, machine2 get mod = 0, machine1 dec mod = -1, machine2 dec mod = -2
         # strategy - save count value, wait briefly after acquisition, test new count value, verify equals expected count value
+        # only for writers - readers must not perform second traversal since it doesn't matter if a new reader joins or a former reader leaves, count is ambiguous
+        # for reader/writer and writer/reader combinations, rely on writer to perform second traversal and detect race condition
         self.second_traversal = second_traversal
         self.second_wait_time = 3
 
@@ -153,18 +155,6 @@ class Locking(object):
                         # acquire shared lock
                         # increment value to alert others, add reader to count
                         self.incModIncCount()
-                        # wait briefly and verify expected value still remains
-                        if self.second_traversal:
-                            expected_count = count + 1
-                            await asyncio.sleep(self.second_wait_time)
-                            observed_count = self.getCount()
-                            if observed_count < expected_count:
-                                # simultaneous writer has acquired lock
-                                # delete lock (for all clients)
-                                self.stopLock()
-                                raise FileExistsError(
-                                    "error - simultaneous read writes"
-                                )
                         logging.info("acquired shared lock on %s", self.keyname)
                         # do not set hostname and process id since multiple readers may hold lock
                         break
@@ -194,7 +184,7 @@ class Locking(object):
                         self.decModIncCount()
                         # wait briefly and verify expected value still remains
                         if self.second_traversal:
-                            expected_count = count + 1
+                            expected_count = 1
                             await asyncio.sleep(self.second_wait_time)
                             observed_count = self.getCount()
                             if observed_count != expected_count:
