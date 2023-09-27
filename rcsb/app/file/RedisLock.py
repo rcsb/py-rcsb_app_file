@@ -82,49 +82,52 @@ class Locking(object):
         # waitlist value - fair lock for one writer
         self.uid = uuid.uuid4().hex
         # second wait to prevent simultaneity
-        # because get + dec requests are not atomic, have chance of pseudo-simultaneity problem
+        # because get + dec requests are not atomic, have chance of race condition
         # example race condition - machine1 get mod = 0, machine2 get mod = 0, machine1 dec mod = -1, machine2 dec mod = -2
         # strategy - save count value, wait briefly after acquisition, test new count value, verify equals expected count value
-        # only for writers - readers must not perform second traversal since it doesn't matter if a new reader joins or a former reader leaves, count is ambiguous
-        # for reader/writer and writer/reader combinations, rely on writer to perform second traversal and detect race condition
+        # only for writers - reader count is not relevant, for example two simultaneous readers (one reader could add, count 2, or drop, count 1)
+        # for reader/writer and writer/reader combinations, rely on writer to address race conditions
         self.second_traversal = second_traversal
         self.second_wait_time = 3
+
+    def initialize(self):
+        # set modality
+        self.kV.setLock(
+            key=self.keyname, val=0, index=0, start_val=self.start_val
+        )
+        # set count
+        self.kV.setLock(
+            key=self.keyname, val=0, index=1, start_val=self.start_val
+        )
+        # set hostname
+        self.kV.setLock(
+            key=self.keyname,
+            val=self.hostname,
+            index=2,
+            start_val=self.start_val,
+        )
+        # set process number
+        self.kV.setLock(
+            key=self.keyname, val=self.proc, index=3, start_val=self.start_val
+        )
+        # set start time
+        self.kV.setLock(
+            key=self.keyname,
+            val=self.start_time,
+            index=4,
+            start_val=self.start_val,
+        )
+        # set waitlist default value -1
+        self.kV.setLock(
+            key=self.keyname, val=-1, index=5, start_val=self.start_val
+        )
 
     async def __aenter__(self):
         if bool(self.uselock) is False:
             return
         try:
             if self.kV.getLock(self.keyname, 0) is None:
-                # set modality
-                self.kV.setLock(
-                    key=self.keyname, val=0, index=0, start_val=self.start_val
-                )
-                # set count
-                self.kV.setLock(
-                    key=self.keyname, val=0, index=1, start_val=self.start_val
-                )
-                # set hostname
-                self.kV.setLock(
-                    key=self.keyname,
-                    val=self.hostname,
-                    index=2,
-                    start_val=self.start_val,
-                )
-                # set process number
-                self.kV.setLock(
-                    key=self.keyname, val=self.proc, index=3, start_val=self.start_val
-                )
-                # set start time
-                self.kV.setLock(
-                    key=self.keyname,
-                    val=self.start_time,
-                    index=4,
-                    start_val=self.start_val,
-                )
-                # set waitlist
-                self.kV.setLock(
-                    key=self.keyname, val=-1, index=5, start_val=self.start_val
-                )
+                self.initialize()
             # busy wait to acquire lock
             while True:
                 if time.time() - self.start_time > self.timeout:
@@ -135,6 +138,10 @@ class Locking(object):
                 if self.mode == self.shared_lock_mode:
                     # readers ok, writers will block
                     mod, count = self.getModAndCount()
+                    if mod is None:
+                        # lock owner has exited and removed lock so restart lock
+                        self.initialize()
+                        mod, count = self.getModAndCount()
                     if mod < 0:
                         # writer has lock
                         await asyncio.sleep(self.wait_time)
@@ -155,6 +162,9 @@ class Locking(object):
                         # acquire shared lock
                         # increment value to alert others, add reader to count
                         self.incModIncCount()
+                        # sync with writer's second traversal but do not test or roll back
+                        if self.second_traversal:
+                            await asyncio.sleep(self.second_wait_time)
                         logging.info("acquired shared lock on %s", self.keyname)
                         # do not set hostname and process id since multiple readers may hold lock
                         break
@@ -163,9 +173,9 @@ class Locking(object):
                     # readers will block, writers will block
                     mod, count = self.getModAndCount()
                     if mod is None:
-                        raise OSError(
-                            "error - could not find keyname %s" % self.keyname
-                        )
+                        # lock owner has exited and removed lock so restart lock
+                        self.initialize()
+                        mod, count = self.getModAndCount()
                     if mod != 0:
                         # reader or writer has lock
                         # try to claim next lock
@@ -182,6 +192,8 @@ class Locking(object):
                         # acquire exclusive lock
                         # set negative mod value to alert others, add writer to count
                         self.decModIncCount()
+                        # reset waitlist value to allow others to reserve lock
+                        self.resetWaitList()
                         # wait briefly and verify expected value still remains
                         if self.second_traversal:
                             expected_count = 1
@@ -189,7 +201,11 @@ class Locking(object):
                             observed_count = self.getCount()
                             if observed_count != expected_count:
                                 # delete lock (for all clients)
+                                # writers will drop, readers will remain but will have to restart lock
+                                # why not roll back lock instead? (inc mod dec count)
+                                # if two simultaneous writers request lock and both roll back, mod 1 count -1
                                 self.stopLock()
+                                # process should be removed so should not reach next line
                                 raise FileExistsError(
                                     "error - simultaneous read writes"
                                 )
@@ -231,13 +247,10 @@ class Locking(object):
         # test if I had waitlist
         if self.reservedWaitList():
             self.resetWaitList()
-        # remove lock if unused (potential simultaneity problems - could try other solution like cron job - comment out from here to switch to cron job)
-        await asyncio.sleep(
-            3
-        )  # mitigate simultaneity problems (when commented out, some tests fail)
+        # remove lock if unused
         mod = self.kV.getLock(self.keyname, 0)
         count = self.kV.getLock(self.keyname, 1)
-        if mod is not None and mod == 0 and count is not None and count == 0:
+        if mod is not None and mod == 0 and count is not None and count == 0 and not self.lockHasWaitList():
             self.kV.remLock(self.keyname)
 
     # utility functions
