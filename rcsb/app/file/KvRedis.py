@@ -189,7 +189,6 @@ class KvRedis(object):
                 return vals[0], vals[1]
             else:
                 return vals
-            # return lst[index]
         return None
 
     def setLock(self, key, val, index=0, start_val=""):

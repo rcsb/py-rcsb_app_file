@@ -169,8 +169,22 @@ class KvSqlite(object):
         return None
 
     def getLock(self, key, *indices):
+        if not key:
+            if len(indices) == 1:
+                return None
+            elif len(indices) == 2:
+                return None, None
+            else:
+                return None
         table = self.lockTable
         lst = self.kV.get(key, table)
+        if lst is None:
+            if len(indices) == 1:
+                return None
+            elif len(indices) == 2:
+                return None, None
+            else:
+                return None
         if lst is not None:
             lst = eval(lst)  # pylint: disable=W0123
             vals = []
@@ -182,7 +196,6 @@ class KvSqlite(object):
                 return vals[0], vals[1]
             else:
                 return vals
-            # return lst[index]
         return None
 
     def setLock(self, key, val, index=0, start_val=""):

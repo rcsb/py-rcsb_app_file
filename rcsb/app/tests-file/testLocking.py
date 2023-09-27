@@ -21,6 +21,7 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         cp = ConfigProvider()
         kv = KvBase(cp)
         kv.clearTable(cp.get("KV_LOCK_TABLE_NAME"))
+        self.locktype = cp.get("LOCK_TYPE")
         # following Python docs at https://docs.python.org/3/library/unittest.html
         # pylint prefers __init__
         self.repositoryType = "unit-test"  # pylint: disable=W0201
