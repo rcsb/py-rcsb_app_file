@@ -14,9 +14,15 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 
 logging.basicConfig(level=logging.INFO)
 
+# tasks - implement enough atomic transactions to remove second wait
+
 
 class Locking(object):
     """
+    advantages - with enough atomic transactions, could completely eliminate second wait
+    disadvantages - redis variable itself requires locking (a sub-lock) or other techniques to avoid race conditions
+                  - lock exit and cleanup could remove newly acquired lock for someone else unless address all scenarios
+                  - atomic transactions require spreading logic across multiple modules (RedisLock.py, KvRedis.py)
     root key = lock table name
     secondary keys based on file name to be locked
     values are a list of [modality, count, hostname, process number, start time, waitlist] in a string
@@ -26,6 +32,7 @@ class Locking(object):
     example (exclusive)
     try:
         async with Locking(filepath, "w"):
+            # this line will not run until and unless aenter completes
             async with aiofiles.open(filepath, "w") as w:
                 await w.write(text)
     except (FileExistsError, OSError) as err:
@@ -92,13 +99,9 @@ class Locking(object):
 
     def initialize(self):
         # set modality
-        self.kV.setLock(
-            key=self.keyname, val=0, index=0, start_val=self.start_val
-        )
+        self.kV.setLock(key=self.keyname, val=0, index=0, start_val=self.start_val)
         # set count
-        self.kV.setLock(
-            key=self.keyname, val=0, index=1, start_val=self.start_val
-        )
+        self.kV.setLock(key=self.keyname, val=0, index=1, start_val=self.start_val)
         # set hostname
         self.kV.setLock(
             key=self.keyname,
@@ -118,9 +121,7 @@ class Locking(object):
             start_val=self.start_val,
         )
         # set waitlist default value -1
-        self.kV.setLock(
-            key=self.keyname, val=-1, index=5, start_val=self.start_val
-        )
+        self.kV.setLock(key=self.keyname, val=-1, index=5, start_val=self.start_val)
 
     async def __aenter__(self):
         if bool(self.uselock) is False:
@@ -183,10 +184,8 @@ class Locking(object):
                             self.setWaitList()
                         await asyncio.sleep(self.wait_time)
                         continue
-                    elif (
-                        count == 0
-                        and not self.lockHasWaitList()
-                        or self.reservedWaitList()
+                    elif count == 0 and (
+                        (not self.lockHasWaitList()) or self.reservedWaitList()
                     ):
                         # no one has lock, lock is not waitlisted or I waitlisted it
                         # acquire exclusive lock
@@ -250,7 +249,13 @@ class Locking(object):
         # remove lock if unused
         mod = self.kV.getLock(self.keyname, 0)
         count = self.kV.getLock(self.keyname, 1)
-        if mod is not None and mod == 0 and count is not None and count == 0 and not self.lockHasWaitList():
+        if (
+            mod is not None
+            and mod == 0
+            and count is not None
+            and count == 0
+            and not self.lockHasWaitList()
+        ):
             self.kV.remLock(self.keyname)
 
     # utility functions
