@@ -12,7 +12,7 @@ import uuid
 import logging
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # tasks - convert to random wait time to prevent simultaneously synchronized waiters
 
@@ -42,9 +42,11 @@ class Locking(object):
         logging.error("error %r", err)
     """
 
-    def __init__(
-        self, filepath, mode, is_dir=False, timeout=60, second_traversal=False
-    ):
+    shared_lock_mode = "r"
+    exclusive_lock_mode = "w"
+    transitory_lock_mode = "t"  # internal use only
+
+    def __init__(self, filepath, mode, is_dir=False, timeout=60, second_traversal=True):
         logging.debug("initializing")
         provider = ConfigProvider()
         self.uselock = provider.get("LOCK_TRANSACTIONS")
@@ -70,9 +72,6 @@ class Locking(object):
         self.proc = os.getpid()
         self.hostname = str(socket.gethostname()).split(".")[0]
         # mode
-        self.shared_lock_mode = "r"
-        self.exclusive_lock_mode = "w"
-        self.transitory_lock_mode = "t"  # internal use only
         if mode not in [self.shared_lock_mode, self.exclusive_lock_mode]:
             raise OSError("error - unknown locking mode %s" % mode)
         self.mode = mode
@@ -80,11 +79,14 @@ class Locking(object):
         # whether lock is for a file or a directory
         self.is_dir = is_dir
         # time properties
-        self.start_time = time.time()
+        self.precision = 4
+        self.start_time = round(time.time(), self.precision)
         self.wait_time = 1  # seconds
         # max seconds to wait to obtain a lock, set to zero for infinite wait
         self.timeout = timeout
         # attempt to prevent simultaneity
+        if second_traversal is None:  # default not working sometimes
+            second_traversal = True
         self.second_traversal = second_traversal
         self.wait_before_second_traversal = 3
         logging.debug("initialized")
@@ -167,7 +169,7 @@ class Locking(object):
                                         ) as w:
                                             w.write("%d\n" % self.proc)
                                             w.write("%s\n" % self.hostname)
-                                            w.write("%f\n" % self.start_time)
+                                            w.write("%s\n" % self.start_time)
                                     logging.debug(
                                         "created transitory lock file %s", lockfilepath
                                     )
@@ -222,7 +224,7 @@ class Locking(object):
                                         ) as w:
                                             w.write("%d\n" % self.proc)
                                             w.write("%s\n" % self.hostname)
-                                            w.write("%f\n" % self.start_time)
+                                            w.write("%s\n" % self.start_time)
                                     logging.debug(
                                         "created transitory lock file %s", lockfilepath
                                     )
@@ -265,6 +267,9 @@ class Locking(object):
                         if os.path.exists(transitory_lock_file_path):
                             # acquire target lock
                             os.replace(transitory_lock_file_path, lockfilepath)
+                            logging.info(
+                                "acquired %s lock on %s", self.mode, self.lockfilename
+                            )
                         else:
                             raise OSError("error - transitory lock file does not exist")
                         logging.debug("completed conversion")
@@ -286,9 +291,13 @@ class Locking(object):
                         with open(lockfilepath, "w", encoding="UTF-8") as w:
                             w.write("%d\n" % self.proc)
                             w.write("%s\n" % self.hostname)
-                            w.write("%f\n" % self.start_time)
+                            w.write("%s\n" % self.start_time)
+                        logging.info(
+                            "acquired %s lock on %s", self.mode, self.lockfilename
+                        )
                     if found_nothing and self.second_traversal:
                         # even if found nothing, still have risk of simultaneous request by another user
+                        # if didn't find nothing in directory, only way to acquire lock is with t lock that has priority, so second traversal not relevant
                         # after both create lock files, both wait briefly and traverse again
                         await asyncio.sleep(self.wait_before_second_traversal)
                         # on finding each other's lock files, a tiebreaker is performed and one of the lock files is rolled back
@@ -298,6 +307,7 @@ class Locking(object):
                             lockfilepath = os.path.join(self.lockdir, self.lockfilename)
                             if os.path.exists(lockfilepath):
                                 os.unlink(lockfilepath)
+                            logging.info("rolled back lock on %s", self.lockfilename)
                             # keep waiting and traversing
                             await asyncio.sleep(self.wait_time)
                             continue
@@ -306,9 +316,44 @@ class Locking(object):
                 # otherwise, wait and traverse again
                 await asyncio.sleep(self.wait_time)
         except FileExistsError as exc:
+            if self.lockfilename is not None and os.path.exists(
+                os.path.join(self.lockdir, self.lockfilename)
+            ):
+                try:
+                    os.unlink(os.path.join(self.lockdir, self.lockfilename))
+                except Exception:
+                    logging.warning(
+                        "error - could not remove lock file %s", self.lockfilename
+                    )
             raise FileExistsError("%r" % exc)
         except OSError as exc:
+            if self.lockfilename is not None and os.path.exists(
+                os.path.join(self.lockdir, self.lockfilename)
+            ):
+                try:
+                    os.unlink(os.path.join(self.lockdir, self.lockfilename))
+                except Exception:
+                    logging.warning(
+                        "error - could not remove lock file %s", self.lockfilename
+                    )
             raise OSError("%r" % exc)
+
+    async def __aexit__(self, exc_type=None, exc_val=None, exc_tb=None):
+        if bool(self.uselock) is False:
+            return
+        if self.lockfilename is not None and os.path.exists(
+            os.path.join(self.lockdir, self.lockfilename)
+        ):
+            try:
+                # comment out to test locking
+                os.unlink(os.path.join(self.lockdir, self.lockfilename))
+            except Exception:
+                logging.warning(
+                    "error - could not remove lock file %s", self.lockfilename
+                )
+        if exc_type or exc_val or exc_tb:
+            logging.warning("errors in exit lock for %s", self.lockfilename)
+            raise OSError("errors in exit lock")
 
     def secondTraversal(self):
         # a non-transitory lock, having just acquired lock, waits a few seconds and then traverses directory again to ensure no new conflicting locks are present
@@ -349,34 +394,48 @@ class Locking(object):
         # traversed all files and found nothing, so acquire lock
         return True
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if bool(self.uselock) is False:
-            return
-        if self.mode is not None:
-            if self.lockfilename is not None and os.path.exists(
-                os.path.join(self.lockdir, self.lockfilename)
-            ):
-                try:
-                    # comment out to test locking
-                    os.unlink(os.path.join(self.lockdir, self.lockfilename))
-                except Exception:
-                    logging.warning(
-                        "error - could not remove lock file %s", self.lockfilename
-                    )
-        if exc_type or exc_val or exc_tb:
-            logging.warning("errors in exit lock for %s", self.lockfilename)
-            raise OSError("errors in exit lock")
+    def getToken(self, tokname):
+        # lock file name = repositoryType~filename~mode~uid
+        # lock file contains proc \n hostname \n start time
+        lockfilepath = os.path.join(self.lockdir, self.lockfilename)
+        if tokname == "proc":
+            return Locking.getLockProcess(lockfilepath)
+        elif tokname == "hostname":
+            return Locking.getLockHostname(lockfilepath)
+        elif tokname == "start":
+            return Locking.getLockStartTime(lockfilepath)
+        tokens = self.lockfilename.split("~")
+        repositoryType = tokens[0]
+        filename = tokens[1]
+        mode = tokens[2]
+        uid = tokens[3]
+        if tokens is not None and len(tokens) > 0:
+            if tokname == "repositoryType":
+                return repositoryType
+            elif tokname == "filename":
+                return filename
+            if tokname == "mode":
+                return mode
+            elif tokname == "uid":
+                return uid
+        return None
 
-    @staticmethod
-    def getLockStartTime(lockpath):
-        text = None
-        starttime = None
-        with open(lockpath, "r", encoding="UTF-8") as r:
-            text = r.read()
-        if text:
-            lines = text.split("\n")
-            starttime = lines[2]
-        return float(starttime)
+    def hasLock(self):
+        if not self.lockExists():
+            return False
+        return self.uid == self.getToken("uid")
+
+    def lockExists(self):
+        lockfilepath = os.path.join(self.lockdir, self.lockfilename)
+        return os.path.exists(lockfilepath)
+
+    def lockIsReader(self):
+        result = self.getToken("mode")
+        return result is not None and result == self.shared_lock_mode
+
+    def lockIsWriter(self):
+        result = self.getToken("mode")
+        return result is not None and result == self.exclusive_lock_mode
 
     @staticmethod
     def getLockProcess(lockpath):
@@ -399,6 +458,18 @@ class Locking(object):
             lines = text.split("\n")
             hostname = lines[1]
         return hostname
+
+    @staticmethod
+    def getLockStartTime(lockpath):
+        text = None
+        starttime = None
+        with open(lockpath, "r", encoding="UTF-8") as r:
+            text = r.read()
+        if text:
+            lines = text.split("\n")
+            starttime = lines[2]
+            starttime = starttime.rstrip()
+        return starttime
 
     @staticmethod
     async def getLockProcessHostname(lockpath):

@@ -346,10 +346,10 @@ class Sessions(object):
                     # remove placeholder file
                     if os.path.exists(placeholder_path):
                         os.unlink(placeholder_path)
-        # remove locks over 1 hour old by default
-        timeout = cP.get("REMOVE_LOCKS_AFTER")
+        # remove expired locks
+        timeout = cP.get("LOCK_TIMEOUT")
         if not isinstance(timeout, int):
-            timeout = 3600
+            timeout = 60
         await Locking.cleanup(True, timeout)
 
 

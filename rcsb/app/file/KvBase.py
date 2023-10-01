@@ -70,17 +70,29 @@ class KvBase:
     def getLockAll(self):
         return self.kV.getLockAll()
 
-    def getLock(self, key, index=0):
-        return self.kV.getLock(key, index)
+    def getLock(self, key, *indices):
+        return self.kV.getLock(key, *indices)
 
     def setLock(self, key, val, index=0, start_val=""):
         return self.kV.setLock(key, val, index, start_val)
 
-    def incLock(self, key, start_val):
-        return self.kV.incLock(key, start_val)
+    def incLock(self, key, index=0, start_val=""):
+        return self.kV.incLock(key, index, start_val)
 
-    def decLock(self, key, start_val):
-        return self.kV.decLock(key, start_val)
+    def decLock(self, key, index=0, start_val=""):
+        return self.kV.decLock(key, index, start_val)
+
+    def incIncLock(self, key, index1=0, index2=1, start_val=""):
+        return self.kV.incIncLock(key, index1, index2, start_val)
+
+    def incDecLock(self, key, index1=0, index2=1, start_val=""):
+        return self.kV.incDecLock(key, index1, index2, start_val)
+
+    def decDecLock(self, key, index1=0, index2=1, start_val=""):
+        return self.kV.decDecLock(key, index1, index2, start_val)
+
+    def decIncLock(self, key, index1=0, index2=1, start_val=""):
+        return self.kV.decIncLock(key, index1, index2, start_val)
 
     def remLock(self, key):
         return self.kV.remLock(key)
