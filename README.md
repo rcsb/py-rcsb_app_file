@@ -57,7 +57,8 @@ In particular, edit url variables to match server url.
 
 # Quick start
 
-On server,
+### On server
+
 If server has a proxy server like nginx, stop the server.
 
 ```
@@ -74,9 +75,13 @@ docker run --name redis-container -d redis
 ```
 
 In project file py-rcsb_app_file/rcsb/app/config/config.yml,
+
 Change KV_MODE to redis.
+
 Change REDIS_HOST to redis.
+
 Change _PATH variables to appropriate paths, if you have a mounted file system.
+
 Navigate to folder py-rcsb_app_file.
 
 ```
@@ -84,14 +89,16 @@ docker build -t fileapp -f Dockerfile.stage .
 docker run --name fileapp -p 8000:8000 --link redis-container:redis fileapp
 ```
 
-On client
+### On client
 
 ```
 git clone https://github.com/rcsb/py-rcsb_app_file
 ```
 
 In project file py-rcsb_app_file/rcsb/app/config/config.yml
+
 Change SERVER_HOST_AND_PORT to the address of the server:8000.
+
 Navigate to folder py-rcsb_app_file.
 
 ```
