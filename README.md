@@ -76,11 +76,11 @@ docker run --name redis-container -d redis
 
 In project file py-rcsb_app_file/rcsb/app/config/config.yml,
 
+If you have a mounted file system for deposits, change _PATH variables to appropriate paths.
+
 Change KV_MODE to redis.
 
 Change REDIS_HOST to redis.
-
-Change _PATH variables to appropriate paths, if you have a mounted file system.
 
 Navigate to folder py-rcsb_app_file.
 
@@ -97,7 +97,7 @@ git clone https://github.com/rcsb/py-rcsb_app_file
 
 In project file py-rcsb_app_file/rcsb/app/config/config.yml
 
-Change SERVER_HOST_AND_PORT to the address of the server:8000.
+Change SERVER_HOST_AND_PORT to http://address.of.the.server:8000
 
 Navigate to folder py-rcsb_app_file.
 
