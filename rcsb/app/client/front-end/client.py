@@ -13,6 +13,19 @@ from rcsb.app.file.UploadUtility import UploadUtility
 
 # author James Smith 2023
 
+RESUMABLE = False
+COMPRESS_FILE = False
+DECOMPRESS_FILE = False
+OVERWRITE = False
+COMPRESS_CHUNKS = False
+NO_CHUNKS = False
+signature = """
+    --------------------------------------------------------
+             FILE ACCESS AND DEPOSITION APPLICATION
+    --------------------------------------------------------
+"""
+repoType = None
+depId = None
 
 def upload(d):
     client = ClientUtility()
@@ -45,7 +58,7 @@ def upload(d):
         if response:
             status = response["status_code"]
             if not status == 200:
-                print("error in upload %d" % status_code)
+                print("error in upload %d" % status)
             else:
                 return status
         else:
@@ -603,3 +616,4 @@ if __name__ == "__main__":
         listDir(repoType, depId)
 
     print("time %.2f seconds" % (time.perf_counter() - t1))
+

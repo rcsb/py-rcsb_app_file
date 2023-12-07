@@ -76,17 +76,19 @@ docker run --name redis-container -d redis
 
 In project file py-rcsb_app_file/rcsb/app/config/config.yml,
 
-If you have a mounted file system for deposits, change _PATH variables to appropriate paths.
+- If you have a mounted file system for deposits, change _PATH variables to appropriate paths.
 
-Change KV_MODE to redis.
+- Change KV_MODE to redis.
 
-Change REDIS_HOST to redis.
+- Change REDIS_HOST to redis.
 
-Navigate to folder py-rcsb_app_file.
+Navigate to folder py-rcsb_app_file, then build and start the project.
 
 ```
 docker build -t fileapp -f Dockerfile.stage .
 docker run --name fileapp -p 8000:8000 --link redis-container:redis fileapp
+# or, for a mounted file system
+docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 8000:8000 --link redis-container:redis fileapp
 ```
 
 ### On client
@@ -97,9 +99,9 @@ git clone https://github.com/rcsb/py-rcsb_app_file
 
 In project file py-rcsb_app_file/rcsb/app/config/config.yml
 
-Change SERVER_HOST_AND_PORT to http://address.of.the.server:8000
+- Change SERVER_HOST_AND_PORT to http://address.of.the.server:8000
 
-Navigate to folder py-rcsb_app_file.
+Navigate to folder py-rcsb_app_file, then install and start the client.
 
 ```
 pip3 install .
