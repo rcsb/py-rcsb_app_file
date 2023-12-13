@@ -4,18 +4,23 @@ import os
 import sys
 import unittest
 import logging
-from rcsb.app.file.RedisLock import Locking as redisLock
-from rcsb.app.file.TernaryLock import Locking as ternaryLock
-from rcsb.app.file.SoftLock import Locking as softLock
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.KvBase import KvBase
 from rcsb.app.file.ConfigProvider import ConfigProvider
+
+provider = ConfigProvider()
+kvmode = provider.get("KV_MODE")
+if kvmode == "redis":
+    from rcsb.app.file.RedisLock import Locking as redisLock
+else:
+    from rcsb.app.file.RedisSqliteLock import Locking as redisLock
+from rcsb.app.file.TernaryLock import Locking as ternaryLock
+from rcsb.app.file.SoftLock import Locking as softLock
 
 logging.basicConfig(level=logging.INFO)
 
 
 class LockTest(unittest.IsolatedAsyncioTestCase):
-
     async def asyncSetUp(self) -> None:
         self.test = 0
         cp = ConfigProvider()
@@ -37,14 +42,17 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
 
     async def testRedisLock(self):
         logging.info("----- TESTING REDIS LOCK -----")
+        self.test = 1
         await self.testLock()
 
     async def testTernaryLock(self):
         logging.info("---- TESTING TERNARY LOCK ----")
+        self.test = 2
         await self.testLock()
 
     async def testSoftLock(self):
         logging.info("---- TESTING SOFT LOCK ----")
+        self.test = 3
         await self.testLock()
 
     def getNextFilePath(self):
@@ -62,7 +70,7 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         return filepath
 
     async def testLock(self):
-        self.test += 1
+        # self.test += 1
         if self.test == 1:
             lock = redisLock
         elif self.test == 2:
@@ -101,9 +109,7 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
             async with lock(filepath, r, timeout=5, second_traversal=True):
                 testVal = 0
             self.assertFalse(testVal == 1, "lock error - test val = 1")
-            self.assertTrue(
-                testVal == 0, "lock error - non-zero test val %d" % testVal
-            )
+            self.assertTrue(testVal == 0, "lock error - non-zero test val %d" % testVal)
 
         # test reader writer
         logging.info("TESTING READER WRITER")
@@ -138,7 +144,10 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         # readers do not own lock so can't test ownership
         self.assertTrue(l1.lockExists(), "error - lock does not exist")
         if lock == redisLock:
-            self.assertTrue(l1.getMod() == 1 and l1.getCount() == 1, "error - mod %d count %d" % (l1.getMod(), l1.getCount()))
+            self.assertTrue(
+                l1.getMod() == 1 and l1.getCount() == 1,
+                "error - mod %d count %d" % (l1.getMod(), l1.getCount()),
+            )
         await l1.__aexit__()
         await asyncio.sleep(1)
         self.assertFalse(l1.lockExists(), "error - lock still exists")
@@ -150,7 +159,10 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         await l1.__aenter__()
         self.assertTrue(l1.lockExists(), "error - lock does not exist")
         if lock == redisLock:
-            self.assertTrue(l1.getMod() == -1 and l1.getCount() == 1, "error - mod %d count %d" % (l1.getMod(), l1.getCount()))
+            self.assertTrue(
+                l1.getMod() == -1 and l1.getCount() == 1,
+                "error - mod %d count %d" % (l1.getMod(), l1.getCount()),
+            )
         # writer should own lock so test ownership
         self.assertTrue(
             l1.hasLock(),
@@ -175,15 +187,24 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         await l1.__aenter__()
         self.assertTrue(l1.lockExists(), "error - l1 does not exist")
         if lock == redisLock:
-            self.assertTrue(l1.getMod() == 1 and l1.getCount() == 1, "error - mod %d count %d" % (l1.getMod(), l1.getCount()))
+            self.assertTrue(
+                l1.getMod() == 1 and l1.getCount() == 1,
+                "error - mod %d count %d" % (l1.getMod(), l1.getCount()),
+            )
         l2 = lock(filepath, r, timeout=10)
         await l2.__aenter__()
         # with reader lock, could still be l1
         self.assertTrue(l2.lockExists(), "error - l2 does not exist")
         # verify that l2 obtained lock (l1 should return same results also)
         if lock == redisLock:
-            self.assertTrue(l2.getMod() == 2 and l2.getCount() == 2, "error - l2 mod %d count %d" % (l2.getMod(), l2.getCount()))
-            self.assertTrue(l1.getMod() == 2 and l1.getCount() == 2, "error - l1 mod %d count %d" % (l1.getMod(), l1.getCount()))
+            self.assertTrue(
+                l2.getMod() == 2 and l2.getCount() == 2,
+                "error - l2 mod %d count %d" % (l2.getMod(), l2.getCount()),
+            )
+            self.assertTrue(
+                l1.getMod() == 2 and l1.getCount() == 2,
+                "error - l1 mod %d count %d" % (l1.getMod(), l1.getCount()),
+            )
         await l1.__aexit__()
         await l2.__aexit__()
         await asyncio.sleep(1)
@@ -245,7 +266,10 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(l2.lockIsReader(), "error - l2 is not a reader lock")
         # verify first lock closed
         if lock == redisLock:
-            self.assertTrue(l2.getMod() == 1 and l2.getCount() == 1, "error - mod %d count %d" % (l2.getMod(), l2.getCount()))
+            self.assertTrue(
+                l2.getMod() == 1 and l2.getCount() == 1,
+                "error - mod %d count %d" % (l2.getMod(), l2.getCount()),
+            )
         await l2.__aexit__()
         t1.cancel()
 
@@ -277,7 +301,10 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(l2.lockIsWriter(), "error - l2 is not a writer lock")
         if lock == redisLock:
-            self.assertTrue(l2.getMod() == -1 and l2.getCount() == 1, "error - mod %d count %d" % (l2.getMod(), l2.getCount()))
+            self.assertTrue(
+                l2.getMod() == -1 and l2.getCount() == 1,
+                "error - mod %d count %d" % (l2.getMod(), l2.getCount()),
+            )
         await l2.__aexit__()
         t1.cancel()
 
@@ -309,7 +336,10 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(l2.lockIsWriter(), "error - l2 is not a writer lock")
         if lock == redisLock:
-            self.assertTrue(l2.getMod() == -1 and l2.getCount() == 1, "error - mod %d count %d" % (l2.getMod(), l2.getCount()))
+            self.assertTrue(
+                l2.getMod() == -1 and l2.getCount() == 1,
+                "error - mod %d count %d" % (l2.getMod(), l2.getCount()),
+            )
         await l2.__aexit__()
         t1.cancel()
 

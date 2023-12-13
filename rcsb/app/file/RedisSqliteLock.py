@@ -1,4 +1,4 @@
-# file - RedisLock.py
+# file - RedisSqliteLock.py
 # author - James Smith 2023
 
 import asyncio
@@ -14,11 +14,11 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 
 logging.basicConfig(level=logging.INFO)
 
-# tasks - implement enough atomic transactions to remove second wait
-
 
 class Locking(object):
     """
+    first version of redis lock, still retained to avoid error when kv mode = sqlite and lock_type = redis
+    new version has functions that have not been implemented in sqlite
     advantages - with enough atomic transactions, could completely eliminate second wait
     disadvantages - redis variable itself requires locking (a sub-lock) or other techniques to avoid race conditions
                   - lock exit and cleanup could remove newly acquired lock for someone else unless address all scenarios

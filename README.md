@@ -55,6 +55,61 @@ The relevant variables should be at the top of the files.
 
 In particular, edit url variables to match server url.
 
+# Quick start
+
+### On server
+
+If server has a proxy server like nginx, stop the server.
+
+```
+service nginx stop
+```
+
+Clone the repository and install dependencies, then install Redis.
+
+```
+git clone https://github.com/rcsb/py-rcsb_app_file
+apt install docker.io
+apt install redis-tools
+docker run --name redis-container -d redis
+```
+
+In project file py-rcsb_app_file/rcsb/app/config/config.yml,
+
+- If you have a mounted file system for deposits, change _PATH variables to appropriate paths.
+
+- Change KV_MODE to redis.
+
+- Change REDIS_HOST to redis.
+
+Navigate to folder py-rcsb_app_file, then build and start the project.
+
+```
+docker build -t fileapp -f Dockerfile.stage .
+docker run --name fileapp -p 8000:8000 --link redis-container:redis fileapp
+# or, for a mounted file system
+docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 8000:8000 --link redis-container:redis fileapp
+```
+
+### On client
+
+```
+git clone https://github.com/rcsb/py-rcsb_app_file
+```
+
+In project file py-rcsb_app_file/rcsb/app/config/config.yml
+
+- Change SERVER_HOST_AND_PORT to http://address.of.the.server:8000
+
+Navigate to folder py-rcsb_app_file, then install and start the client.
+
+```
+pip3 install .
+python3 -m rcsb.app.client.front-end.gui
+```
+
+Verify the connection, then test uploading, downloading, and listing of files.
+
 # Endpoints and forwarding
 
 To view documentation, run a server, then visit localhost:port_number/docs.

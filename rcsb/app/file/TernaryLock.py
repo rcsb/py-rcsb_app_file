@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 
 class Locking(object):
     """
-    similar to soft lock with added ability for writer to access heavily read files
+    same as soft lock with added ability for writer to access heavily read files
     ternary lock - has three modes - exclusive, shared, and transitory
     the transitory mode is only for internal use - prevents bug where endless readers block writer access
     instead, writer waiting on a lock gets a transitory lock that essentially queues them as next in line for the lock

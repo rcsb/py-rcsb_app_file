@@ -94,5 +94,32 @@ class KvBase:
     def decIncLock(self, key, index1=0, index2=1, start_val=""):
         return self.kV.decIncLock(key, index1, index2, start_val)
 
+    def incIncIfZero(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        return self.kV.incIncIfZero(key, uid, index1, index2, index3, start_val)
+
+    def incDecIfZero(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        return self.kV.incDecIfZero(key, uid, index1, index2, index3, start_val)
+
+    def decIncIfZero(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        return self.kV.decIncIfZero(key, uid, index1, index2, index3, start_val)
+
+    def decDecIfZero(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        return self.kV.decDecIfZero(key, uid, index1, index2, index3, start_val)
+
+    def incIncIfNonNeg(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        return self.kV.incIncIfNonNeg(key, uid, index1, index2, index3, start_val)
+
+    def incDecIfNonNeg(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        return self.kV.incDecIfNonNeg(key, uid, index1, index2, index3, start_val)
+
+    def decIncIfNonNeg(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        return self.kV.decIncIfNonNeg(key, uid, index1, index2, index3, start_val)
+
+    def decDecIfNonNeg(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        return self.kV.decDecIfNonNeg(key, uid, index1, index2, index3, start_val)
+
     def remLock(self, key):
         return self.kV.remLock(key)
+
+    def remIfSafe(self, key, uid, index1=0, index2=0, index3=0):
+        return self.kV.remIfSafe(key, uid, index1, index2, index3)

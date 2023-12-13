@@ -25,8 +25,12 @@ from .Sessions import Sessions
 
 provider = ConfigProvider.ConfigProvider()
 locktype = provider.get("LOCK_TYPE")
+kvmode = provider.get("KV_MODE")
 if locktype == "redis":
-    from rcsb.app.file.RedisLock import Locking
+    if kvmode == "redis":
+        from rcsb.app.file.RedisLock import Locking
+    else:
+        from rcsb.app.file.RedisSqliteLock import Locking
 elif locktype == "ternary":
     from rcsb.app.file.TernaryLock import Locking
 else:
