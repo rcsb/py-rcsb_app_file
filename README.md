@@ -82,6 +82,8 @@ In project file py-rcsb_app_file/rcsb/app/config/config.yml,
 
 - Change REDIS_HOST to redis.
 
+- Change LOCK_TYPE to redis.
+
 Navigate to folder py-rcsb_app_file, then build and start the project.
 
 ```
