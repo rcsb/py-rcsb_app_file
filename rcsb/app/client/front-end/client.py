@@ -27,6 +27,7 @@ signature = """
 repoType = None
 depId = None
 
+
 def upload(d):
     client = ClientUtility()
     COMPRESSION = client.compressionType
@@ -63,7 +64,7 @@ def upload(d):
                 return status
         else:
             print("error in upload - no response")
-        return
+        return None
 
     # get upload parameters
     response = client.getUploadParameters(
@@ -79,7 +80,7 @@ def upload(d):
     )
     if not response or response["status_code"] != 200:
         print("error in get upload parameters %r" % response)
-        return
+        return None
     saveFilePath = response["filePath"]
     chunkIndex = response["chunkIndex"]
     uploadId = response["uploadId"]
@@ -151,7 +152,7 @@ def upload(d):
     ):
         mD["chunkIndex"] = index
         status = client.uploadChunk(d["sourceFilePath"], **mD)
-        if not status == 200:
+        if status != 200:
             print("error in upload %r" % response)
             break
     return status
@@ -171,7 +172,7 @@ def download(d):
     )
     if not response or response["status_code"] != 200:
         print("error computing file size")
-        return
+        return None
     fileSize = int(response["fileSize"])
     chunkSize = client.cP.get("CHUNK_SIZE")
     expectedChunks = 1
@@ -616,4 +617,3 @@ if __name__ == "__main__":
         listDir(repoType, depId)
 
     print("time %.2f seconds" % (time.perf_counter() - t1))
-

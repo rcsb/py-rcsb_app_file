@@ -305,9 +305,302 @@ class KvRedis(object):
                 self.kV.hset(self.lockTable, key, str(lst))
         return result
 
+    def lockHasWaitList(self, key, index) -> bool:
+        # find out if lock is waitlisted
+        s = str(self.getLock(key, index))
+        return bool(s != "-1")
+
+    def getWaitList(self, key, index):
+        # return lock waitlist value
+        return self.getLock(key, index)
+
+    def reservedWaitList(self, key, index, uid):
+        # true if I reserved the lock, false otherwise
+        return self.getWaitList(key, index) == uid
+
     # remove lock variable
     def remLock(self, key):
         if not key:
             return False
         if self.kV.hexists(self.lockTable, key):
             self.kV.hdel(self.lockTable, key)
+
+    # atomic transactions that have not been implemented in sqlite
+    def incIncIfZero(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        result = True
+        mod = None
+        count = None
+        with redis.lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            mod = lst[index1]
+            count = lst[index2]
+            if (
+                mod == 0
+                and count == 0
+                and (
+                    (not self.lockHasWaitList(key, index3))
+                    or self.reservedWaitList(key, index3, uid)
+                )
+            ):
+                try:
+                    lst[index1] += 1
+                    lst[index2] += 1
+                except Exception:
+                    result = False
+                else:
+                    self.kV.hset(self.lockTable, key, str(lst))
+            else:
+                result = False
+        return result, mod, count
+
+    def incDecIfZero(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        result = True
+        mod = None
+        count = None
+        with redis.lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            mod = lst[index1]
+            count = lst[index2]
+            if (
+                mod == 0
+                and count == 0
+                and (
+                    (not self.lockHasWaitList(key, index3))
+                    or self.reservedWaitList(key, index3, uid)
+                )
+            ):
+                try:
+                    lst[index1] += 1
+                    lst[index2] -= 1
+                except Exception:
+                    result = False
+                else:
+                    self.kV.hset(self.lockTable, key, str(lst))
+            else:
+                result = False
+        return result, mod, count
+
+    def decIncIfZero(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        result = True
+        mod = None
+        count = None
+        with redis.lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            mod = lst[index1]
+            count = lst[index2]
+            if (
+                mod == 0
+                and count == 0
+                and (
+                    (not self.lockHasWaitList(key, index3))
+                    or self.reservedWaitList(key, index3, uid)
+                )
+            ):
+                try:
+                    lst[index1] -= 1
+                    lst[index2] += 1
+                except Exception:
+                    result = False
+                else:
+                    self.kV.hset(self.lockTable, key, str(lst))
+            else:
+                result = False
+        return result, mod, count
+
+    def decDecIfZero(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        result = True
+        mod = None
+        count = None
+        with redis.lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            mod = lst[index1]
+            count = lst[index2]
+            if (
+                mod == 0
+                and count == 0
+                and (
+                    (not self.lockHasWaitList(key, index3))
+                    or self.reservedWaitList(key, index3, uid)
+                )
+            ):
+                try:
+                    lst[index1] -= 1
+                    lst[index2] -= 1
+                except Exception:
+                    result = False
+                else:
+                    self.kV.hset(self.lockTable, key, str(lst))
+            else:
+                result = False
+        return result, mod, count
+
+    def incIncIfNonNeg(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        result = True
+        mod = None
+        count = None
+        with redis.lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            mod = lst[index1]
+            count = lst[index2]
+            if (
+                mod >= 0
+                and count >= 0
+                and (
+                    (not self.lockHasWaitList(key, index3))
+                    or self.reservedWaitList(key, index3, uid)
+                )
+            ):
+                try:
+                    lst[index1] += 1
+                    lst[index2] += 1
+                except Exception:
+                    result = False
+                else:
+                    self.kV.hset(self.lockTable, key, str(lst))
+            else:
+                result = False
+        return result, mod, count
+
+    def incDecIfNonNeg(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        result = True
+        mod = None
+        count = None
+        with redis.lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            mod = lst[index1]
+            count = lst[index2]
+            if (
+                mod >= 0
+                and count >= 0
+                and (
+                    (not self.lockHasWaitList(key, index3))
+                    or self.reservedWaitList(key, index3, uid)
+                )
+            ):
+                try:
+                    lst[index1] += 1
+                    lst[index2] -= 1
+                except Exception:
+                    result = False
+                else:
+                    self.kV.hset(self.lockTable, key, str(lst))
+            else:
+                result = False
+        return result, mod, count
+
+    def decIncIfNonNeg(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        result = True
+        mod = None
+        count = None
+        with redis.lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            mod = lst[index1]
+            count = lst[index2]
+            if (
+                mod >= 0
+                and count >= 0
+                and (
+                    (not self.lockHasWaitList(key, index3))
+                    or self.reservedWaitList(key, index3, uid)
+                )
+            ):
+                try:
+                    lst[index1] -= 1
+                    lst[index2] += 1
+                except Exception:
+                    result = False
+                else:
+                    self.kV.hset(self.lockTable, key, str(lst))
+            else:
+                result = False
+        return result, mod, count
+
+    def decDecIfNonNeg(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
+        # validate args
+        if not key:
+            return False
+        if not self.kV.hexists(self.lockTable, key):
+            self.kV.hset(self.lockTable, key, start_val)
+        result = True
+        mod = None
+        count = None
+        with redis.lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            mod = lst[index1]
+            count = lst[index2]
+            if (
+                mod >= 0
+                and count >= 0
+                and (
+                    (not self.lockHasWaitList(key, index3))
+                    or self.reservedWaitList(key, index3, uid)
+                )
+            ):
+                try:
+                    lst[index1] -= 1
+                    lst[index2] -= 1
+                except Exception:
+                    result = False
+                else:
+                    self.kV.hset(self.lockTable, key, str(lst))
+            else:
+                result = False
+        return result, mod, count
+
+    # atomic removal
+    def remIfSafe(self, key, uid, index1=0, index2=0, index3=0):
+        if not key:
+            return False
+        with redis.lock.Lock(self.kV, key):
+            lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
+            if lst is None:
+                return
+            mod = lst[index1]
+            count = lst[index2]
+            waitlist = lst[index3]
+            if mod is None or count is None or waitlist is None:
+                return
+            if (
+                mod == 0
+                and count == 0
+                and (
+                    (not self.lockHasWaitList(key, index3))
+                    or self.reservedWaitList(key, index3, uid)
+                )
+            ):
+                self.remLock(key)

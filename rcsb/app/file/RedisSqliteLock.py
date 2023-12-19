@@ -1,4 +1,4 @@
-# file - RedisLock.py
+# file - RedisSqliteLock.py
 # author - James Smith 2023
 
 import asyncio
@@ -17,7 +17,9 @@ logging.basicConfig(level=logging.INFO)
 
 class Locking(object):
     """
-    advantages - with enough atomic transactions, completely eliminates second wait
+    first version of redis lock, still retained to avoid error when kv mode = sqlite and lock_type = redis
+    new version has functions that have not been implemented in sqlite
+    advantages - with enough atomic transactions, could completely eliminate second wait
     disadvantages - redis variable itself requires locking (a sub-lock) or other techniques to avoid race conditions
                   - lock exit and cleanup could remove newly acquired lock for someone else unless address all scenarios
                   - atomic transactions require spreading logic across multiple modules (RedisLock.py, KvRedis.py)
@@ -58,13 +60,7 @@ class Locking(object):
         # mode for internal use only - for public visibility, mode is implicit from the modality
         self.mode = mode
         # add zero for each property in the value - modality, count, hostname, process number, start time, waitlist
-        self.start_val = "[0,0,0,0,0,-1]"
-        self.mod_index = 0
-        self.count_index = 1
-        self.host_index = 2
-        self.proc_index = 3
-        self.start_index = 4
-        self.waitlist_index = 5
+        self.start_val = "[0,0,0,0,0,0]"
         # redis preferred - sqlite only works on one machine
         self.kV = KvBase()
         if not self.kV:
@@ -103,41 +99,29 @@ class Locking(object):
 
     def initialize(self):
         # set modality
-        self.kV.setLock(
-            key=self.keyname, val=0, index=self.mod_index, start_val=self.start_val
-        )
+        self.kV.setLock(key=self.keyname, val=0, index=0, start_val=self.start_val)
         # set count
-        self.kV.setLock(
-            key=self.keyname, val=0, index=self.count_index, start_val=self.start_val
-        )
+        self.kV.setLock(key=self.keyname, val=0, index=1, start_val=self.start_val)
         # set hostname
         self.kV.setLock(
             key=self.keyname,
             val=self.hostname,
-            index=self.host_index,
+            index=2,
             start_val=self.start_val,
         )
         # set process number
         self.kV.setLock(
-            key=self.keyname,
-            val=self.proc,
-            index=self.proc_index,
-            start_val=self.start_val,
+            key=self.keyname, val=self.proc, index=3, start_val=self.start_val
         )
         # set start time
         self.kV.setLock(
             key=self.keyname,
             val=self.start_time,
-            index=self.start_index,
+            index=4,
             start_val=self.start_val,
         )
         # set waitlist default value -1
-        self.kV.setLock(
-            key=self.keyname,
-            val=-1,
-            index=self.waitlist_index,
-            start_val=self.start_val,
-        )
+        self.kV.setLock(key=self.keyname, val=-1, index=5, start_val=self.start_val)
 
     async def __aenter__(self):
         if bool(self.uselock) is False:
@@ -154,22 +138,13 @@ class Locking(object):
                 # requesting shared lock
                 if self.mode == self.shared_lock_mode:
                     # readers ok, writers will block
-                    result, mod, count = self.incIncIfNonNeg()
-                    if result:
-                        # reader or no one has lock, lock is not waitlisted by a writer
-                        # already acquired shared lock
-                        # already incremented mod to alert others, already added reader to count
-                        logging.info("acquired shared lock on %s", self.keyname)
-                        # do not set hostname and process id since multiple readers may hold lock
-                        break
-                    elif mod is None:
+                    mod, count = self.getModAndCount()
+                    if mod is None:
                         # lock owner has exited and removed lock so restart lock
                         self.initialize()
                         mod, count = self.getModAndCount()
-                    elif mod < 0:
+                    if mod < 0:
                         # writer has lock
-                        if mod < -1:
-                            raise OSError("error - illegal mod value %d" % mod)
                         await asyncio.sleep(self.wait_time)
                         continue
                     elif self.lockHasWaitList():
@@ -184,35 +159,59 @@ class Locking(object):
                         await asyncio.sleep(self.wait_time)
                         continue
                     else:
-                        raise OSError("unknown error")
+                        # reader or no one has lock, lock is not waitlisted by a writer
+                        # acquire shared lock
+                        # increment value to alert others, add reader to count
+                        self.incModIncCount()
+                        # sync with writer's second traversal but do not test or roll back
+                        if self.second_traversal:
+                            await asyncio.sleep(self.second_wait_time)
+                        logging.info("acquired shared lock on %s", self.keyname)
+                        # do not set hostname and process id since multiple readers may hold lock
+                        break
                 # requesting exclusive lock
                 elif self.mode == self.exclusive_lock_mode:
                     # readers will block, writers will block
-                    result, mod, count = self.decIncIfZero()
-                    if result:
-                        # no one has lock, lock is not waitlisted or I waitlisted it
-                        # acquire exclusive lock
-                        # set negative mod value to alert others, add writer to count
-                        # dec mod inc count already completed
-                        # reset waitlist value to allow others to reserve lock
-                        self.resetWaitList()
-                        # establish ownership
-                        self.setHostnameProcessStart()
-                        logging.info("acquired exclusive lock on %s", self.keyname)
-                        break
-                    elif mod is None:
+                    mod, count = self.getModAndCount()
+                    if mod is None:
                         # lock owner has exited and removed lock so restart lock
                         self.initialize()
                         mod, count = self.getModAndCount()
-                    elif mod != 0:
+                    if mod != 0:
                         # reader or writer has lock
-                        if mod < -1:
-                            raise OSError("error - illegal mod value %d" % mod)
                         # try to claim next lock
                         if not self.lockHasWaitList():
                             self.setWaitList()
                         await asyncio.sleep(self.wait_time)
                         continue
+                    elif count == 0 and (
+                        (not self.lockHasWaitList()) or self.reservedWaitList()
+                    ):
+                        # no one has lock, lock is not waitlisted or I waitlisted it
+                        # acquire exclusive lock
+                        # set negative mod value to alert others, add writer to count
+                        self.decModIncCount()
+                        # reset waitlist value to allow others to reserve lock
+                        self.resetWaitList()
+                        # wait briefly and verify expected value still remains
+                        if self.second_traversal:
+                            expected_count = 1
+                            await asyncio.sleep(self.second_wait_time)
+                            observed_count = self.getCount()
+                            if observed_count != expected_count:
+                                # delete lock (for all clients)
+                                # writers will drop, readers will remain but will have to restart lock
+                                # why not roll back lock instead? (inc mod dec count)
+                                # if two simultaneous writers request lock and both roll back, mod 1 count -1
+                                self.stopLock()
+                                # process should be removed so should not reach next line
+                                raise FileExistsError(
+                                    "error - simultaneous read writes"
+                                )
+                        logging.info("acquired exclusive lock on %s", self.keyname)
+                        # establish ownership
+                        self.setHostnameProcessStart()
+                        break
                     else:
                         # lock is probably waitlisted by someone else
                         if count == 0:
@@ -224,7 +223,7 @@ class Locking(object):
         except OSError as err:
             raise OSError("lock error %r" % err)
         finally:
-            # if I waitlisted lock, reset waitlist value
+            # if I waitlisted lock, reset waitlist value (unless second traversal deleted lock)
             if self.reservedWaitList():
                 self.resetWaitList()
 
@@ -235,18 +234,29 @@ class Locking(object):
         if self.mode == self.shared_lock_mode:
             if self.kV.getLock(self.keyname, 0) is not None:
                 # reduce mod value
+                self.decMod()
                 # subtract reader from count
-                self.decDecLock()
+                self.decCount()
         elif self.mode == self.exclusive_lock_mode:
             if self.kV.getLock(self.keyname, 0) is not None:
-                # increment mod to zero
+                # return mod to zero
+                self.incMod()
                 # subtract writer from count
-                self.incDecLock()
+                self.decCount()
         # test if I had waitlist
         if self.reservedWaitList():
             self.resetWaitList()
         # remove lock if unused
-        self.remIfSafe()
+        mod = self.kV.getLock(self.keyname, 0)
+        count = self.kV.getLock(self.keyname, 1)
+        if (
+            mod is not None
+            and mod == 0
+            and count is not None
+            and count == 0
+            and not self.lockHasWaitList()
+        ):
+            self.kV.remLock(self.keyname)
 
     # utility functions
 
@@ -296,148 +306,32 @@ class Locking(object):
     # atomic operations (prevent intervening simultaneous request between the two functions)
 
     def getModAndCount(self):
-        mod, count = self.kV.getLock(self.keyname, self.mod_index, self.count_index)
+        mod, count = self.kV.getLock(self.keyname, 0, 1)
         return mod, count
 
-    def getModCountWaitlist(self):
-        mod, count, waitlist = self.kV.getLock(
-            self.keyname, self.mod_index, self.count_index, self.waitlist_index
-        )
-        return mod, count, waitlist
+    def incModIncCount(self):
+        self.kV.incIncLock(self.keyname, 0, 1, self.start_val)
 
-    def incIncLock(self):
-        """increment mod and count (with optional alternate indices)"""
-        self.kV.incIncLock(
-            self.keyname, self.mod_index, self.count_index, self.start_val
-        )
+    def incModDecCount(self):
+        self.kV.incDecLock(self.keyname, 0, 1, self.start_val)
 
-    def incDecLock(self):
-        """inc mod dec count"""
-        self.kV.incDecLock(
-            self.keyname, self.mod_index, self.count_index, self.start_val
-        )
+    def decModDecCount(self):
+        self.kV.decDecLock(self.keyname, 0, 1, self.start_val)
 
-    def decDecLock(self):
-        """decrement mod and count"""
-        self.kV.decDecLock(
-            self.keyname, self.mod_index, self.count_index, self.start_val
-        )
-
-    def decIncLock(self):
-        """dec mod inc count"""
-        self.kV.decIncLock(
-            self.keyname, self.mod_index, self.count_index, self.start_val
-        )
-
-    def incIncIfZero(self):
-        """inc mod (index1) inc count (index2) if both are zero and lock is not waitlisted (index3) by someone else"""
-        return self.kV.incIncIfZero(
-            self.keyname,
-            self.uid,
-            self.mod_index,
-            self.count_index,
-            self.waitlist_index,
-            self.start_val,
-        )
-
-    def incDecIfZero(self):
-        """inc dec if both are zero"""
-        return self.kV.incDecIfZero(
-            self.keyname,
-            self.uid,
-            self.mod_index,
-            self.count_index,
-            self.waitlist_index,
-            self.start_val,
-        )
-
-    def decIncIfZero(self):
-        """dec inc if both are zero"""
-        return self.kV.decIncIfZero(
-            self.keyname,
-            self.uid,
-            self.mod_index,
-            self.count_index,
-            self.waitlist_index,
-            self.start_val,
-        )
-
-    def decDecIfZero(self):
-        """dec dec if both are zero"""
-        return self.kV.decDecIfZero(
-            self.keyname,
-            self.uid,
-            self.mod_index,
-            self.count_index,
-            self.waitlist_index,
-            self.start_val,
-        )
-
-    def incIncIfNonNeg(self):
-        """inc inc if both are positive"""
-        return self.kV.incIncIfNonNeg(
-            self.keyname,
-            self.uid,
-            self.mod_index,
-            self.count_index,
-            self.waitlist_index,
-            self.start_val,
-        )
-
-    def incDecIfNonNeg(self):
-        """inc dec if both are positive"""
-        return self.kV.incDecIfNonNeg(
-            self.keyname,
-            self.uid,
-            self.mod_index,
-            self.count_index,
-            self.waitlist_index,
-            self.start_val,
-        )
-
-    def decIncIfNonNeg(self):
-        """dec inc if both are positive"""
-        return self.kV.decIncIfNonNeg(
-            self.keyname,
-            self.uid,
-            self.mod_index,
-            self.count_index,
-            self.waitlist_index,
-            self.start_val,
-        )
-
-    def decDecIfNonNeg(self):
-        """dec dec if both are positive"""
-        return self.kV.decDecIfNonNeg(
-            self.keyname,
-            self.uid,
-            self.mod_index,
-            self.count_index,
-            self.waitlist_index,
-            self.start_val,
-        )
-
-    def remIfSafe(self):
-        """atomic removal to avoid removing someone else's newly acquired lock"""
-        return self.kV.remIfSafe(
-            self.keyname,
-            self.uid,
-            self.mod_index,
-            self.count_index,
-            self.waitlist_index,
-        )
+    def decModIncCount(self):
+        self.kV.decIncLock(self.keyname, 0, 1, self.start_val)
 
     # waitlist functions
 
     def lockHasWaitList(self) -> bool:
         # find out from kv if lock is waitlisted
-        index = self.waitlist_index
+        index = 5
         s = str(self.kV.getLock(self.keyname, index))
         return bool(s != "-1")
 
     def getWaitList(self):
         # return kv lock waitlist value
-        index = self.waitlist_index
+        index = 5
         return self.kV.getLock(self.keyname, index)
 
     def reservedWaitList(self):
@@ -446,12 +340,12 @@ class Locking(object):
 
     def setWaitList(self):
         # set kv lock waitlist value
-        index = self.waitlist_index
+        index = 5
         return self.kV.setLock(self.keyname, self.uid, index, self.start_val)
 
     def resetWaitList(self):
         # reset kv waitlist value
-        index = self.waitlist_index
+        index = 5
         if not self.kV.getLock(self.keyname, 0):
             return False
         return self.kV.setLock(self.keyname, -1, index, self.start_val)

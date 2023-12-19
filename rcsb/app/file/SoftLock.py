@@ -19,6 +19,10 @@ logging.basicConfig(level=logging.INFO)
 
 class Locking(object):
     """
+    file-based lock where each request to one resource has its own file
+    advantages - lock exit and cleanup have no race conditions ... just remove lock file
+    disadvantages - requires directory traversal
+                  - requires second wait to mitigate concurrency problems
     cooperative file lock that synchronizes transactions across multiple processes, machines, and containers
     only works across machines and containers if shared_lock_path in config.yml points to a remote server path
     if lock_transactions in config.yml = True, does nothing
@@ -33,7 +37,7 @@ class Locking(object):
     this module allows locking of file or directory that does not yet exist (simplifies usage when creating/overwriting)
     also does not create file or directory if source file/directory does not yet exist
     async required
-    "async with Locking" statements should probably proceed file open statements (to avoid opening file unless lock is acquired)
+    "async with Locking" statements should probably precede file open statements (to avoid opening file unless lock is acquired)
     example (exclusive)
     async with Locking(filepath, "w"):
         # do something with file, for example, create or overwrite
@@ -51,7 +55,7 @@ class Locking(object):
         errors - max time exceeded
         second traversal - prevent simultaneous lock acquisitions
         shared lock - 1. finds nothing - acquire lock, 2. finds new shared lock - acquire lock, 3. finds new exclusive lock - defer to exclusive lock
-        exclusive lock - 4. finds nothing - acquire lock, 2. finds new shared lock - acquire lock, 3. finds new exclusive lock - tiebreaker - alphabetical by uid
+        exclusive lock - 4. finds nothing - acquire lock, 5. finds new shared lock - acquire lock, 6. finds new exclusive lock - tiebreaker - alphabetical by uid
     """
 
     shared_lock_mode = "r"
