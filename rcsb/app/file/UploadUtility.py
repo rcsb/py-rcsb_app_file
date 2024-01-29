@@ -27,6 +27,7 @@ from rcsb.app.file.Sessions import Sessions
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.IoUtility import IoUtility
+from rcsb.app.file.serverStatus import ServerStatus
 
 
 provider = ConfigProvider()
@@ -145,7 +146,7 @@ class UploadUtility(object):
         hashDigest: str,
         # save file parameters
         filePath: str,
-        fileSize: int,
+        fileSize: int, # bytes
         fileExtension: str,
         decompress: bool,
         allowOverwrite: bool,
@@ -153,6 +154,10 @@ class UploadUtility(object):
         resumable: bool,
         extractChunk: bool,
     ):
+        if fileSize and isinstance(fileSize, int):
+            df = ServerStatus.getServerStorage()["repository disk bytes free"]
+            if fileSize >= df:
+                raise HTTPException(status_code=507, detail="error - repository disk full")
         repositoryPath = self.cP.get("REPOSITORY_DIR_PATH")
         filePath = os.path.join(repositoryPath, filePath)
         session = Sessions(uploadId=uploadId, cP=self.cP)

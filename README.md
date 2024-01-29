@@ -88,9 +88,18 @@ Navigate to folder py-rcsb_app_file, then build and start the project.
 
 ```
 docker build -t fileapp -f Dockerfile.stage .
+# run and output to stdout
 docker run --name fileapp -p 8000:8000 --link redis-container:redis fileapp
-# or, for a mounted file system
+# or run in background and write to a log file
+docker run --name fileapp -p 8000:8000 --link redis-container:redis fileapp > log.txt 2>&1 &
+# to add a mounted file system
 docker run --mount type=bind,source=/path/to/file/system,target=/path/to/file/system --name fileapp -p 8000:8000 --link redis-container:redis fileapp
+```
+
+To stop the container
+
+```
+docker stop fileapp
 ```
 
 ### On client
