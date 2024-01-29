@@ -137,7 +137,7 @@ class UploadUtility(object):
         self,
         # chunk parameters
         chunk: typing.IO,
-        chunkSize: int,
+        chunkSize: int, # bytes
         chunkIndex: int,
         expectedChunks: int,
         # upload file parameters
@@ -154,9 +154,12 @@ class UploadUtility(object):
         resumable: bool,
         extractChunk: bool,
     ):
+        df = ServerStatus.getServerStorage()["repository disk bytes free"]
         if fileSize and isinstance(fileSize, int):
-            df = ServerStatus.getServerStorage()["repository disk bytes free"]
             if fileSize >= df:
+                raise HTTPException(status_code=507, detail="error - repository disk full")
+        if chunkSize and isinstance(chunkSize, int):
+            if chunkSize >= df:
                 raise HTTPException(status_code=507, detail="error - repository disk full")
         repositoryPath = self.cP.get("REPOSITORY_DIR_PATH")
         filePath = os.path.join(repositoryPath, filePath)
