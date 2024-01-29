@@ -158,9 +158,6 @@ class UploadUtility(object):
         if fileSize and isinstance(fileSize, int):
             if fileSize >= df:
                 raise HTTPException(status_code=507, detail="error - repository disk full")
-        if chunkSize and isinstance(chunkSize, int):
-            if chunkSize >= df:
-                raise HTTPException(status_code=507, detail="error - repository disk full")
         repositoryPath = self.cP.get("REPOSITORY_DIR_PATH")
         filePath = os.path.join(repositoryPath, filePath)
         session = Sessions(uploadId=uploadId, cP=self.cP)
@@ -182,6 +179,10 @@ class UploadUtility(object):
         tempPath = session.getTempFilePath(dirPath)
         if chunkIndex == 0:
             session.makePlaceholderFile(tempPath)
+        if chunkSize and isinstance(chunkSize, int):
+            if chunkSize >= df:
+                await session.close(tempPath, resumable, mapKey)
+                raise HTTPException(status_code=507, detail="error - repository disk full")
         contents = chunk.read()
         # empty chunk beyond loop index from client side, don't erase temp file so keep out of try block
         if contents and len(contents) <= 0:
