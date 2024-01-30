@@ -49,10 +49,11 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s]-%(module)s.%(funcName)s: %(message)s",
 )
 
-# functions - get upload parameters, upload, compress file, decompress file, compress chunk, decompress chunk
-
 
 class UploadUtility(object):
+    """
+    functions - get upload parameters, upload, compress file, decompress file, compress chunk, decompress chunk
+    """
     def __init__(self, cP: typing.Type[ConfigProvider] = None):
         self.cP = cP if cP else ConfigProvider()
 
@@ -137,7 +138,7 @@ class UploadUtility(object):
         self,
         # chunk parameters
         chunk: typing.IO,
-        chunkSize: int, # bytes
+        chunkSize: int,  # bytes
         chunkIndex: int,
         expectedChunks: int,
         # upload file parameters
@@ -146,7 +147,7 @@ class UploadUtility(object):
         hashDigest: str,
         # save file parameters
         filePath: str,
-        fileSize: int, # bytes
+        fileSize: int,  # bytes
         fileExtension: str,
         decompress: bool,
         allowOverwrite: bool,

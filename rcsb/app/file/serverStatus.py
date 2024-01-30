@@ -30,9 +30,11 @@ class ServerStatus:
         status.update(uptime)
         storage = ServerStatus.getServerStorage()
         status.update(storage)
+        # commented out for Azure tox tests which don't have redis
         # red = getRedisStatus()
         # status.update(red)
         return status
+
     @staticmethod
     def getUptime():
         HERE = os.path.dirname(__file__)
@@ -55,6 +57,7 @@ class ServerStatus:
             "uptime start": int(uptime_start),
             "uptime now": int(uptime_stop),
         }
+
     @staticmethod
     def getRedisStatus():
         # create database if not exists
@@ -71,6 +74,7 @@ class ServerStatus:
         except Exception:
             result = False
         return {"redis running": result}
+
     @staticmethod
     def getServerStorage():
         percent_ram_used = psutil.virtual_memory()[2]
@@ -88,6 +92,7 @@ class ServerStatus:
             "repository disk bytes used": disk_used,
             "repository disk bytes free": disk_free,
         }
+
     @staticmethod
     def processStatus():
         # status of machine that server is on

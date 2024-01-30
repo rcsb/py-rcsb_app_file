@@ -110,7 +110,7 @@ git clone https://github.com/rcsb/py-rcsb_app_file
 
 In project file py-rcsb_app_file/rcsb/app/config/config.yml
 
-- Change SERVER_HOST_AND_PORT to http://address.of.the.server:8000
+- Change SERVER_HOST_AND_PORT to http : // address.of.the.server:8000 (spaces added for readability)
 
 Navigate to folder py-rcsb_app_file, then install and start the client.
 
@@ -165,11 +165,14 @@ python3 client.py
 [--upload source_file repo_type id content_type milestone part format version]
 [--download target_folder repo_type id content_type milestone part format version]
 [--list repo_type dep_id (list directory)]
+[--copy repo1 depid1 type1 milestone1 part1 format1 version1 repo2 depid2 type2 milestone2 part2 format2 version2]
+[--move repo1 depid1 type1 milestone1 part1 format1 version1 repo2 depid2 type2 milestone2 part2 format2 version2]
 [-r (chunk file resumably)]
 [-o (overwrite files with same name)]
 [-z (zip files prior to upload)]
 [-x (expand files after upload)]
-
+[-g (compress chunks)]
+[-n (no chunking)]
 ```
 
 ### Hashing and compression
@@ -254,7 +257,7 @@ When uploading resumable chunks, server processes coordinate through a database 
 
 The value of KV_MODE in config.yml determines whether the database is Redis or Sqlite3.
 
-A variety of lock modules have been provided, where RedisLock uses a database.
+A variety of lock modules have been provided, where RedisLock uses a database and the others coordinate through files.
 
 # Sqlite3
 

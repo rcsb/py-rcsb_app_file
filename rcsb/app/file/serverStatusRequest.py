@@ -22,11 +22,12 @@ router = APIRouter()
 def root():
     return ServerStatus.serverStatus()
 
+
 @router.get("/status", tags=["status"])
 def serverStatus():
     return ServerStatus.serverStatus()
 
+
 @router.get("/processStatus", tags=["status"])
 def processStatus():
     return ServerStatus.processStatus()
-

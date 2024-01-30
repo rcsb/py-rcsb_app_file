@@ -26,14 +26,17 @@ else:
 
 logging.basicConfig(level=logging.INFO)
 
-# session maintenance for one upload
-# includes optional resumability API
-# functions - upload helper functions, database functions, session placeholder functions, bulk maintenance function
-
 
 class Sessions(object):
-    # statelessly invoked once per chunk of every upload
+    """
+    session maintenance for one upload
+    includes optional resumability API
+    functions - upload helper functions, database functions, session placeholder functions, bulk maintenance function
+    """
     def __init__(self, uploadId=None, cP=None, kV=True):
+        """
+        statelessly invoked once per chunk of every upload
+        """
         self.uploadId = uploadId
         self.cP = cP if cP else ConfigProvider()
         self.kV = None
