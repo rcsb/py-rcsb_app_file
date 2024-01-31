@@ -7,17 +7,6 @@
 # Updates: James Smith 2023
 ##
 
-"""
-functions
-
-get-file-object, upload, get-upload-parameters, upload-chunk, download
-get-hash-digest, get-file-path-local, get-file-path-remote, dir-exists, list-dir
-copy-file, copy-dir, move-file, compress-dir, compress-dir-path, decompress-dir
-latest version, next version,
-file-size, file-exists
-
-"""
-
 __docformat__ = "google en"
 __author__ = "John Westbrook"
 __email__ = "john.westbrook@rcsb.org"
@@ -44,6 +33,16 @@ logger.setLevel(logging.INFO)
 
 
 class ClientUtility(object):
+    """
+    functions
+
+    get-file-object, upload, get-upload-parameters, upload-chunk, download
+    get-hash-digest, get-file-path-local, get-file-path-remote, dir-exists, list-dir
+    copy-file, copy-dir, move-file, compress-dir, compress-dir-path, decompress-dir
+    latest version, next version,
+    file-size, file-exists
+
+    """
     def __init__(self):
         self.cP = ConfigProvider()
         self.cP.getConfig()
