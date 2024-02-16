@@ -156,7 +156,7 @@ class UploadUtility(object):
         extractChunk: bool,
     ):
         df = ServerStatus.getServerStorage()["repository disk bytes free"]
-        if fileSize and isinstance(fileSize, int):
+        if chunkIndex == 0 and fileSize and isinstance(fileSize, int) and df:
             if fileSize >= df:
                 raise HTTPException(status_code=507, detail="error - repository disk full")
         repositoryPath = self.cP.get("REPOSITORY_DIR_PATH")
