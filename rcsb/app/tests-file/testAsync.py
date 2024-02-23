@@ -7,11 +7,11 @@
 
 import asyncio
 import unittest
-import requests
 import subprocess
 import os
 import time
 import aiohttp
+import requests
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
 
@@ -49,9 +49,9 @@ class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         pass
 
-    async def fetch(self, session, url, i, t):
+    async def fetch(self, session, url, i, w):
         result = None
-        async with session.post(url, data={"i": i, "t": t}) as response:
+        async with session.post(url, data={"i": i, "w": w}) as response:
             result = await response.json()
         print(str(result))
         return result
@@ -63,13 +63,13 @@ class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
         print("running async test")
         indices = range(1, 11)
         waittimes = range(10, 0, -1)
-        expected = max(waittimes)
-        not_expected = sum(waittimes)
+        expected = max(waittimes)  # 10 s
+        not_expected = sum(waittimes)  # 55 s
         url = self.url
         results = []
         start = time.time()
         async with aiohttp.ClientSession() as session:
-            tasks = [self.fetch(session, url, i, t) for i, t in zip(indices, waittimes)]
+            tasks = [self.fetch(session, url, i, w) for i, w in zip(indices, waittimes)]
             for coro in asyncio.as_completed(tasks):
                 result = await coro
                 results.append(result)
@@ -108,12 +108,12 @@ class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
         print("running synchronous test")
         indices = range(1, 11)
         waittimes = range(10, 0, -1)
-        expected = sum(waittimes)
+        expected = sum(waittimes)  # 55 s
         url = self.url
         results = []
         start = time.time()
-        for i, t in zip(indices, waittimes):
-            response = requests.post(url, data={"i": i, "t": t})
+        for i, w in zip(indices, waittimes):
+            response = requests.post(url, data={"i": i, "w": w})
             if response.status_code < 400:
                 result = response.json()
                 print(result)

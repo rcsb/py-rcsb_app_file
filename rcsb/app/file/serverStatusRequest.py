@@ -35,16 +35,16 @@ def processStatus():
 
 
 @router.post("/asyncTest", status_code=200)
-async def asyncTest(i: int = Form(1), t: int = Form(10)) -> dict:
+async def asyncTest(i: int = Form(1), w: int = Form(10)) -> dict:
     """
 
     Args:
         i: index of task
-        t: sleep time of task
+        w: wait time of task
 
     Returns:
         inputs - the point is to invoke inputs that will be returned out of order - refer to testAsync
     """
-    logging.info("request from %d to sleep %d", i, t)
-    await asyncio.sleep(t)
-    return {"index": i, "time": t}
+    logging.info("request from %d to sleep %d", i, w)
+    await asyncio.sleep(w)
+    return {"index": i, "time": w}
