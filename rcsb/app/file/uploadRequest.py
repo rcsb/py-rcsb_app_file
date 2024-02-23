@@ -20,8 +20,8 @@ from rcsb.app.file.JWTAuthBearer import JWTAuthBearer
 logger = logging.getLogger(__name__)
 
 provider = ConfigProvider()
-jwtDisable = bool(provider.get("JWT_DISABLE"))
-if not jwtDisable:
+bypass_authorization = bool(provider.get("BYPASS_AUTHORIZATION"))
+if not bypass_authorization:
     router = APIRouter(dependencies=[Depends(JWTAuthBearer())], tags=["upload"])
 else:
     router = APIRouter(tags=["upload"])
