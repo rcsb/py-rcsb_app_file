@@ -22,11 +22,14 @@ class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        provider = ConfigProvider()
+        host = provider.get("SERVER_HOST_AND_PORT")
+        host = host.replace("http://", "")
         subprocess.Popen(
             [
                 "gunicorn",
                 "--bind",
-                "0.0.0.0:8000",
+                host,
                 "-k",
                 "uvicorn.workers.UvicornWorker",
                 "rcsb.app.file.main:app",

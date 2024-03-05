@@ -12,6 +12,7 @@ __license__ = "Apache 2.0"
 
 import logging
 import os
+import sys
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from . import ConfigProvider
@@ -27,10 +28,7 @@ provider = ConfigProvider.ConfigProvider()
 locktype = provider.get("LOCK_TYPE")
 kvmode = provider.get("KV_MODE")
 if locktype == "redis":
-    if kvmode == "redis":
-        from rcsb.app.file.RedisLock import Locking
-    else:
-        from rcsb.app.file.RedisSqliteLock import Locking
+    from rcsb.app.file.RedisLock import Locking
 elif locktype == "ternary":
     from rcsb.app.file.TernaryLock import Locking
 else:
@@ -68,6 +66,9 @@ async def startupEvent():
     # but in production will only run once at startup
     logger.debug("Startup - running application startup placeholder method")
     cp = ConfigProvider.ConfigProvider()
+    if not cp.validate():
+        logger.critical("exiting - config file has conflicts")
+        sys.exit(1)
     repositoryDir = cp.get("REPOSITORY_DIR_PATH")
     sessionDir = cp.get("SESSION_DIR_PATH")
     sharedLockDir = cp.get("SHARED_LOCK_PATH")

@@ -5,17 +5,13 @@ import sys
 import unittest
 import logging
 from rcsb.app.file.PathProvider import PathProvider
-from rcsb.app.file.KvBase import KvBase
+from rcsb.app.file.KvSqlite import KvSqlite
+from rcsb.app.file.KvRedis import KvRedis
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
 # must start Redis server prior to test
 
-provider = ConfigProvider()
-kvmode = provider.get("KV_MODE")
-if kvmode == "redis":
-    from rcsb.app.file.RedisLock import Locking as redisLock
-else:
-    from rcsb.app.file.RedisSqliteLock import Locking as redisLock
+from rcsb.app.file.RedisLock import Locking as redisLock
 from rcsb.app.file.TernaryLock import Locking as ternaryLock
 from rcsb.app.file.SoftLock import Locking as softLock
 
@@ -26,7 +22,11 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.test = 0
         cp = ConfigProvider()
-        kv = KvBase(cp)
+        kv = None
+        if cp.get("KV_MODE") == "redis":
+            kv = KvRedis(cp)
+        else:
+            kv = KvSqlite(cp)
         kv.clearTable(cp.get("KV_LOCK_TABLE_NAME"))
         self.locktype = cp.get("LOCK_TYPE")
         # following Python docs at https://docs.python.org/3/library/unittest.html
@@ -43,6 +43,9 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         pass
 
     async def testRedisLock(self):
+        if ConfigProvider().get("LOCK_TYPE") != "redis":
+            logging.error("error - redis test requires lock type redis")
+            return
         logging.info("----- TESTING REDIS LOCK -----")
         self.test = 1
         await self.testLock()

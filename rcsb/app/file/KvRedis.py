@@ -2,22 +2,23 @@
 # author - James Smith 2023
 
 import redis
-
 import typing
 import logging
 from fastapi.exceptions import HTTPException
 from rcsb.app.file.ConfigProvider import ConfigProvider
+from rcsb.app.file.KvBase import KvBase
 
 
-class KvRedis(object):
-    def __init__(self, cP: typing.Type[ConfigProvider]):
+class KvRedis(KvBase):
+    def __init__(self, cP: typing.Type[ConfigProvider] = None):
+        super(KvRedis, self).__init__()
         self.kV = None
-        self.__cP = cP
-        self.duration = self.__cP.get("KV_MAX_SECONDS")
-        self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
-        self.mapTable = self.__cP.get("KV_MAP_TABLE_NAME")
-        self.lockTable = self.__cP.get("KV_LOCK_TABLE_NAME")
-        self.redis_host = self.__cP.get("REDIS_HOST")  # localhost, redis, or url
+        self.cP = cP if cP else ConfigProvider()
+        self.sessionTable = self.cP.get("KV_SESSION_TABLE_NAME")
+        self.mapTable = self.cP.get("KV_MAP_TABLE_NAME")
+        self.lockTable = self.cP.get("KV_LOCK_TABLE_NAME")
+        self.redis_host = self.cP.get("REDIS_HOST")  # localhost, redis, or url
+        self.duration = self.cP.get("KV_MAX_SECONDS")
         # create database if not exists
         # create table if not exists
         try:

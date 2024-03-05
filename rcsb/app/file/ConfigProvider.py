@@ -81,3 +81,13 @@ class ConfigProvider(object):
             logger.exception("Failing with %s", str(e))
             ok = False
         return ok
+
+    def validate(self) -> bool:
+        """
+        exit program at server start if conflicts exist in config file
+        """
+        kv_mode_redis = self.get("KV_MODE") == "redis"
+        lock_type_redis = self.get("LOCK_TYPE") == "redis"
+        if any([kv_mode_redis, lock_type_redis]) and not all([kv_mode_redis, lock_type_redis]):
+            return False
+        return True

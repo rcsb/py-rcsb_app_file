@@ -9,7 +9,8 @@ import sys
 import time
 import uuid
 import logging
-from rcsb.app.file.KvBase import KvBase
+from rcsb.app.file.KvSqlite import KvSqlite
+from rcsb.app.file.KvRedis import KvRedis
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
 logging.basicConfig(level=logging.INFO)
@@ -66,7 +67,11 @@ class Locking(object):
         self.start_index = 4
         self.waitlist_index = 5
         # redis preferred - sqlite only works on one machine
-        self.kV = KvBase()
+        self.kV = None
+        if provider.get("KV_MODE") == "redis":
+            self.kV = KvRedis(provider)
+        elif provider.get("KV_MODE") == "sqlite":
+            self.kV = KvSqlite(provider)
         if not self.kV:
             raise OSError("error - could not connect to database")
         # configuration
@@ -486,7 +491,12 @@ class Locking(object):
     # remove all lock files and processes
     @staticmethod
     async def cleanup(save_unexpired=False, timeout=60):
-        kV = KvBase()
+        provider = ConfigProvider()
+        kV = None
+        if provider.get("KV_MODE") == "redis":
+            kV = KvRedis(provider)
+        else:
+            kV = KvSqlite(provider)
         # retrieve lock 'table'
         hashvar = kV.getLockAll()
         if not hashvar:

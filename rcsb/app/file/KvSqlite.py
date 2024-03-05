@@ -4,21 +4,22 @@
 import typing
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.KvConnection import KvConnection
+from rcsb.app.file.KvBase import KvBase
 from fastapi.exceptions import HTTPException
-
 
 # map redis-style hash vars to sql queries
 # not valid across multiple machines or containers
 
 
-class KvSqlite(object):
-    def __init__(self, cP: typing.Type[ConfigProvider]):
+class KvSqlite(KvBase):
+    def __init__(self, cP: typing.Type[ConfigProvider] = None):
+        super(KvSqlite, self).__init__()
         self.kV = None
-        self.__cP = cP
-        self.filePath = self.__cP.get("KV_FILE_PATH")
-        self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
-        self.mapTable = self.__cP.get("KV_MAP_TABLE_NAME")
-        self.lockTable = self.__cP.get("KV_LOCK_TABLE_NAME")
+        self.cP = cP if cP else ConfigProvider()
+        self.sessionTable = self.cP.get("KV_SESSION_TABLE_NAME")
+        self.mapTable = self.cP.get("KV_MAP_TABLE_NAME")
+        self.lockTable = self.cP.get("KV_LOCK_TABLE_NAME")
+        self.filePath = self.cP.get("KV_FILE_PATH")
         # create database if not exists
         # create table if not exists
         try:
@@ -158,158 +159,3 @@ class KvSqlite(object):
             _d = self.deconvert(_s)
         _d[val] += 1
         self.kV.set(key, self.convert(_d), table)
-
-    # locking functions
-
-    def getLockAll(self):
-        table = self.lockTable
-        result = self.kV.getAll(table)
-        if result is not None:
-            return result
-        return None
-
-    def getLock(self, key, *indices):
-        if not key:
-            if len(indices) == 1:
-                return None
-            elif len(indices) == 2:
-                return None, None
-            else:
-                return None
-        table = self.lockTable
-        lst = self.kV.get(key, table)
-        if lst is None:
-            if len(indices) == 1:
-                return None
-            elif len(indices) == 2:
-                return None, None
-            else:
-                return None
-        if lst is not None:
-            lst = eval(lst)  # pylint: disable=W0123
-            vals = []
-            for i in indices:
-                vals.append(lst[i])
-            if len(vals) == 1:
-                return vals[0]
-            elif len(vals) == 2:
-                return vals[0], vals[1]
-            else:
-                return vals
-        return None
-
-    def setLock(self, key, val, index=0, start_val=""):
-        table = self.lockTable
-        lst = self.kV.get(key, table)
-        if lst is None:
-            self.kV.set(key, start_val, table)
-            lst = self.kV.get(key, table)
-        if lst is not None:
-            lst = eval(lst)  # pylint: disable=W0123
-            lst[index] = val
-            return self.kV.set(key, str(lst), table)
-        return None
-
-    def incLock(self, key, index=0, start_val=""):
-        table = self.lockTable
-        return self.__incrementLockValue(key, table, index, start_val)
-
-    def __incrementLockValue(self, key, table, index, start_val=""):
-        lst = self.kV.get(key, table)
-        if lst is None:
-            self.kV.set(key, start_val, table)
-            lst = self.kV.get(key, table)
-        lst = eval(lst)  # pylint: disable=W0123
-        try:
-            lst[index] += 1
-        except Exception:
-            return
-        self.kV.set(key, str(lst), table)
-
-    def decLock(self, key, index=0, start_val=""):
-        table = self.lockTable
-        return self.__decrementLockValue(key, table, index, start_val)
-
-    def __decrementLockValue(self, key, table, index, start_val=""):
-        lst = self.kV.get(key, table)
-        if lst is None:
-            self.kV.set(key, start_val, table)
-            lst = self.kV.get(key, table)
-        lst = eval(lst)  # pylint: disable=W0123
-        try:
-            lst[index] -= 1
-        except Exception:
-            return
-        self.kV.set(key, str(lst), table)
-
-    def incIncLock(self, key, index1=0, index2=1, start_val=""):
-        table = self.lockTable
-        return self.__incrementIncrementLockValue(key, table, index1, index2, start_val)
-
-    def __incrementIncrementLockValue(self, key, table, index1, index2, start_val=""):
-        lst = self.kV.get(key, table)
-        if lst is None:
-            self.kV.set(key, start_val, table)
-            lst = self.kV.get(key, table)
-        lst = eval(lst)  # pylint: disable=W0123
-        try:
-            lst[index1] += 1
-            lst[index2] += 1
-        except Exception:
-            return
-        self.kV.set(key, str(lst), table)
-
-    def incDecLock(self, key, index1=0, index2=1, start_val=""):
-        table = self.lockTable
-        return self.__incrementIncrementLockValue(key, table, index1, index2, start_val)
-
-    def __incrementDecrementLockValue(self, key, table, index1, index2, start_val=""):
-        lst = self.kV.get(key, table)
-        if lst is None:
-            self.kV.set(key, start_val, table)
-            lst = self.kV.get(key, table)
-        lst = eval(lst)  # pylint: disable=W0123
-        try:
-            lst[index1] += 1
-            lst[index2] -= 1
-        except Exception:
-            return
-        self.kV.set(key, str(lst), table)
-
-    def decDecLock(self, key, index1=0, index2=1, start_val=""):
-        table = self.lockTable
-        return self.__decrementDecrementLockValue(key, table, index1, index2, start_val)
-
-    def __decrementDecrementLockValue(self, key, table, index1, index2, start_val=""):
-        lst = self.kV.get(key, table)
-        if lst is None:
-            self.kV.set(key, start_val, table)
-            lst = self.kV.get(key, table)
-        lst = eval(lst)  # pylint: disable=W0123
-        try:
-            lst[index1] -= 1
-            lst[index2] -= 1
-        except Exception:
-            return
-        self.kV.set(key, str(lst), table)
-
-    def decIncLock(self, key, index1=0, index2=1, start_val=""):
-        table = self.lockTable
-        return self.__decrementIncrementLockValue(key, table, index1, index2, start_val)
-
-    def __decrementIncrementLockValue(self, key, table, index1, index2, start_val=""):
-        lst = self.kV.get(key, table)
-        if lst is None:
-            self.kV.set(key, start_val, table)
-            lst = self.kV.get(key, table)
-        lst = eval(lst)  # pylint: disable=W0123
-        try:
-            lst[index1] -= 1
-            lst[index2] += 1
-        except Exception:
-            return
-        self.kV.set(key, str(lst), table)
-
-    def remLock(self, key):
-        table = self.lockTable
-        return self.kV.clear(key, table)
