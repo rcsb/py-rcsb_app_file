@@ -8,6 +8,8 @@ from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.KvBase import KvBase
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
+# must start Redis server prior to test
+
 provider = ConfigProvider()
 kvmode = provider.get("KV_MODE")
 if kvmode == "redis":

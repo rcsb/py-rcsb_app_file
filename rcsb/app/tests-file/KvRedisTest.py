@@ -17,7 +17,6 @@ class KvRedisTest(unittest.TestCase):
     # runs only once
     @classmethod
     def setUpClass(cls):
-        # os.system("brew services start redis")
         subprocess.Popen(
             ["redis-server"],
             stdout=subprocess.DEVNULL,
