@@ -27,7 +27,7 @@ configuration:
   # file parameters
   CHUNK_SIZE: 33554432 # bytes
   COMPRESSION_TYPE: "gzip" # gzip, bzip2, zip, or lzma
-  HASH_TYPE: MD5
+  HASH_TYPE: MD5 # MD5, SHA1, SHA256
   DEFAULT_FILE_PERMISSIONS: 0o777 # example 0o755 ... Docker will not save or read if permissions too strict
   # jwt token parameters
   JWT_SUBJECT: aTestSubject
