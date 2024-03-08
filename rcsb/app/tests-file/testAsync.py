@@ -12,8 +12,10 @@ import os
 import time
 import aiohttp
 import requests
+import logging
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
+logging.basicConfig(level=logging.INFO)
 
 class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
     """
@@ -52,27 +54,27 @@ class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         pass
 
-    async def fetch(self, session, url, i, w):
+    async def fetch(self, session, url, index, waittime):
         result = None
-        async with session.post(url, data={"i": i, "w": w}) as response:
+        async with session.post(url, data={"index": index, "waittime": waittime}) as response:
             result = await response.json()
-        print(str(result))
+        logging.info(str(result))
         return result
 
     async def testAsync(self):
         """
         though aiohttp is on the client side, it cannot not retrieve async results unless the server also handles them asynchronously
         """
-        print("running async test")
+        logging.info("running async test")
         indices = range(1, 11)
         waittimes = range(10, 0, -1)
         expected = max(waittimes)  # 10 s
-        not_expected = sum(waittimes)  # 55 s
+        null_model = sum(waittimes)  # 55 s
         url = self.url
         results = []
         start = time.time()
         async with aiohttp.ClientSession() as session:
-            tasks = [self.fetch(session, url, i, w) for i, w in zip(indices, waittimes)]
+            tasks = [self.fetch(session, url, index, waittime) for index, waittime in zip(indices, waittimes)]
             for coro in asyncio.as_completed(tasks):
                 result = await coro
                 results.append(result)
@@ -82,7 +84,7 @@ class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
         if results:
             # verify not same duration as synchronous
             self.assertFalse(
-                observed_time >= not_expected,
+                observed_time >= null_model,
                 "error - expected %d s observed %.2f s" % (expected, observed_time),
             )
             # verify expected wait time, allow some latency from expected
@@ -92,7 +94,7 @@ class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
             )
             # verify much faster than synchronous
             self.assertTrue(
-                observed_time < not_expected / 4,
+                observed_time < null_model / 4,
                 "error - async time not significantly less than synchronous",
             )
             # verify results are out of order
@@ -108,21 +110,21 @@ class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
         """
         control test to compare with async test even though synchronous order is enforced from the client side
         """
-        print("running synchronous test")
+        logging.info("running synchronous test")
         indices = range(1, 11)
         waittimes = range(10, 0, -1)
         expected = sum(waittimes)  # 55 s
         url = self.url
         results = []
         start = time.time()
-        for i, w in zip(indices, waittimes):
-            response = requests.post(url, data={"i": i, "w": w})
+        for index, waittime in zip(indices, waittimes):
+            response = requests.post(url, data={"index": index, "waittime": waittime})
             if response.status_code < 400:
                 result = response.json()
-                print(result)
+                logging.info(result)
                 results.append(result)
             else:
-                print("error - status code %d" % response.status_code)
+                logging.info("error - status code %d", response.status_code)
                 self.fail()
         observed_time = time.time() - start
         observed_indices = [d["index"] for d in results]

@@ -66,12 +66,11 @@ class Locking(object):
         self.proc_index = 3
         self.start_index = 4
         self.waitlist_index = 5
-        # redis preferred - sqlite only works on one machine
         self.kV = None
+        # redis preferred - sqlite only works on one machine
         if provider.get("KV_MODE") == "redis":
             self.kV = KvRedis(provider)
-        elif provider.get("KV_MODE") == "sqlite":
-            self.kV = KvSqlite(provider)
+        # for consistency, lock functions removed from kv sqlite, so require kv redis
         if not self.kV:
             raise OSError("error - could not connect to database")
         # configuration
