@@ -130,7 +130,19 @@ class ConfigProviderTests(unittest.TestCase):
             "REPOSITORY_DIR_PATH",
             "|path|to|file",
             False,
-            "error - could not invalidate host and port",
+            "error - could not invalidate file paths",
+        )
+        test(
+            "REPOSITORY_DIR_PATH",
+            "../path/to/file/",
+            True,
+            "error - could not validate file paths",
+        )
+        test(
+            "REPOSITORY_DIR_PATH",
+            "local",
+            True,
+            "error - could not validate file paths",
         )
         # test booleans
         test("LOCK_TRANSACTIONS", "true", False, "error - could not invalidate boolean")
@@ -206,7 +218,7 @@ class ConfigProviderTests(unittest.TestCase):
             "BYPASS_AUTHORIZATION",
             "true",
             False,
-            "error - could not bypass authorization",
+            "error - could not invalidate bypass authorization",
         )
 
 
