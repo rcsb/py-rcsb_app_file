@@ -100,7 +100,8 @@ class ConfigProvider(object):
         """
         # validate host and port
         host = self.get("SERVER_HOST_AND_PORT")
-        if not host or not re.match(r"http://\d+\.\d+\.\d+\.\d+:\d+", str(host)):
+        #if not host or not re.match(r"http://\d+\.\d+\.\d+\.\d+:\d+", str(host)):
+        if not host or not validators.url(str(host)):
             return False
         # validate surplus processors
         surplus = self.get("SURPLUS_PROCESSORS")
@@ -119,7 +120,7 @@ class ConfigProvider(object):
             self.get("KV_FILE_PATH"),
         ]
         if not all(paths) or not all(
-            [re.match(r"\.?(/?\w+)+", str(path)) for path in paths]
+            [re.match(r"\.{0,2}(/?\w+)+/?", str(path)) for path in paths]
         ):
             return False
         # validate lock transactions
@@ -189,13 +190,13 @@ class ConfigProvider(object):
         hash_type = self.get("HASH_TYPE")
         if not hash_type or str(hash_type) not in hash_types:
             return False
-        # get function or reading dictionary returns integer value of octal so have no way to verify octal string
+        # reading dictionary returns integer value of octal so have no way to verify octal string
         permissions = self.__configD["data"]["DEFAULT_FILE_PERMISSIONS"]
         if not permissions or not re.match(r"\d+", str(permissions)):
             return False
         # validate jwt strings
         jwts = [self.get("JWT_SUBJECT"), self.get("JWT_SECRET")]
-        if not all(jwts) or not all([re.match("\w+", str(jwt)) for jwt in jwts]):
+        if not all(jwts) or not all([re.match(r"\w+", str(jwt)) for jwt in jwts]):
             return False
         # validate jwt algorithm
         algorithms = [

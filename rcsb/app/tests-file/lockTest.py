@@ -38,6 +38,9 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         self.partNumber = 1  # pylint: disable=W0201
         self.contentFormat = "pdbx"  # pylint: disable=W0201
         self.version = 0  # pylint: disable=W0201
+        dirpath = PathProvider(cp).getRepositoryDirPath(self.repositoryType)
+        if os.path.exists(dirpath):
+            os.unlink(dirpath)
 
     async def asyncTearDown(self) -> None:
         pass
@@ -45,20 +48,20 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
     async def testRedisLock(self):
         if ConfigProvider().get("LOCK_TYPE") != "redis":
             logging.error("error - redis test requires lock type redis")
-            return
+            self.fail()
         logging.info("----- TESTING REDIS LOCK -----")
         self.test = 1
-        await self.testLock()
+        await self.reusableLockTest()
 
     async def testTernaryLock(self):
         logging.info("---- TESTING TERNARY LOCK ----")
         self.test = 2
-        await self.testLock()
+        await self.reusableLockTest()
 
     async def testSoftLock(self):
         logging.info("---- TESTING SOFT LOCK ----")
         self.test = 3
-        await self.testLock()
+        await self.reusableLockTest()
 
     def getNextFilePath(self):
         folder = PathProvider().getDirPath(self.repositoryType, self.depId)
@@ -74,7 +77,7 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         filepath = os.path.join(folder, filename)
         return filepath
 
-    async def testLock(self):
+    async def reusableLockTest(self):
         # self.test += 1
         if self.test == 1:
             lock = redisLock
