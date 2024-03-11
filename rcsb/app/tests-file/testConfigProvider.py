@@ -98,12 +98,18 @@ class ConfigProviderTests(unittest.TestCase):
                 self.assertFalse(cP.validate(), err)
             cP.set(key, orig)
 
-        # test regex for host and port (requires scheme)
+        # validate host and port (requires scheme)
         test(
             "SERVER_HOST_AND_PORT",
             "1.2.3.4:8000",
             False,
             "error - could not invalidate host and port",
+        )
+        test(
+            "SERVER_HOST_AND_PORT",
+            "https://127.0.0.1:80",
+            True,
+            "error - could not validate host and port",
         )
         # allow zero surplus processors (reserve all processors)
         # zero value is also falsy so ensure that validate function is able to differentiate zero from negative values
@@ -152,7 +158,7 @@ class ConfigProviderTests(unittest.TestCase):
         test("REDIS_HOST", "mongo", False, "error - could not invalidate redis host")
         test(
             "REDIS_HOST",
-            "http://127.0.0.1:80",
+            "http://127.0.0.1:6379",
             True,
             "error - could not validate redis host with ip address",
         )

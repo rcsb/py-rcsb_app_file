@@ -100,7 +100,6 @@ class ConfigProvider(object):
         """
         # validate host and port
         host = self.get("SERVER_HOST_AND_PORT")
-        #if not host or not re.match(r"http://\d+\.\d+\.\d+\.\d+:\d+", str(host)):
         if not host or not validators.url(str(host)):
             return False
         # validate surplus processors
