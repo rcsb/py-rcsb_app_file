@@ -120,7 +120,9 @@ class DownloadUtility(object):
                     )
             except (FileExistsError, OSError) as err:
                 logging.warning("exception in download file %r", err)
-                raise HTTPException(status_code=500, detail="error downloading file %r" % err)
+                raise HTTPException(
+                    status_code=500, detail="error downloading file %r" % err
+                )
 
     def getMimeType(self, contentFormat: str) -> str:
         cFormat = contentFormat

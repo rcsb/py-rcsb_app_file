@@ -32,6 +32,7 @@ class Sessions(object):
     includes optional resumability API
     functions - upload helper functions, database functions, session placeholder functions, bulk maintenance function
     """
+
     def __init__(self, uploadId=None, cP=None, kV=True):
         """
         statelessly invoked once per chunk of every upload

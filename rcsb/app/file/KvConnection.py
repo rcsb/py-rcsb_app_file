@@ -53,10 +53,7 @@ class KvConnection(object):
         res = None
         try:
             with self.getConnection() as connection:
-                res = (
-                    connection.cursor()
-                    .execute(f"SELECT * FROM {table}")
-                ).fetchall()
+                res = (connection.cursor().execute(f"SELECT * FROM {table}")).fetchall()
         except Exception:
             pass
         return res
@@ -71,13 +68,19 @@ class KvConnection(object):
                     .fetchone()
                 )
                 if res is None:
-                    params = (key, val,)
+                    params = (
+                        key,
+                        val,
+                    )
                     res = connection.cursor().execute(
                         f"INSERT INTO {table} " + "VALUES (?, ?)", params
                     )
                     connection.commit()
                 else:
-                    params = (val, key,)
+                    params = (
+                        val,
+                        key,
+                    )
                     res = connection.cursor().execute(
                         f"UPDATE {table} " + "SET val = ? WHERE key = ?", params
                     )
@@ -96,7 +99,9 @@ class KvConnection(object):
         try:
             with self.getConnection() as connection:
                 params = (key,)
-                connection.cursor().execute(f"DELETE FROM {table} " + "WHERE key = ?", params)
+                connection.cursor().execute(
+                    f"DELETE FROM {table} " + "WHERE key = ?", params
+                )
                 connection.commit()
         except Exception as exc:
             logging.warning(
@@ -107,7 +112,9 @@ class KvConnection(object):
         try:
             with self.getConnection() as connection:
                 params = (key,)
-                connection.cursor().execute(f"DELETE FROM {table} " + "WHERE key = ?", params)
+                connection.cursor().execute(
+                    f"DELETE FROM {table} " + "WHERE key = ?", params
+                )
                 connection.commit()
         except Exception as exc:
             logging.warning("error in Kv delete from %s, %s %s", table, type(exc), exc)
@@ -116,7 +123,9 @@ class KvConnection(object):
         try:
             with self.getConnection() as connection:
                 params = (val,)
-                connection.cursor().execute(f"DELETE FROM {table} " + "WHERE val = ?", params)
+                connection.cursor().execute(
+                    f"DELETE FROM {table} " + "WHERE val = ?", params
+                )
                 connection.commit()
         except Exception as exc:
             logging.warning("error in Kv delete from %s, %s %s", table, type(exc), exc)

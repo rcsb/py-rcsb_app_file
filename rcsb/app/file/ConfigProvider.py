@@ -104,11 +104,23 @@ class ConfigProvider(object):
             return False
         # validate surplus processors
         surplus = self.get("SURPLUS_PROCESSORS")
-        if surplus is None or surplus == "" or re.match(r"\d+", str(surplus)) is None or int(surplus) < 0:
+        if (
+            surplus is None
+            or surplus == ""
+            or re.match(r"\d+", str(surplus)) is None
+            or int(surplus) < 0
+        ):
             return False
         # validate path strings
-        paths = [self.get("REPOSITORY_DIR_PATH"), self.get("SESSION_DIR_PATH"), self.get("SHARED_LOCK_PATH"), self.get("KV_FILE_PATH")]
-        if not all(paths) or not all([re.match(r"\.?(/?\w+)+", str(path)) for path in paths]):
+        paths = [
+            self.get("REPOSITORY_DIR_PATH"),
+            self.get("SESSION_DIR_PATH"),
+            self.get("SHARED_LOCK_PATH"),
+            self.get("KV_FILE_PATH"),
+        ]
+        if not all(paths) or not all(
+            [re.match(r"\.?(/?\w+)+", str(path)) for path in paths]
+        ):
             return False
         # validate lock transactions
         lock = self.get("LOCK_TRANSACTIONS")
@@ -131,7 +143,9 @@ class ConfigProvider(object):
         # require kv mode redis for lock type redis and vice versa
         kv_mode_redis = self.get("KV_MODE") == "redis"
         lock_type_redis = self.get("LOCK_TYPE") == "redis"
-        if any([kv_mode_redis, lock_type_redis]) and not all([kv_mode_redis, lock_type_redis]):
+        if any([kv_mode_redis, lock_type_redis]) and not all(
+            [kv_mode_redis, lock_type_redis]
+        ):
             return False
         # validate redis host
         redis_hosts = ["localhost", "redis"]
@@ -140,16 +154,30 @@ class ConfigProvider(object):
             if not validators.url(str(redis_host)):
                 return False
         # validate table names
-        table_names = [self.get("KV_MAP_TABLE_NAME"), self.get("KV_SESSION_TABLE_NAME"), self.get("KV_LOCK_TABLE_NAME")]
-        if not all(table_names) or not all([re.match(r"\w+", str(name)) for name in table_names]):
+        table_names = [
+            self.get("KV_MAP_TABLE_NAME"),
+            self.get("KV_SESSION_TABLE_NAME"),
+            self.get("KV_LOCK_TABLE_NAME"),
+        ]
+        if not all(table_names) or not all(
+            [re.match(r"\w+", str(name)) for name in table_names]
+        ):
             return False
         # validate max seconds
         max_seconds = self.get("KV_MAX_SECONDS")
-        if not max_seconds or not re.match(r"\d+", str(max_seconds)) or int(max_seconds) < 0:
+        if (
+            not max_seconds
+            or not re.match(r"\d+", str(max_seconds))
+            or int(max_seconds) < 0
+        ):
             return False
         # validate chunk size
         chunk_size = self.get("CHUNK_SIZE")
-        if not chunk_size or not re.match(r"\d+", str(chunk_size)) or int(chunk_size) < 0:
+        if (
+            not chunk_size
+            or not re.match(r"\d+", str(chunk_size))
+            or int(chunk_size) < 0
+        ):
             return False
         # validate compression type
         compressions = ["gzip", "zip", "bzip2", "lzma"]
@@ -170,7 +198,22 @@ class ConfigProvider(object):
         if not all(jwts) or not all([re.match("\w+", str(jwt)) for jwt in jwts]):
             return False
         # validate jwt algorithm
-        algorithms = ["HS256", "HS384", "HS512", "ES256", "ES256K", "ES384", "ES512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "EdDSA"]
+        algorithms = [
+            "HS256",
+            "HS384",
+            "HS512",
+            "ES256",
+            "ES256K",
+            "ES384",
+            "ES512",
+            "RS256",
+            "RS384",
+            "RS512",
+            "PS256",
+            "PS384",
+            "PS512",
+            "EdDSA",
+        ]
         algorithm = self.get("JWT_ALGORITHM")
         if not algorithm or str(algorithm) not in algorithms:
             return False

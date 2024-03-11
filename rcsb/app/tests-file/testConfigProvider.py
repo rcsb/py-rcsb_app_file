@@ -99,13 +99,33 @@ class ConfigProviderTests(unittest.TestCase):
             cP.set(key, orig)
 
         # test regex for host and port (requires scheme)
-        test("SERVER_HOST_AND_PORT", "1.2.3.4:8000", False, "error - could not invalidate host and port")
+        test(
+            "SERVER_HOST_AND_PORT",
+            "1.2.3.4:8000",
+            False,
+            "error - could not invalidate host and port",
+        )
         # allow zero surplus processors (reserve all processors)
         # zero value is also falsy so ensure that validate function is able to differentiate zero from negative values
-        test("SURPLUS_PROCESSORS", 0, True, "error - zero valued surplus did not validate")
-        test("SURPLUS_PROCESSORS", -1, False, "error - could not invalidate surplus processors")
+        test(
+            "SURPLUS_PROCESSORS",
+            0,
+            True,
+            "error - zero valued surplus did not validate",
+        )
+        test(
+            "SURPLUS_PROCESSORS",
+            -1,
+            False,
+            "error - could not invalidate surplus processors",
+        )
         # test file path regex
-        test("REPOSITORY_DIR_PATH", "|path|to|file", False, "error - could not invalidate host and port")
+        test(
+            "REPOSITORY_DIR_PATH",
+            "|path|to|file",
+            False,
+            "error - could not invalidate host and port",
+        )
         # test booleans
         test("LOCK_TRANSACTIONS", "true", False, "error - could not invalidate boolean")
         # test lock timeout
@@ -119,32 +139,70 @@ class ConfigProviderTests(unittest.TestCase):
         # test relation between lock type and kv mode
         cP.set("LOCK_TYPE", "redis")
         cP.set("KV_MODE", "redis")
-        self.assertTrue(cP.validate(), "error - could not validate lock type and kv mode redis")
+        self.assertTrue(
+            cP.validate(), "error - could not validate lock type and kv mode redis"
+        )
         cP.set("KV_MODE", "sqlite")
-        self.assertFalse(cP.validate(), "error - could not invalidate incongruence between lock type and kv mode")
+        self.assertFalse(
+            cP.validate(),
+            "error - could not invalidate incongruence between lock type and kv mode",
+        )
         cP.set("KV_MODE", "redis")
         # test redis host
         test("REDIS_HOST", "mongo", False, "error - could not invalidate redis host")
-        test("REDIS_HOST", "http://127.0.0.1:80", True, "error - could not validate redis host with ip address")
+        test(
+            "REDIS_HOST",
+            "http://127.0.0.1:80",
+            True,
+            "error - could not validate redis host with ip address",
+        )
         # validate table name
-        test("KV_SESSION_TABLE_NAME", "mongo", True, "error - could not validate string table name")
+        test(
+            "KV_SESSION_TABLE_NAME",
+            "mongo",
+            True,
+            "error - could not validate string table name",
+        )
         # validate max seconds
         test("KV_MAX_SECONDS", -1, False, "error - could not invalidate max seconds")
         # validate chunk size
         test("CHUNK_SIZE", -1, False, "error - could not invalidate chunk size")
         # validate compression type
-        test("COMPRESSION_TYPE", "brotli", False, "error - could not invalidate compression type")
+        test(
+            "COMPRESSION_TYPE",
+            "brotli",
+            False,
+            "error - could not invalidate compression type",
+        )
         # validate hash type
         test("HASH_TYPE", "SHA", False, "error - could not invalidate hash type")
         # validate default file permissions
-        test("DEFAULT_FILE_PERMISSIONS", "0o555", True, "error - could not validate file permissions")
-        test("DEFAULT_FILE_PERMISSIONS", 0, False, "error - could not invalidate file permissions")
+        test(
+            "DEFAULT_FILE_PERMISSIONS",
+            "0o555",
+            True,
+            "error - could not validate file permissions",
+        )
+        test(
+            "DEFAULT_FILE_PERMISSIONS",
+            0,
+            False,
+            "error - could not invalidate file permissions",
+        )
         # validate jwt algorithm
-        test("JWT_ALGORITHM", "SHA1", False, "error - could not invalidate jwt algorithm")
+        test(
+            "JWT_ALGORITHM", "SHA1", False, "error - could not invalidate jwt algorithm"
+        )
         # validate jwt duration
         test("JWT_DURATION", -1, False, "error - could not invalidate jwt duration")
         # validate bypass authorization
-        test("BYPASS_AUTHORIZATION", "true", False, "error - could not bypass authorization")
+        test(
+            "BYPASS_AUTHORIZATION",
+            "true",
+            False,
+            "error - could not bypass authorization",
+        )
+
 
 def configAccessorsSuite():
     suiteSelect = unittest.TestSuite()

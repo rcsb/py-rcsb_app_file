@@ -17,6 +17,7 @@ from rcsb.app.file.ConfigProvider import ConfigProvider
 
 logging.basicConfig(level=logging.INFO)
 
+
 class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
     """
     verify that server handles requests asynchronously
@@ -56,7 +57,9 @@ class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
 
     async def fetch(self, session, url, index, waittime):
         result = None
-        async with session.post(url, data={"index": index, "waittime": waittime}) as response:
+        async with session.post(
+            url, data={"index": index, "waittime": waittime}
+        ) as response:
             result = await response.json()
         logging.info(str(result))
         return result
@@ -74,7 +77,10 @@ class TestAsyncServer(unittest.IsolatedAsyncioTestCase):
         results = []
         start = time.time()
         async with aiohttp.ClientSession() as session:
-            tasks = [self.fetch(session, url, index, waittime) for index, waittime in zip(indices, waittimes)]
+            tasks = [
+                self.fetch(session, url, index, waittime)
+                for index, waittime in zip(indices, waittimes)
+            ]
             for coro in asyncio.as_completed(tasks):
                 result = await coro
                 results.append(result)

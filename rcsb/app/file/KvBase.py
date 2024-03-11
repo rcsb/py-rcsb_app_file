@@ -8,6 +8,7 @@ class KvBase:
     """
     template interface for kv required functions
     """
+
     def __init__(self):
         pass
 
