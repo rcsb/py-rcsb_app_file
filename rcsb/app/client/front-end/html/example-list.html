@@ -1,136 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-        <meta charset="UTF-8">
-        <title>HTML LIST EXAMPLE</title>
-        <!-- author James Smith -->
-		<style>
-			div {
-				display: flex;
-				flex-direction: column;
-				align-items: center;
-			}
-			form {
-				display: flex;
-				flex-direction: column;
-				align-items: flex-start;
-				row-gap: 10px;
-				border: 1px solid black;
-				padding: 20px;
-			}
-			section {
-				margin:20px;
-				width:300px;
-				height:200px;
-				background-color:white;
-				border:1px solid gray;
-				overflow:scroll;
-			}
-			section ul {
-				list-style-type: none;
-			}
-		</style>
-        <script type="text/javascript">
-          handleform = async () => {
+<head>
+    <meta charset="UTF-8">
+    <title>HTML LIST EXAMPLE</title>
+    <!-- author James Smith -->
+    <style>
+        div {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            row-gap: 10px;
+            border: 1px solid black;
+            padding: 20px;
+        }
+
+        section {
+            margin: 20px;
+            width: 300px;
+            height: 200px;
+            background-color: white;
+            border: 1px solid gray;
+            overflow: scroll;
+        }
+
+        section ul {
+            list-style-type: none;
+        }
+    </style>
+    <script type="text/javascript">
+        handleform = async () => {
             window.event.preventDefault();
             let repositoryType = document.getElementsByName('repositoryType')[0].value;
             let depId = document.getElementsByName('depId')[0].value;
-            if(!repositoryType || ! depId){
-              return;
+            if (!repositoryType || !depId) {
+                return;
             }
-			let base_url = "http://0.0.0.0:8000";
+            let base_url = "http://0.0.0.0:8000";
             let url = `${base_url}/list-dir?repositoryType=${repositoryType}&depId=${depId}`;
-			let jwt_url = `${base_url}/token`;
-			let validate_jwt_url = `${base_url}/validate-token`;
-			let token = localStorage.getItem('token');
-			let jwt_token = '';
-			let new_token = false;
-			if(token){
-				jwt_token = token;
-				console.log('found previous token ' + jwt_token);
-				jwt_valid = false;
+            let jwt_url = `${base_url}/token`;
+            let validate_jwt_url = `${base_url}/validate-token`;
+            let token = localStorage.getItem('token');
+            let jwt_token = '';
+            let new_token = false;
+            if (token) {
+                jwt_token = token;
+                console.log('found previous token ' + jwt_token);
+                jwt_valid = false;
 
-				await fetch(validate_jwt_url + "/" + jwt_token, { method: "GET" }).then(response => {
-                      if(response && response.status && response.status < 400){
-                          return response.json();
-                      } else if(response.status){
-                          throw new Error("error - status " + response.status);
-                      } else {
-                          throw new Error("error retrieving token");
-                      }
-                  }).then(json => { jwt_valid = json.valid }).catch(err => console.log("error validating token " + err));
+                await fetch(validate_jwt_url + "/" + jwt_token, {method: "GET"}).then(response => {
+                    if (response && response.status && response.status < 400) {
+                        return response.json();
+                    } else if (response.status) {
+                        throw new Error("error - status " + response.status);
+                    } else {
+                        throw new Error("error retrieving token");
+                    }
+                }).then(json => {
+                    jwt_valid = json.valid
+                }).catch(err => console.log("error validating token " + err));
 
-				if(! jwt_valid){
-					console.log("token not valid");
-					new_token = true;
-				}
-			}
+                if (!jwt_valid) {
+                    console.log("token not valid");
+                    new_token = true;
+                }
+            }
 
-			if(new_token) {
-				await fetch(jwt_url, {method: "GET"}).then(response => {
-					if (response && response.status && response.status < 400) {
-						return response.json();
-					} else if (repsonse.status) {
-						throw new Error("error - status " + response.status);
-					} else {
-						throw new Error("error retrieving token");
-					}
-				}).then(json => {
-					jwt_token = json.token;
-					localStorage.setItem('token', jwt_token);
-					console.log('generated token ' + jwt_token);
-				}).catch(err => console.log("error retrieving token " + err));
-			}
+            if (new_token) {
+                await fetch(jwt_url, {method: "GET"}).then(response => {
+                    if (response && response.status && response.status < 400) {
+                        return response.json();
+                    } else if (repsonse.status) {
+                        throw new Error("error - status " + response.status);
+                    } else {
+                        throw new Error("error retrieving token");
+                    }
+                }).then(json => {
+                    jwt_token = json.token;
+                    localStorage.setItem('token', jwt_token);
+                    console.log('generated token ' + jwt_token);
+                }).catch(err => console.log("error retrieving token " + err));
+            }
 
             fetch(url, {
-              method: 'GET',
-			  headers: {'Authorization': `Bearer ${jwt_token}`}
+                method: 'GET',
+                headers: {'Authorization': `Bearer ${jwt_token}`}
             }).then(response => {
-				if(response && response.status && response.status < 400){
-					return response.json();
-				} else if(response && response.status){
-					throw new Error(`status code ${response.status}`);
-				} else {
-					throw new Error('unknown error');
-				}
-			}).then(json => populate(json.dirList)).catch(err => console.log(err));
+                if (response && response.status && response.status < 400) {
+                    return response.json();
+                } else if (response && response.status) {
+                    throw new Error(`status code ${response.status}`);
+                } else {
+                    throw new Error('unknown error');
+                }
+            }).then(json => populate(json.dirList)).catch(err => console.log(err));
 
-          }
+        }
 
-          populate = (dirlist) => {
-            if(document.getElementById('dirlist')) {
-				document.getElementById('dirlist').innerHTML = '';
+        populate = (dirlist) => {
+            if (document.getElementById('dirlist')) {
+                document.getElementById('dirlist').innerHTML = '';
             }
-            if(! dirlist){
-              return;
+            if (!dirlist) {
+                return;
             }
             div = document.createElement('div');
             div.setAttribute('align', 'center');
             div.setAttribute('id', 'dirlist');
             ul = document.createElement('ul');
-            for(index in dirlist.sort()){
-              li = document.createElement('li');
-              txt = document.createTextNode(dirlist[index]);
-              li.append(txt);
-              ul.append(li);
+            for (index in dirlist.sort()) {
+                li = document.createElement('li');
+                txt = document.createTextNode(dirlist[index]);
+                li.append(txt);
+                ul.append(li);
             }
             div.append(ul);
-			document.getElementById('dirlist').innerHTML = ul.innerHTML;
-          }
-        </script>
-	</head>
-	<body>
-		<div>
-			<form action="http://0.0.0.0:80/list-dir" method="GET" onsubmit="return handleform();">
-				<label>Repository type</label>
-				<input type="text" name="repositoryType">
-				<label>Deposit id</label>
-				<input type="text" name="depId">
-				<input type="submit" value="submit">
-			</form>
-			<section>
-				<ul id="dirlist"></ul>
-			</section>
-		</div>
-	</body>
+            document.getElementById('dirlist').innerHTML = ul.innerHTML;
+        }
+    </script>
+</head>
+<body>
+<div>
+    <form action="http://0.0.0.0:80/list-dir" method="GET" onsubmit="return handleform();">
+        <label>Repository type</label>
+        <input type="text" name="repositoryType">
+        <label>Deposit id</label>
+        <input type="text" name="depId">
+        <input type="submit" value="submit">
+    </form>
+    <section>
+        <ul id="dirlist"></ul>
+    </section>
+</div>
+</body>
 </html>

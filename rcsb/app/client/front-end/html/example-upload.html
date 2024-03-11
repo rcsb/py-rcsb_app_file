@@ -1,90 +1,94 @@
 <!-- author James Smith -->
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-        <meta charset="UTF-8">
-        <title>HTML UPLOAD EXAMPLE</title>
-		<script type="text/javascript">
-			async function handleform() {
-              window.event.preventDefault();
-              let start_time = new Date().getTime();
-              let base_url = "http://0.0.0.0:8000";
-              let upload_parameters_url = `${base_url}/getUploadParameters/`;
-              let sequential_chunk_url = `${base_url}/upload/`;
-              let jwt_url = `${base_url}/token`;
-              let validate_jwt_url = `${base_url}/validate-token`;
-              let chunkSize = 1024 * 1024 * 32; // bytes
-              let token = localStorage.getItem('token');
-              console.log(`jwt token ${token}`);
-              let jwt_token = '';
-              let new_token = true;
-              let jwt_valid = true;
-              if(token) {
-                  new_token = false;
-                  jwt_token = token;
-                  console.log("found previous token " + token);
-                  jwt_valid = false;
-                  await validateToken(jwt_token);
-                  if (!jwt_valid) {
-                      console.log("token not valid");
-                      new_token = true;
-                  }
-              }
-              if(new_token) {
-                  await getAccessToken();
-                  localStorage.setItem('token', jwt_token);
-                  console.log("generated token " + jwt_token);
-              }
-              console.log(`token now = ${jwt_token}`);
-              if(! jwt_valid){
-                  console.log("jwt token not valid");
-                  return;
-              }
-              let file = document.getElementsByName('uploadFile')[0].files[0];
-              let fileName = file.name;
-              console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
-              let filePath = null;
-              let resumable = document.getElementsByName('resumable')[0].checked;
-              let chunkIndex = 0;
-              let uploadId = null;
-              await getUploadParameters().then(() => upload(file));
+<head>
+    <meta charset="UTF-8">
+    <title>HTML UPLOAD EXAMPLE</title>
+    <script type="text/javascript">
+        async function handleform() {
+            window.event.preventDefault();
+            let start_time = new Date().getTime();
+            let base_url = "http://0.0.0.0:8000";
+            let upload_parameters_url = `${base_url}/getUploadParameters/`;
+            let sequential_chunk_url = `${base_url}/upload/`;
+            let jwt_url = `${base_url}/token`;
+            let validate_jwt_url = `${base_url}/validate-token`;
+            let chunkSize = 1024 * 1024 * 32; // bytes
+            let token = localStorage.getItem('token');
+            console.log(`jwt token ${token}`);
+            let jwt_token = '';
+            let new_token = true;
+            let jwt_valid = true;
+            if (token) {
+                new_token = false;
+                jwt_token = token;
+                console.log("found previous token " + token);
+                jwt_valid = false;
+                await validateToken(jwt_token);
+                if (!jwt_valid) {
+                    console.log("token not valid");
+                    new_token = true;
+                }
+            }
+            if (new_token) {
+                await getAccessToken();
+                localStorage.setItem('token', jwt_token);
+                console.log("generated token " + jwt_token);
+            }
+            console.log(`token now = ${jwt_token}`);
+            if (!jwt_valid) {
+                console.log("jwt token not valid");
+                return;
+            }
+            let file = document.getElementsByName('uploadFile')[0].files[0];
+            let fileName = file.name;
+            console.log(`file name ${file.name} modified ${file.lastModified} size ${file.size}`);
+            let filePath = null;
+            let resumable = document.getElementsByName('resumable')[0].checked;
+            let chunkIndex = 0;
+            let uploadId = null;
+            await getUploadParameters().then(() => upload(file));
 
-              async function getAccessToken(){
-                  url = jwt_url;
-                  await fetch(url, {
-                      method: "GET"
-                  }).then(response => {
-                      if(response && response.status && response.status < 400){
-                          jwt_valid = true;
-                          return response.json();
-                      } else if(response.status){
-                          throw new Error("error - status " + response.status);
-                      } else {
-                          throw new Error("error retrieving token");
-                      }
-                  }).then(json => { jwt_token = json.token; }).catch(err => console.log("error retrieving token " + err));
-              }
+            async function getAccessToken() {
+                url = jwt_url;
+                await fetch(url, {
+                    method: "GET"
+                }).then(response => {
+                    if (response && response.status && response.status < 400) {
+                        jwt_valid = true;
+                        return response.json();
+                    } else if (response.status) {
+                        throw new Error("error - status " + response.status);
+                    } else {
+                        throw new Error("error retrieving token");
+                    }
+                }).then(json => {
+                    jwt_token = json.token;
+                }).catch(err => console.log("error retrieving token " + err));
+            }
 
-              async function validateToken(token){
-                  url = validate_jwt_url + "/" + token;
-                  await fetch(url, { method: "GET" }).then(response => {
-                      if(response && response.status && response.status < 400){
-                          return response.json();
-                      } else if(response.status){
-                          throw new Error("error - status " + response.status);
-                      } else {
-                          throw new Error("error retrieving token");
-                      }
-                  }).then(json => { jwt_valid = json.valid }).catch(err => console.log("error validating token " + err));
-              }
+            async function validateToken(token) {
+                url = validate_jwt_url + "/" + token;
+                await fetch(url, {method: "GET"}).then(response => {
+                    if (response && response.status && response.status < 400) {
+                        return response.json();
+                    } else if (response.status) {
+                        throw new Error("error - status " + response.status);
+                    } else {
+                        throw new Error("error retrieving token");
+                    }
+                }).then(json => {
+                    jwt_valid = json.valid
+                }).catch(err => console.log("error validating token " + err));
+            }
 
-              async function getUploadParameters() {
-                  // get server-side parameters
+            async function getUploadParameters() {
+                // get server-side parameters
                 let repositoryType = document.getElementsByName('repositoryType')[0].value;
                 let depId = document.getElementsByName('depId')[0].value;
                 let contentType = document.getElementsByName('contentType')[0].value;
                 let milestone = document.getElementsByName('milestone')[0].value;
-                if(milestone.toLowerCase() == "none"){
+                if (milestone.toLowerCase() == "none") {
                     milestone = "";
                 }
                 let partNumber = document.getElementsByName('partNumber')[0].value;
@@ -97,9 +101,9 @@
                     method: "GET",
                     headers: {"Authorization": `Bearer ${jwt_token}`}
                 }).then(response => {
-                    if(response && response.status && response.status < 400) {
+                    if (response && response.status && response.status < 400) {
                         return response.json()
-                    } else if(response.status){
+                    } else if (response.status) {
                         throw new Error(`status code ${response.status}`);
                     } else {
                         throw new Error('unknown error');
@@ -108,17 +112,17 @@
                     filePath = json.filePath;
                     chunkIndex = json.chunkIndex;
                     uploadId = json.uploadId;
-                    if(chunkIndex > 0){
+                    if (chunkIndex > 0) {
                         console.log(`detected upload with ${chunkIndex} chunks`);
                     }
                 }).catch(err => console.log(err));
-              }
+            }
 
-              async function upload(file){
-                  if(! filePath){
+            async function upload(file) {
+                if (!filePath) {
                     console.log('error - could not read file path, or target file may already exist');
                     return;
-                  }
+                }
                 var fileSize = file.size;
                 var expectedChunks = Math.ceil((fileSize) / chunkSize);
                 var chunkOffset = chunkIndex * chunkSize;
@@ -129,136 +133,136 @@
                 readChunks(chunkIndex, chunkOffset, resumable);
 
                 function readChunks(chunkIndex, chunkOffset) {
-                  if (chunkIndex >= expectedChunks) {
-                      let stop_time = new Date().getTime();
-                      let elapsed_time = (stop_time - start_time) / (60 * 24);
-                      console.log(`upload complete ${elapsed_time} s`);
-                      return;
-                  }
+                    if (chunkIndex >= expectedChunks) {
+                        let stop_time = new Date().getTime();
+                        let elapsed_time = (stop_time - start_time) / (60 * 24);
+                        console.log(`upload complete ${elapsed_time} s`);
+                        return;
+                    }
                     // remove comments (then re-comment) to test resumable upload
                     // if(chunkIndex >= 3){
                     //     return;
                     // }
-                  console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
-                  bounds = chunkOffset + chunkSize;
-                  if(bounds > fileSize){
-                      bounds = fileSize;
-                  }
-                  var blob = file.slice(chunkOffset, bounds);
-                  postChunk(blob);
+                    console.log(`posting chunk ${chunkIndex} of ${expectedChunks}`);
+                    bounds = chunkOffset + chunkSize;
+                    if (bounds > fileSize) {
+                        bounds = fileSize;
+                    }
+                    var blob = file.slice(chunkOffset, bounds);
+                    postChunk(blob);
                 }
 
                 async function postChunk(blob) {
-                  var chunk = blob;
-                  var chunksize = blob.size;
-                  if (chunksize <= 0) {
-                    return;
-                  }
-                  formdata = new FormData();
-                  // chunk parameters
-                  formdata.append("chunk", chunk);
-                  formdata.append("chunkSize", chunkSize);
-                  formdata.append("chunkIndex", chunkIndex);
-                  formdata.append("expectedChunks", expectedChunks);
-                  // upload file parameters
-                  formdata.append("uploadId", uploadId);
-                  formdata.append("hashType", "");
-                  formdata.append("hashDigest", "");
-                  // save file parameters
-                  formdata.append("filePath", filePath);
-                  formdata.append("fileSize", fileSize);
-                  formdata.append("fileExtension", fileExtension);
-                  formdata.append("decompress", decompress);
-                  formdata.append("allowOverwrite", allowOverwrite);
-                  formdata.append("resumable", resumable);
-                  fetch(sequential_chunk_url, {
-                      method: "POST",
-                      headers: {
-                          "Authorization": `Bearer ${jwt_token}`
-                      },
-                      body: formdata
-                  }).then(response => {
-                      if(response) {
-                          if(response.status && response.status < 400)
-                          {
-                              chunkOffset += chunkSize;
-                              chunkIndex = chunkIndex + 1;
-                              readChunks(chunkIndex, chunkOffset);
-                          } else if(response.status) {
-                              throw new Error(`status code ${response.status}`);
-                          }
-                      }
-                  }).catch(err => console.log(`response returned error ${err}`));
+                    var chunk = blob;
+                    var chunksize = blob.size;
+                    if (chunksize <= 0) {
+                        return;
+                    }
+                    formdata = new FormData();
+                    // chunk parameters
+                    formdata.append("chunk", chunk);
+                    formdata.append("chunkSize", chunkSize);
+                    formdata.append("chunkIndex", chunkIndex);
+                    formdata.append("expectedChunks", expectedChunks);
+                    // upload file parameters
+                    formdata.append("uploadId", uploadId);
+                    formdata.append("hashType", "");
+                    formdata.append("hashDigest", "");
+                    // save file parameters
+                    formdata.append("filePath", filePath);
+                    formdata.append("fileSize", fileSize);
+                    formdata.append("fileExtension", fileExtension);
+                    formdata.append("decompress", decompress);
+                    formdata.append("allowOverwrite", allowOverwrite);
+                    formdata.append("resumable", resumable);
+                    fetch(sequential_chunk_url, {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${jwt_token}`
+                        },
+                        body: formdata
+                    }).then(response => {
+                        if (response) {
+                            if (response.status && response.status < 400) {
+                                chunkOffset += chunkSize;
+                                chunkIndex = chunkIndex + 1;
+                                readChunks(chunkIndex, chunkOffset);
+                            } else if (response.status) {
+                                throw new Error(`status code ${response.status}`);
+                            }
+                        }
+                    }).catch(err => console.log(`response returned error ${err}`));
                 }
-              }
             }
-        </script>
-		<style>
-			div {
-				display: flex;
-				flex-direction: column;
-				align-items: center;
-			}
-			form {
-				display: flex;
-				flex-direction: column;
-				align-items: flex-start;
-				row-gap: 5px;
-				border: 1px solid black;
-				padding: 20px;
-			}
-		</style>
-	</head>
-	<body>
-		<div>
-		<form action="http://0.0.0.0:80/upload" method="POST" enctype="multipart/form-data" onsubmit="return handleform();">
-			<label>Upload file</label>
-			<input type="file" name="uploadFile">
-            <label>Repository type</label>
-            <input type="text" name="repositoryType">
-            <label>Deposit id</label>
-            <input type="text" name="depId">
-            <label>Content type</label>
-            <input type="text" name="contentType">
-            <label>Milestone</label>
-            <input type="text" name="milestone">
-            <label>Part number</label>
-            <input type="text" name="partNumber">
-            <label>Content format</label>
-            <input type="text" name="contentFormat">
-            <label>Version</label>
-            <input type="text" name="version">
+        }
+    </script>
+    <style>
+        div {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
 
-            <table>
-                <tr>
-                    <td>
-                        <input type="checkbox" name="allowOverwrite">
-                    </td>
-                    <td>
-                         <label>Overwrite</label>
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                         <input type="checkbox" name="decompress">
-                    </td>
-                    <td>
-                         <label>Decompress zip file after upload</label>
-                    </td>
-                </tr>
-                <tr>
-                    <td>
-                         <input type="checkbox" name="resumable">
-                    </td>
-                    <td>
-                         <label>Resumable upload</label>
-                    </td>
-                </tr>
-            </table>
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            row-gap: 5px;
+            border: 1px solid black;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <form action="http://0.0.0.0:80/upload" method="POST" enctype="multipart/form-data" onsubmit="return handleform();">
+        <label>Upload file</label>
+        <input type="file" name="uploadFile">
+        <label>Repository type</label>
+        <input type="text" name="repositoryType">
+        <label>Deposit id</label>
+        <input type="text" name="depId">
+        <label>Content type</label>
+        <input type="text" name="contentType">
+        <label>Milestone</label>
+        <input type="text" name="milestone">
+        <label>Part number</label>
+        <input type="text" name="partNumber">
+        <label>Content format</label>
+        <input type="text" name="contentFormat">
+        <label>Version</label>
+        <input type="text" name="version">
 
-            <input type="submit" value="submit">
-            <input type="reset" value="reset">
-		</form>
-		</div>
-	</body>
+        <table>
+            <tr>
+                <td>
+                    <input type="checkbox" name="allowOverwrite">
+                </td>
+                <td>
+                    <label>Overwrite</label>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <input type="checkbox" name="decompress">
+                </td>
+                <td>
+                    <label>Decompress zip file after upload</label>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <input type="checkbox" name="resumable">
+                </td>
+                <td>
+                    <label>Resumable upload</label>
+                </td>
+            </tr>
+        </table>
+
+        <input type="submit" value="submit">
+        <input type="reset" value="reset">
+    </form>
+</div>
+</body>
 </html>
