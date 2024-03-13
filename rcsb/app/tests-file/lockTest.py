@@ -5,15 +5,13 @@ import sys
 import unittest
 import logging
 from rcsb.app.file.PathProvider import PathProvider
-from rcsb.app.file.KvBase import KvBase
+from rcsb.app.file.KvSqlite import KvSqlite
+from rcsb.app.file.KvRedis import KvRedis
 from rcsb.app.file.ConfigProvider import ConfigProvider
 
-provider = ConfigProvider()
-kvmode = provider.get("KV_MODE")
-if kvmode == "redis":
-    from rcsb.app.file.RedisLock import Locking as redisLock
-else:
-    from rcsb.app.file.RedisSqliteLock import Locking as redisLock
+# must start Redis server prior to test
+
+from rcsb.app.file.RedisLock import Locking as redisLock
 from rcsb.app.file.TernaryLock import Locking as ternaryLock
 from rcsb.app.file.SoftLock import Locking as softLock
 
@@ -24,7 +22,11 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.test = 0
         cp = ConfigProvider()
-        kv = KvBase(cp)
+        kv = None
+        if cp.get("KV_MODE") == "redis":
+            kv = KvRedis(cp)
+        else:
+            kv = KvSqlite(cp)
         kv.clearTable(cp.get("KV_LOCK_TABLE_NAME"))
         self.locktype = cp.get("LOCK_TYPE")
         # following Python docs at https://docs.python.org/3/library/unittest.html
@@ -36,24 +38,30 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         self.partNumber = 1  # pylint: disable=W0201
         self.contentFormat = "pdbx"  # pylint: disable=W0201
         self.version = 0  # pylint: disable=W0201
+        dirpath = PathProvider(cp).getRepositoryDirPath(self.repositoryType)
+        if os.path.exists(dirpath):
+            os.unlink(dirpath)
 
     async def asyncTearDown(self) -> None:
         pass
 
     async def testRedisLock(self):
+        if ConfigProvider().get("LOCK_TYPE") != "redis":
+            logging.error("error - redis test requires lock type redis")
+            self.fail()
         logging.info("----- TESTING REDIS LOCK -----")
         self.test = 1
-        await self.testLock()
+        await self.reusableLockTest()
 
     async def testTernaryLock(self):
         logging.info("---- TESTING TERNARY LOCK ----")
         self.test = 2
-        await self.testLock()
+        await self.reusableLockTest()
 
     async def testSoftLock(self):
         logging.info("---- TESTING SOFT LOCK ----")
         self.test = 3
-        await self.testLock()
+        await self.reusableLockTest()
 
     def getNextFilePath(self):
         folder = PathProvider().getDirPath(self.repositoryType, self.depId)
@@ -69,7 +77,7 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         filepath = os.path.join(folder, filename)
         return filepath
 
-    async def testLock(self):
+    async def reusableLockTest(self):
         # self.test += 1
         if self.test == 1:
             lock = redisLock

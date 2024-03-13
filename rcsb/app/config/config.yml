@@ -4,7 +4,7 @@
 # Config file for File Access API server
 ---
 configuration:
-  # server host and port must start with http:// or https:// e.g. http://0.0.0.0:80
+  # server host and port requires scheme e.g. http://127.0.0.1:80
   SERVER_HOST_AND_PORT: http://0.0.0.0:8000
   # reserve extra processors that will be used by, for example, redis or cron
   SURPLUS_PROCESSORS: 1
@@ -14,11 +14,11 @@ configuration:
   SESSION_DIR_PATH: rcsb/app/tests-file/data/sessions
   SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks  # default or ternary lock only
   LOCK_TRANSACTIONS: True
-  LOCK_TYPE: soft # soft, ternary, or redis (need not agree with kv mode)
+  LOCK_TYPE: soft # soft, ternary, or redis (requires kv mode redis due to redis lock overflow into kv redis module)
   LOCK_TIMEOUT: 60
   # database parameters
   KV_MODE: sqlite # redis or sqlite, redis for multiple machines or containers, sqlite possible for one machine or container only
-  REDIS_HOST: localhost # localhost, redis, or url
+  REDIS_HOST: localhost # localhost, redis, or url (requires scheme - example: http://127.0.0.1:80)
   KV_SESSION_TABLE_NAME: sessions
   KV_MAP_TABLE_NAME: map
   KV_LOCK_TABLE_NAME: lock # redis lock only
@@ -26,8 +26,8 @@ configuration:
   KV_FILE_PATH: ./kv.sqlite # sqlite only
   # file parameters
   CHUNK_SIZE: 33554432 # bytes
-  COMPRESSION_TYPE: "gzip" # gzip, bzip2, zip, or lzma
-  HASH_TYPE: MD5
+  COMPRESSION_TYPE: gzip # gzip, bzip2, zip, or lzma
+  HASH_TYPE: MD5 # MD5, SHA1, SHA256
   DEFAULT_FILE_PERMISSIONS: 0o777 # example 0o755 ... Docker will not save or read if permissions too strict
   # jwt token parameters
   JWT_SUBJECT: aTestSubject

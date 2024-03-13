@@ -2,22 +2,23 @@
 # author - James Smith 2023
 
 import redis
-
 import typing
 import logging
 from fastapi.exceptions import HTTPException
 from rcsb.app.file.ConfigProvider import ConfigProvider
+from rcsb.app.file.KvBase import KvBase
 
 
-class KvRedis(object):
-    def __init__(self, cP: typing.Type[ConfigProvider]):
+class KvRedis(KvBase):
+    def __init__(self, cP: typing.Type[ConfigProvider] = None):
+        super(KvRedis, self).__init__()
         self.kV = None
-        self.__cP = cP
-        self.duration = self.__cP.get("KV_MAX_SECONDS")
-        self.sessionTable = self.__cP.get("KV_SESSION_TABLE_NAME")
-        self.mapTable = self.__cP.get("KV_MAP_TABLE_NAME")
-        self.lockTable = self.__cP.get("KV_LOCK_TABLE_NAME")
-        self.redis_host = self.__cP.get("REDIS_HOST")  # localhost, redis, or url
+        self.cP = cP if cP else ConfigProvider()
+        self.sessionTable = self.cP.get("KV_SESSION_TABLE_NAME")
+        self.mapTable = self.cP.get("KV_MAP_TABLE_NAME")
+        self.lockTable = self.cP.get("KV_LOCK_TABLE_NAME")
+        self.redis_host = self.cP.get("REDIS_HOST")  # localhost, redis, or url
+        self.duration = self.cP.get("KV_MAX_SECONDS")
         # create database if not exists
         # create table if not exists
         try:
@@ -36,20 +37,21 @@ class KvRedis(object):
     # functions for either table
 
     # get entire dictionary value rather than a sub-value
-    def getKey(self, hashvar, table):
+    def getKey(self, key, table):
         if table == self.sessionTable:
-            if not self.kV.exists(hashvar):
+            if not self.kV.exists(key):
                 return None
-            return self.kV.hgetall(hashvar)
-        elif table == self.mapTable:
-            if not self.kV.exists(hashvar):
+            return self.kV.hgetall(key)
+        if table == self.mapTable:
+            if not self.kV.exists(key):
                 return None
-            return str(self.kV.get(hashvar))
+            return str(self.kV.get(key))
+        return None
 
-    # clear either hash var or everything (redis has no tables other than possibly hash vars)
-    def clearTable(self, hashvar=None):
-        if hashvar is not None and self.kV.exists(hashvar):
-            self.kV.delete(hashvar)
+    # clear either table or everything (redis has no tables other than possibly hash vars)
+    def clearTable(self, table=None):
+        if table is not None and self.kV.exists(table):
+            self.kV.delete(table)
         else:
             self.kV.flushall()
 
@@ -94,65 +96,65 @@ class KvRedis(object):
 
     # sessions table functions (nested dictionary - key1, key2, val)
 
-    # hashvar = uid
+    # key1 = uid
     # if no key, sets to zero and returns, even if not a numeric variable
-    def getSession(self, hashvar, key):
+    def getSession(self, key1, key2):
         # validate args
-        if not hashvar or not key:
+        if not key1 or not key2:
             return None
-        # validate hashvar key, set val to zero by default
-        if not self.kV.exists(hashvar) or not self.kV.hexists(hashvar, key):
-            self.kV.hset(hashvar, key, 0)
-            self.kV.expire(hashvar, self.duration)
-        return str(self.kV.hget(hashvar, key))
+        # validate keys, set val to zero by default
+        if not self.kV.exists(key1) or not self.kV.hexists(key1, key2):
+            self.kV.hset(key1, key2, 0)
+            self.kV.expire(key1, self.duration)
+        return str(self.kV.hget(key1, key2))
 
-    # hashvar = uid
-    def setSession(self, hashvar, key, val):
+    # key1 = uid
+    def setSession(self, key1, key2, val):
         # validate args
-        if not hashvar or not key or not val:
+        if not key1 or not key2 or not val:
             return False
         # (should not be necessary) validate key, set val to zero by default
-        # if not self.kV.exists(hashvar) or not self.kV.hexists(hashvar, key):
-        #     self.kV.hset(hashvar, key, 0)
-        self.kV.hset(hashvar, key, val)
+        # if not self.kV.exists(key1) or not self.kV.hexists(key1, key2):
+        #     self.kV.hset(key1, key2, 0)
+        self.kV.hset(key1, key2, val)
         # optionally set duration
-        # self.kV.expire(hashvar, self.duration)
+        # self.kV.expire(key1, self.duration)
         return True
 
-    def clearSessionKey(self, hashvar):
+    def clearSessionKey(self, key):
         # validate args
-        if not hashvar:
+        if not key:
             return False
-        # validate hashvar
-        if not self.kV.exists(hashvar):
-            return True
-        self.kV.delete(hashvar)
-        return True
-
-    def clearSessionVal(self, hashvar, key):
-        # validate args
-        if not hashvar or not key:
-            return False
-        # validate hashvar
-        if not self.kV.exists(hashvar):
-            return True
         # validate key
-        if not self.kV.hexists(hashvar, key):
+        if not self.kV.exists(key):
             return True
-        self.kV.hdel(hashvar, key)
+        self.kV.delete(key)
+        return True
+
+    def clearSessionVal(self, key1, key2):
+        # validate args
+        if not key1 or not key2:
+            return False
+        # validate key1
+        if not self.kV.exists(key1):
+            return True
+        # validate key2
+        if not self.kV.hexists(key1, key2):
+            return True
+        self.kV.hdel(key1, key2)
         return True
 
     # increment session val
-    # presumes key has a numeric value
-    def inc_session_val(self, hashvar, key):
+    # presumes key2 has a numeric value
+    def inc_session_val(self, key1, key2):
         # validate args
-        if not hashvar or not key:
+        if not key1 or not key2:
             return False
         # validate key, set val to zero by default
-        if not self.kV.exists(hashvar) or not self.kV.hexists(hashvar, key):
-            self.kV.hset(hashvar, key, 0)
-            self.kV.expire(hashvar, self.duration)
-        self.kV.hincrby(hashvar, key, 1)
+        if not self.kV.exists(key1) or not self.kV.hexists(key1, key2):
+            self.kV.hset(key1, key2, 0)
+            self.kV.expire(key1, self.duration)
+        self.kV.hincrby(key1, key2, 1)
         return True
 
     # locking functions
@@ -166,17 +168,15 @@ class KvRedis(object):
         if not key:
             if len(indices) == 1:
                 return None
-            elif len(indices) == 2:
+            if len(indices) == 2:
                 return None, None
-            else:
-                return None
+            return None
         if not self.kV.hexists(self.lockTable, key):
             if len(indices) == 1:
                 return None
-            elif len(indices) == 2:
+            if len(indices) == 2:
                 return None, None
-            else:
-                return None
+            return None
         lst = self.kV.hget(self.lockTable, key)
         vals = []
         if lst is not None:
@@ -185,10 +185,9 @@ class KvRedis(object):
                 vals.append(lst[i])
             if len(vals) == 1:
                 return vals[0]
-            elif len(vals) == 2:
+            if len(vals) == 2:
                 return vals[0], vals[1]
-            else:
-                return vals
+            return vals
         return None
 
     def setLock(self, key, val, index=0, start_val=""):
@@ -324,6 +323,7 @@ class KvRedis(object):
             return False
         if self.kV.hexists(self.lockTable, key):
             self.kV.hdel(self.lockTable, key)
+        return True
 
     # atomic transactions that have not been implemented in sqlite
     def incIncIfZero(self, key, uid, index1=0, index2=0, index3=0, start_val=""):
@@ -589,12 +589,12 @@ class KvRedis(object):
         with redis.lock.Lock(self.kV, key):
             lst = eval(self.kV.hget(self.lockTable, key))  # pylint: disable=W0123
             if lst is None:
-                return
+                return False
             mod = lst[index1]
             count = lst[index2]
             waitlist = lst[index3]
             if mod is None or count is None or waitlist is None:
-                return
+                return False
             if (
                 mod == 0
                 and count == 0
@@ -604,3 +604,4 @@ class KvRedis(object):
                 )
             ):
                 self.remLock(key)
+        return True

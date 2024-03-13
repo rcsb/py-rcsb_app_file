@@ -9,7 +9,6 @@ import time
 import logging
 import uuid
 import typing
-from rcsb.app.file.KvBase import KvBase
 from rcsb.app.file.ConfigProvider import ConfigProvider
 from rcsb.app.file.PathProvider import PathProvider
 from rcsb.app.file.KvRedis import KvRedis
@@ -33,6 +32,7 @@ class Sessions(object):
     includes optional resumability API
     functions - upload helper functions, database functions, session placeholder functions, bulk maintenance function
     """
+
     def __init__(self, uploadId=None, cP=None, kV=True):
         """
         statelessly invoked once per chunk of every upload
@@ -40,8 +40,11 @@ class Sessions(object):
         self.uploadId = uploadId
         self.cP = cP if cP else ConfigProvider()
         self.kV = None
-        if kV:
-            self.kV = KvBase(self.cP)
+        if kV:  # not same as self.kV
+            if cP.get("KV_MODE") == "redis":
+                self.kV = KvRedis()
+            else:
+                self.kV = KvSqlite()
 
     # invoked only once per upload
     async def open(

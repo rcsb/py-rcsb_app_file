@@ -34,10 +34,7 @@ provider = ConfigProvider()
 locktype = provider.get("LOCK_TYPE")
 kvmode = provider.get("KV_MODE")
 if locktype == "redis":
-    if kvmode == "redis":
-        from rcsb.app.file.RedisLock import Locking
-    else:
-        from rcsb.app.file.RedisSqliteLock import Locking
+    from rcsb.app.file.RedisLock import Locking
 elif locktype == "ternary":
     from rcsb.app.file.TernaryLock import Locking
 else:
@@ -54,6 +51,7 @@ class UploadUtility(object):
     """
     functions - get upload parameters, upload, compress file, decompress file, compress chunk, decompress chunk
     """
+
     def __init__(self, cP: typing.Type[ConfigProvider] = None):
         self.cP = cP if cP else ConfigProvider()
 
@@ -158,7 +156,9 @@ class UploadUtility(object):
         df = ServerStatus.getServerStorage()["repository disk bytes free"]
         if chunkIndex == 0 and fileSize and isinstance(fileSize, int) and df:
             if fileSize >= df:
-                raise HTTPException(status_code=507, detail="error - repository disk full")
+                raise HTTPException(
+                    status_code=507, detail="error - repository disk full"
+                )
         repositoryPath = self.cP.get("REPOSITORY_DIR_PATH")
         filePath = os.path.join(repositoryPath, filePath)
         session = Sessions(uploadId=uploadId, cP=self.cP)
@@ -183,7 +183,9 @@ class UploadUtility(object):
         if chunkSize and isinstance(chunkSize, int):
             if chunkSize >= df:
                 await session.close(tempPath, resumable, mapKey)
-                raise HTTPException(status_code=507, detail="error - repository disk full")
+                raise HTTPException(
+                    status_code=507, detail="error - repository disk full"
+                )
         contents = chunk.read()
         # empty chunk beyond loop index from client side, don't erase temp file so keep out of try block
         if contents and len(contents) <= 0:
@@ -231,9 +233,7 @@ class UploadUtility(object):
                         if decompress and fileExtension:
                             await self.decompressFile(filePath, fileExtension)
                 except (FileExistsError, OSError) as err:
-                    raise HTTPException(
-                        status_code=400, detail="error %r" % err
-                    )
+                    raise HTTPException(status_code=400, detail="error %r" % err)
                 # clear database and temp files
                 await session.close(tempPath, resumable, mapKey)
         except HTTPException as exc:

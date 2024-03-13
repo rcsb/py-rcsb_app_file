@@ -38,7 +38,9 @@ class ServerStatus:
     @staticmethod
     def getUptime():
         HERE = os.path.dirname(__file__)
-        TOPDIR = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
+        TOPDIR = os.path.abspath(
+            os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
+        )
         uptime_file = os.path.join(TOPDIR, "uptime.txt")
         uptime_start = 0
         with open(uptime_file, "r", encoding="UTF-8") as read:
