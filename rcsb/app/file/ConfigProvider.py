@@ -84,10 +84,10 @@ class ConfigProvider(object):
             ok = False
         return ok
 
-    def set(self, key: str, val: typing.Union[str, int, float, bool]):
+    def _set(self, key: str, val: typing.Union[str, int, float, bool]):
         """
         facilitate validation tests
-        should only be used by validate
+        should only be used by testValidate
         """
         if not self.__configD:
             if self.__configFilePath:

@@ -34,7 +34,6 @@ logging.basicConfig(
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-
 class ConfigProviderTests(unittest.TestCase):
     def setUp(self):
         self.__startTime = time.time()
@@ -91,12 +90,12 @@ class ConfigProviderTests(unittest.TestCase):
 
         def test(key, val, expected, err):
             orig = cP.get(key)
-            cP.set(key, val)
+            cP._set(key, val)
             if expected:
                 self.assertTrue(cP.validate(), err)
             else:
                 self.assertFalse(cP.validate(), err)
-            cP.set(key, orig)
+            cP._set(key, orig)
 
         # validate host and port (requires scheme)
         test(
@@ -155,17 +154,17 @@ class ConfigProviderTests(unittest.TestCase):
         # test kv mode
         test("KV_MODE", "mongo", False, "error - could not invalidate kv mode")
         # test relation between lock type and kv mode
-        cP.set("LOCK_TYPE", "redis")
-        cP.set("KV_MODE", "redis")
+        cP._set("LOCK_TYPE", "redis")
+        cP._set("KV_MODE", "redis")
         self.assertTrue(
             cP.validate(), "error - could not validate lock type and kv mode redis"
         )
-        cP.set("KV_MODE", "sqlite")
+        cP._set("KV_MODE", "sqlite")
         self.assertFalse(
             cP.validate(),
             "error - could not invalidate incongruence between lock type and kv mode",
         )
-        cP.set("KV_MODE", "redis")
+        cP._set("KV_MODE", "redis")
         # test redis host
         test("REDIS_HOST", "mongo", False, "error - could not invalidate redis host")
         test(
