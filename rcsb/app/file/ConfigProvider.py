@@ -107,7 +107,7 @@ class ConfigProvider(object):
         if (
             surplus is None
             or surplus == ""
-            or re.match(r"\d+", str(surplus)) is None
+            or re.fullmatch(r"\d+", str(surplus)) is None
             or int(surplus) < 0
         ):
             return False
@@ -119,7 +119,7 @@ class ConfigProvider(object):
             self.get("KV_FILE_PATH"),
         ]
         if not all(paths) or not all(
-            [re.match(r"\.{0,2}(/?\w+)+/?", str(path)) for path in paths]
+            [re.fullmatch(r"^\.{0,2}(/?[\w\.\- _\~]+)+/?$", str(path)) for path in paths]
         ):
             return False
         # validate lock transactions
@@ -133,7 +133,7 @@ class ConfigProvider(object):
             return False
         # validate lock timeout
         lock_timeout = self.get("LOCK_TIMEOUT")
-        if not lock_timeout or not re.match(r"\d+", str(lock_timeout)):
+        if not lock_timeout or not re.fullmatch(r"\d+", str(lock_timeout)):
             return False
         # validate kv mode
         kv_modes = ["sqlite", "redis"]
@@ -160,14 +160,14 @@ class ConfigProvider(object):
             self.get("KV_LOCK_TABLE_NAME"),
         ]
         if not all(table_names) or not all(
-            [re.match(r"\w+", str(name)) for name in table_names]
+            [re.fullmatch(r"\w+", str(name)) for name in table_names]
         ):
             return False
         # validate max seconds
         max_seconds = self.get("KV_MAX_SECONDS")
         if (
             not max_seconds
-            or not re.match(r"\d+", str(max_seconds))
+            or not re.fullmatch(r"\d+", str(max_seconds))
             or int(max_seconds) < 0
         ):
             return False
@@ -175,7 +175,7 @@ class ConfigProvider(object):
         chunk_size = self.get("CHUNK_SIZE")
         if (
             not chunk_size
-            or not re.match(r"\d+", str(chunk_size))
+            or not re.fullmatch(r"\d+", str(chunk_size))
             or int(chunk_size) < 0
         ):
             return False
@@ -191,11 +191,11 @@ class ConfigProvider(object):
             return False
         # reading dictionary returns integer value of octal so have no way to verify octal string
         permissions = self.__configD["data"]["DEFAULT_FILE_PERMISSIONS"]
-        if not permissions or not re.match(r"\d+", str(permissions)):
+        if not permissions or not re.fullmatch(r"\w+", str(permissions)):
             return False
         # validate jwt strings
         jwts = [self.get("JWT_SUBJECT"), self.get("JWT_SECRET")]
-        if not all(jwts) or not all([re.match(r"\w+", str(jwt)) for jwt in jwts]):
+        if not all(jwts) or not all([re.fullmatch(r"\w+", str(jwt)) for jwt in jwts]):
             return False
         # validate jwt algorithm
         algorithms = [
@@ -219,7 +219,7 @@ class ConfigProvider(object):
             return False
         # validate jwt timeout
         duration = self.get("JWT_DURATION")
-        if not duration or not re.match(r"\d+", str(duration)) or int(duration) < 0:
+        if not duration or not re.fullmatch(r"\d+", str(duration)) or int(duration) < 0:
             return False
         # validate bypass authorization
         bypass_authorization = self.get("BYPASS_AUTHORIZATION")

@@ -143,6 +143,30 @@ class ConfigProviderTests(unittest.TestCase):
             True,
             "error - could not validate file paths",
         )
+        test(
+            "REPOSITORY_DIR_PATH",
+            "/root/public_files/local/",
+            True,
+            "error - could not validate folder name with delimiting underscores"
+        )
+        test(
+            "REPOSITORY_DIR_PATH",
+            "/root/public-files/local/",
+            True,
+            "error - could not validate folder name with delimiting dashes"
+        )
+        test(
+            "REPOSITORY_DIR_PATH",
+            "/root/public files/local/",
+            True,
+            "error - could not validate folder with delimiting spaces"
+        )
+        test(
+            "KV_FILE_PATH",
+            "./kv.sqlite",
+            True,
+            "error - could not validate path with delimiting dots"
+        )
         # test booleans
         test("LOCK_TRANSACTIONS", "true", False, "error - could not invalidate boolean")
         # test lock timeout
