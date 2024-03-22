@@ -201,6 +201,11 @@ class ConfigProviderTests(unittest.TestCase):
             "error - could not invalidate incongruence between lock type and kv mode",
         )
         cP._set("KV_MODE", "redis")
+        cP._set("LOCK_TYPE", "soft")
+        self.assertTrue(
+            cP.validate(),
+            "error - could not validate redis kv with non-redis lock"
+        )
         # test redis host
         test("REDIS_HOST", "mongo", False, "error - could not invalidate redis host")
         test(

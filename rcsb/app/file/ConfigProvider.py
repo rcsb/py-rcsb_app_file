@@ -137,12 +137,10 @@ class ConfigProvider(object):
         kv_mode = self.get("KV_MODE")
         if not kv_mode or str(kv_mode) not in kv_modes:
             return False
-        # require kv mode redis for lock type redis and vice versa
+        # require kv mode redis for lock type redis but not vice versa
         kv_mode_redis = self.get("KV_MODE") == "redis"
         lock_type_redis = self.get("LOCK_TYPE") == "redis"
-        if any([kv_mode_redis, lock_type_redis]) and not all(
-            [kv_mode_redis, lock_type_redis]
-        ):
+        if lock_type_redis and not kv_mode_redis:
             return False
         # validate redis host
         redis_hosts = ["localhost", "redis"]
