@@ -114,6 +114,12 @@ class ConfigProviderTests(unittest.TestCase):
         # zero value is also falsy so ensure that validate function is able to differentiate zero from negative values
         test(
             "SURPLUS_PROCESSORS",
+            1,
+            True,
+            "error - could not validate surplus processors"
+        )
+        test(
+            "SURPLUS_PROCESSORS",
             0,
             True,
             "error - zero valued surplus did not validate",
@@ -169,12 +175,18 @@ class ConfigProviderTests(unittest.TestCase):
         )
         # test booleans
         test("LOCK_TRANSACTIONS", "true", False, "error - could not invalidate boolean")
-        # test lock timeout
-        test("LOCK_TIMEOUT", "none", False, "error - could not invalidate lock timeout")
+        # test lock timeout and ensure falsy zero value is allowed
+        test("LOCK_TIMEOUT", 1, True, "error - could not validate lock timeout with 1")
+        test("LOCK_TIMEOUT", 0, True, "error - could not validate lock timeout with 0")
+        test("LOCK_TIMEOUT", "", False, "error - could not invalidate lock timeout")
+        test("LOCK_TIMEOUT", -1, False, "error - could not invalidate lock timeout")
         # test lock type
+        test("LOCK_TYPE", "ternary", True, "error - could not validate lock type")
         test("LOCK_TYPE", 3, False, "error - could not invalidate lock type")
         # test null
         test("LOCK_TYPE", None, False, "error - could not invalidate null")
+        # test empty string
+        test("LOCK_TYPE", "", False, "error - could not invalidate empty string")
         # test kv mode
         test("KV_MODE", "mongo", False, "error - could not invalidate kv mode")
         # test relation between lock type and kv mode

@@ -103,14 +103,15 @@ class ConfigProvider(object):
         if not host or not validators.url(str(host)):
             return False
         # validate surplus processors
-        surplus = self.get("SURPLUS_PROCESSORS")
-        if (
-            surplus is None
-            or surplus == ""
-            or re.fullmatch(r"\d+", str(surplus)) is None
-            or int(surplus) < 0
-        ):
-            return False
+        zero_allowed = [self.get("SURPLUS_PROCESSORS"), self.get("LOCK_TIMEOUT")]
+        for x in zero_allowed:
+            if (
+                x is None
+                or x == ""
+                or re.fullmatch(r"\d+", str(x)) is None
+                or int(x) < 0
+            ):
+                return False
         # validate path strings
         paths = [
             self.get("REPOSITORY_DIR_PATH"),
@@ -130,10 +131,6 @@ class ConfigProvider(object):
         lock_types = ["soft", "ternary", "redis"]
         lock_type = self.get("LOCK_TYPE")
         if not lock_type or str(lock_type) not in lock_types:
-            return False
-        # validate lock timeout
-        lock_timeout = self.get("LOCK_TIMEOUT")
-        if not lock_timeout or not re.fullmatch(r"\d+", str(lock_timeout)):
             return False
         # validate kv mode
         kv_modes = ["sqlite", "redis"]
@@ -166,7 +163,7 @@ class ConfigProvider(object):
         # validate max seconds
         max_seconds = self.get("KV_MAX_SECONDS")
         if (
-            not max_seconds
+            not max_seconds  # will not match zero
             or not re.fullmatch(r"\d+", str(max_seconds))
             or int(max_seconds) < 0
         ):
@@ -174,7 +171,7 @@ class ConfigProvider(object):
         # validate chunk size
         chunk_size = self.get("CHUNK_SIZE")
         if (
-            not chunk_size
+            not chunk_size  # will not match zero
             or not re.fullmatch(r"\d+", str(chunk_size))
             or int(chunk_size) < 0
         ):
@@ -219,6 +216,7 @@ class ConfigProvider(object):
             return False
         # validate jwt timeout
         duration = self.get("JWT_DURATION")
+        # will not match zero
         if not duration or not re.fullmatch(r"\d+", str(duration)) or int(duration) < 0:
             return False
         # validate bypass authorization
