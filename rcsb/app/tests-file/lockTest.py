@@ -46,8 +46,8 @@ class LockTest(unittest.IsolatedAsyncioTestCase):
         pass
 
     async def testRedisLock(self):
-        if ConfigProvider().get("LOCK_TYPE") != "redis":
-            logging.error("error - redis test requires lock type redis")
+        if ConfigProvider().get("LOCK_TYPE") != "redis" or ConfigProvider().get("KV_MODE") != "redis":
+            logging.error("error - redis test requires lock type redis and kv mode redis")
             self.fail()
         logging.info("----- TESTING REDIS LOCK -----")
         self.test = 1
