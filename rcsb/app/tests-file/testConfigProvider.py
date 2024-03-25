@@ -34,6 +34,7 @@ logging.basicConfig(
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
 class ConfigProviderTests(unittest.TestCase):
     def setUp(self):
         self.__startTime = time.time()
@@ -97,6 +98,14 @@ class ConfigProviderTests(unittest.TestCase):
                 self.assertFalse(cP.validate(), err)
             cP._set(key, orig)
 
+        # evaluate expected boolean behavior of native python values
+        falsy_values = [0, 0.0, "", None, [], {}, ()]
+        truthy_values = [1, -1, " ", "   ", "\n", [1], {"1": 1}, (1)]
+        for value in falsy_values:
+            self.assertFalse(value, f"error - {value} is not falsy")
+        for value in truthy_values:
+            self.assertTrue(value, f"error - {value} is not truthy")
+
         # validate host and port (requires scheme)
         test(
             "SERVER_HOST_AND_PORT",
@@ -116,7 +125,7 @@ class ConfigProviderTests(unittest.TestCase):
             "SURPLUS_PROCESSORS",
             1,
             True,
-            "error - could not validate surplus processors"
+            "error - could not validate surplus processors",
         )
         test(
             "SURPLUS_PROCESSORS",
@@ -153,27 +162,28 @@ class ConfigProviderTests(unittest.TestCase):
             "REPOSITORY_DIR_PATH",
             "/root/public_files/local/",
             True,
-            "error - could not validate folder name with delimiting underscores"
+            "error - could not validate folder name with delimiting underscores",
         )
         test(
             "REPOSITORY_DIR_PATH",
             "/root/public-files/local/",
             True,
-            "error - could not validate folder name with delimiting dashes"
+            "error - could not validate folder name with delimiting dashes",
         )
         test(
             "REPOSITORY_DIR_PATH",
             "/root/public files/local/",
             True,
-            "error - could not validate folder with delimiting spaces"
+            "error - could not validate folder with delimiting spaces",
         )
         test(
             "KV_FILE_PATH",
             "./kv.sqlite",
             True,
-            "error - could not validate path with delimiting dots"
+            "error - could not validate path with delimiting dots",
         )
         # test booleans
+        test("LOCK_TRANSACTIONS", True, True, "error - could not validate boolean")
         test("LOCK_TRANSACTIONS", "true", False, "error - could not invalidate boolean")
         # test lock timeout and ensure falsy zero value is allowed
         test("LOCK_TIMEOUT", 1, True, "error - could not validate lock timeout with 1")
@@ -187,7 +197,10 @@ class ConfigProviderTests(unittest.TestCase):
         test("LOCK_TYPE", None, False, "error - could not invalidate null")
         # test empty string
         test("LOCK_TYPE", "", False, "error - could not invalidate empty string")
+        # test whitespace
+        test("LOCK_TYPE", "   ", False, "error - could not invalidate empty string")
         # test kv mode
+        test("KV_MODE", "redis", True, "error - could not validate kv mode")
         test("KV_MODE", "mongo", False, "error - could not invalidate kv mode")
         # test relation between lock type and kv mode
         cP._set("LOCK_TYPE", "redis")
@@ -203,8 +216,7 @@ class ConfigProviderTests(unittest.TestCase):
         cP._set("KV_MODE", "redis")
         cP._set("LOCK_TYPE", "soft")
         self.assertTrue(
-            cP.validate(),
-            "error - could not validate redis kv with non-redis lock"
+            cP.validate(), "error - could not validate redis kv with non-redis lock"
         )
         # test redis host
         test("REDIS_HOST", "mongo", False, "error - could not invalidate redis host")
@@ -244,6 +256,12 @@ class ConfigProviderTests(unittest.TestCase):
         test(
             "DEFAULT_FILE_PERMISSIONS",
             0,
+            True,
+            "error - could not validate file permissions",
+        )
+        test(
+            "DEFAULT_FILE_PERMISSIONS",
+            " ",
             False,
             "error - could not invalidate file permissions",
         )
