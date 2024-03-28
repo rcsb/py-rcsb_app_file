@@ -40,6 +40,9 @@ class ConfigProvider(object):
             if not self.__configD:
                 if self.__configFilePath:
                     self.__readConFigFromConFigYmlFile()
+            if ky == "DEFAULT_FILE_PERMISSIONS":
+                # convert from octal to integer
+                return int(str(self.__configD["data"][ky]), 8)
             return self.__configD["data"][ky]
         except Exception:
             pass
@@ -85,10 +88,6 @@ class ConfigProvider(object):
         return ok
 
     def _set(self, key: str, val: typing.Union[str, int, float, bool]):
-        """
-        facilitate validation tests
-        should only be used by testValidate
-        """
         if not self.__configD:
             if self.__configFilePath:
                 self.__readConFigFromConFigYmlFile()
@@ -226,9 +225,8 @@ class ConfigProvider(object):
         if str(hash_type) not in hash_types:
             return False
         # validate default file permissions
-        # reading dictionary returns integer value of octal so have no way to verify octal string
         permissions = self.__configD["data"]["DEFAULT_FILE_PERMISSIONS"]
-        if not re.fullmatch(r"\w+", str(permissions)):
+        if not re.fullmatch(r"[0-7]{3}", str(permissions)):
             return False
         # validate jwt strings
         jwts = [self.get("JWT_SUBJECT"), self.get("JWT_SECRET")]

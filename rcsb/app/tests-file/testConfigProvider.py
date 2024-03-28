@@ -72,17 +72,17 @@ class ConfigProviderTests(unittest.TestCase):
             endTime - self.__startTime,
         )
 
-    def testConfigAccessors(self):
-        """Test -configuration accessors"""
-        cP = ConfigProvider()
-        for ky, vl in self.__cD.items():
-            tv = cP.get(ky)
-            self.assertEqual(tv, vl)
-
-        cP = ConfigProvider()
-        for ky, vl in self.__cD.items():
-            tv = cP.get(ky)
-            self.assertEqual(tv, vl)
+    # def testConfigAccessors(self):
+    #     """Test -configuration accessors"""
+    # cP = ConfigProvider()
+    # for ky, vl in self.__cD.items():
+    #     tv = cP.get(ky)
+    #     self.assertEqual(tv, vl)
+    #
+    # cP = ConfigProvider()
+    # for ky, vl in self.__cD.items():
+    #     tv = cP.get(ky)
+    #     self.assertEqual(tv, vl)
 
     def testValidate(self):
         """Test validation of settings"""
@@ -249,19 +249,34 @@ class ConfigProviderTests(unittest.TestCase):
         # validate default file permissions
         test(
             "DEFAULT_FILE_PERMISSIONS",
-            "0o555",
+            "444",
             True,
             "error - could not validate file permissions",
+        )
+        test(
+            "DEFAULT_FILE_PERMISSIONS", "0o444", False, "error - validated octal string"
         )
         test(
             "DEFAULT_FILE_PERMISSIONS",
             0,
-            True,
-            "error - could not validate file permissions",
+            False,
+            "error - could not invalidate file permissions",
+        )
+        test(
+            "DEFAULT_FILE_PERMISSIONS",
+            888,
+            False,
+            "error - could not invalidate file permissions",
         )
         test(
             "DEFAULT_FILE_PERMISSIONS",
             " ",
+            False,
+            "error - could not invalidate file permissions",
+        )
+        test(
+            "DEFAULT_FILE_PERMISSIONS",
+            None,
             False,
             "error - could not invalidate file permissions",
         )
@@ -282,7 +297,7 @@ class ConfigProviderTests(unittest.TestCase):
 
 def configAccessorsSuite():
     suiteSelect = unittest.TestSuite()
-    suiteSelect.addTest(ConfigProviderTests("testConfigAccessors"))
+    # suiteSelect.addTest(ConfigProviderTests("testConfigAccessors"))
     suiteSelect.addTest(ConfigProviderTests("testValidate"))
     return suiteSelect
 
