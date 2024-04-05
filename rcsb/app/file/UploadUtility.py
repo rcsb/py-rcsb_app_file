@@ -232,6 +232,9 @@ class UploadUtility(object):
                         # decompress
                         if decompress and fileExtension:
                             await self.decompressFile(filePath, fileExtension)
+                        # change permissions
+                        default_file_permissions = self.cP.get("DEFAULT_FILE_PERMISSIONS")
+                        os.chmod(filePath, default_file_permissions)
                 except (FileExistsError, OSError) as err:
                     raise HTTPException(status_code=400, detail="error %r" % err)
                 # clear database and temp files

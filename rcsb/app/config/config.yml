@@ -12,7 +12,7 @@ configuration:
   # relative paths within the repository will work when running the app from within the repository
   REPOSITORY_DIR_PATH: rcsb/app/tests-file/data/repository
   SESSION_DIR_PATH: rcsb/app/tests-file/data/sessions
-  SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks  # default or ternary lock only
+  SHARED_LOCK_PATH: rcsb/app/tests-file/data/shared-locks  # soft or ternary lock only
   LOCK_TRANSACTIONS: True
   LOCK_TYPE: soft # soft, ternary, or redis (requires kv mode redis due to redis lock overflow into kv redis module)
   LOCK_TIMEOUT: 60

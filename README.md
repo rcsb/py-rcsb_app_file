@@ -324,9 +324,9 @@ To view Redis variables
 ```
 
 redis-cli
-KEYS *
-GET keyname
-HGETALL hashkey
+KEYS * (prints two values)
+GET keyname (for keyname, copy/paste the first value)
+HGETALL hashkey (for hashkey, copy/paste the second value)
 exit
 
 ```
