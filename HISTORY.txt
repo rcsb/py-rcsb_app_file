@@ -22,3 +22,4 @@
 24-Sep-2023  - V1.1.1 Locking modules with unit test
 26-Feb-2024  - V1.2.1 Async test
 11-Mar-2024  - V1.3.1 Validate settings, change locks to inheritance
+25-Mar-2024  - V1.3.2 Rewrite validation

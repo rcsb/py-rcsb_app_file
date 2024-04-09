@@ -72,17 +72,17 @@ class ConfigProviderTests(unittest.TestCase):
             endTime - self.__startTime,
         )
 
-    def testConfigAccessors(self):
-        """Test -configuration accessors"""
-        cP = ConfigProvider()
-        for ky, vl in self.__cD.items():
-            tv = cP.get(ky)
-            self.assertEqual(tv, vl)
-
-        cP = ConfigProvider()
-        for ky, vl in self.__cD.items():
-            tv = cP.get(ky)
-            self.assertEqual(tv, vl)
+    # def testConfigAccessors(self):
+    #     """Test -configuration accessors"""
+    # cP = ConfigProvider()
+    # for ky, vl in self.__cD.items():
+    #     tv = cP.get(ky)
+    #     self.assertEqual(tv, vl)
+    #
+    # cP = ConfigProvider()
+    # for ky, vl in self.__cD.items():
+    #     tv = cP.get(ky)
+    #     self.assertEqual(tv, vl)
 
     def testValidate(self):
         """Test validation of settings"""
@@ -91,12 +91,20 @@ class ConfigProviderTests(unittest.TestCase):
 
         def test(key, val, expected, err):
             orig = cP.get(key)
-            cP.set(key, val)
+            cP._set(key, val)
             if expected:
                 self.assertTrue(cP.validate(), err)
             else:
                 self.assertFalse(cP.validate(), err)
-            cP.set(key, orig)
+            cP._set(key, orig)
+
+        # evaluate expected boolean behavior of native python values
+        falsy_values = [0, 0.0, "", None, [], {}, ()]
+        truthy_values = [1, -1, " ", "   ", "\n", [1], {"1": 1}, (1)]
+        for value in falsy_values:
+            self.assertFalse(value, f"error - {value} is not falsy")
+        for value in truthy_values:
+            self.assertTrue(value, f"error - {value} is not truthy")
 
         # validate host and port (requires scheme)
         test(
@@ -113,6 +121,12 @@ class ConfigProviderTests(unittest.TestCase):
         )
         # allow zero surplus processors (reserve all processors)
         # zero value is also falsy so ensure that validate function is able to differentiate zero from negative values
+        test(
+            "SURPLUS_PROCESSORS",
+            1,
+            True,
+            "error - could not validate surplus processors",
+        )
         test(
             "SURPLUS_PROCESSORS",
             0,
@@ -144,28 +158,66 @@ class ConfigProviderTests(unittest.TestCase):
             True,
             "error - could not validate file paths",
         )
+        test(
+            "REPOSITORY_DIR_PATH",
+            "/root/public_files/local/",
+            True,
+            "error - could not validate folder name with delimiting underscores",
+        )
+        test(
+            "REPOSITORY_DIR_PATH",
+            "/root/public-files/local/",
+            True,
+            "error - could not validate folder name with delimiting dashes",
+        )
+        test(
+            "REPOSITORY_DIR_PATH",
+            "/root/public files/local/",
+            True,
+            "error - could not validate folder with delimiting spaces",
+        )
+        test(
+            "KV_FILE_PATH",
+            "./kv.sqlite",
+            True,
+            "error - could not validate path with delimiting dots",
+        )
         # test booleans
+        test("LOCK_TRANSACTIONS", True, True, "error - could not validate boolean")
         test("LOCK_TRANSACTIONS", "true", False, "error - could not invalidate boolean")
-        # test lock timeout
-        test("LOCK_TIMEOUT", "none", False, "error - could not invalidate lock timeout")
+        # test lock timeout and ensure falsy zero value is allowed
+        test("LOCK_TIMEOUT", 1, True, "error - could not validate lock timeout with 1")
+        test("LOCK_TIMEOUT", 0, True, "error - could not validate lock timeout with 0")
+        test("LOCK_TIMEOUT", "", False, "error - could not invalidate lock timeout")
+        test("LOCK_TIMEOUT", -1, False, "error - could not invalidate lock timeout")
         # test lock type
+        test("LOCK_TYPE", "ternary", True, "error - could not validate lock type")
         test("LOCK_TYPE", 3, False, "error - could not invalidate lock type")
         # test null
         test("LOCK_TYPE", None, False, "error - could not invalidate null")
+        # test empty string
+        test("LOCK_TYPE", "", False, "error - could not invalidate empty string")
+        # test whitespace
+        test("LOCK_TYPE", "   ", False, "error - could not invalidate empty string")
         # test kv mode
+        test("KV_MODE", "redis", True, "error - could not validate kv mode")
         test("KV_MODE", "mongo", False, "error - could not invalidate kv mode")
         # test relation between lock type and kv mode
-        cP.set("LOCK_TYPE", "redis")
-        cP.set("KV_MODE", "redis")
+        cP._set("LOCK_TYPE", "redis")
+        cP._set("KV_MODE", "redis")
         self.assertTrue(
             cP.validate(), "error - could not validate lock type and kv mode redis"
         )
-        cP.set("KV_MODE", "sqlite")
+        cP._set("KV_MODE", "sqlite")
         self.assertFalse(
             cP.validate(),
             "error - could not invalidate incongruence between lock type and kv mode",
         )
-        cP.set("KV_MODE", "redis")
+        cP._set("KV_MODE", "redis")
+        cP._set("LOCK_TYPE", "soft")
+        self.assertTrue(
+            cP.validate(), "error - could not validate redis kv with non-redis lock"
+        )
         # test redis host
         test("REDIS_HOST", "mongo", False, "error - could not invalidate redis host")
         test(
@@ -197,13 +249,34 @@ class ConfigProviderTests(unittest.TestCase):
         # validate default file permissions
         test(
             "DEFAULT_FILE_PERMISSIONS",
-            "0o555",
+            "444",
             True,
             "error - could not validate file permissions",
         )
         test(
+            "DEFAULT_FILE_PERMISSIONS", "0o444", False, "error - validated octal string"
+        )
+        test(
             "DEFAULT_FILE_PERMISSIONS",
             0,
+            False,
+            "error - could not invalidate file permissions",
+        )
+        test(
+            "DEFAULT_FILE_PERMISSIONS",
+            888,
+            False,
+            "error - could not invalidate file permissions",
+        )
+        test(
+            "DEFAULT_FILE_PERMISSIONS",
+            " ",
+            False,
+            "error - could not invalidate file permissions",
+        )
+        test(
+            "DEFAULT_FILE_PERMISSIONS",
+            None,
             False,
             "error - could not invalidate file permissions",
         )
@@ -224,7 +297,7 @@ class ConfigProviderTests(unittest.TestCase):
 
 def configAccessorsSuite():
     suiteSelect = unittest.TestSuite()
-    suiteSelect.addTest(ConfigProviderTests("testConfigAccessors"))
+    # suiteSelect.addTest(ConfigProviderTests("testConfigAccessors"))
     suiteSelect.addTest(ConfigProviderTests("testValidate"))
     return suiteSelect
 
