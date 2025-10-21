@@ -59,6 +59,7 @@ class IoUtility(object):
     ) -> typing.Optional[str]:
         if hashType not in ["MD5", "SHA1", "SHA256"]:
             return None
+        hashObj = None
         try:
             if hashType == "SHA1":
                 hashObj = hashlib.sha1()
