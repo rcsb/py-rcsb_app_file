@@ -327,6 +327,7 @@ class Sessions(object):
                 if elapsed >= float(seconds):
                     logging.info("clearing %s", placeholder_path)
                     # clear kv
+                    kV = None
                     if kvMode == "sqlite":
                         kV = KvSqlite(cP)
                     elif kvMode == "redis":

@@ -3,7 +3,7 @@
 # Date: 7-Aug-2021
 #       Build a testing environment for file service application using the tox test runner.
 ##
-FROM python:3.9-slim as image-compile
+FROM python:3.12-slim as image-compile
 
 #
 ARG BUILD_DATE

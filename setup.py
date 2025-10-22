@@ -44,8 +44,9 @@ setup(
         "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.12",
     ),
+    python_requires=">=3.12",
     entry_points={"console_scripts": []},
     #
     install_requires=packagesRequired,

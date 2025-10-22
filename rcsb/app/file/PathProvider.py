@@ -278,22 +278,27 @@ class PathProvider(object):
         version: str,
     ) -> bool:
         if repositoryType not in self.repoTypeList:
+            logger.warning("Invalid repository type %s", repositoryType)
             return False
         if depId:
             pass
         if contentType not in self.contentTypeInfoD.keys():
+            logger.warning("Invalid content type %s", contentType)
             return False
         if (
             milestone is not None
             and len(milestone) > 0
             and milestone not in self.milestoneList
         ):
+            logger.warning("Invalid milestone %s", milestone)
             return False
         if partNumber:
             pass
         if contentFormat not in self.fileFormatExtensionD.keys():
+            logger.warning("Invalid content format %s", contentFormat)
             return False
         if not self.checkContentTypeFormat(contentType, contentFormat):
+            logger.warning("Invalid content type format %s %s", contentType, contentFormat)
             return False
         if version:
             pass
@@ -310,7 +315,7 @@ class PathProvider(object):
         # assert valid combination of type and format
         if contentFormat in self.contentTypeInfoD[contentType][0]:
             return True
-        logger.info(
+        logger.warning(
             "System does not support %s contentType with %s contentFormat.",
             contentType,
             contentFormat,

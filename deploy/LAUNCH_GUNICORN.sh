@@ -42,6 +42,7 @@ DIR=$TOPDIR
 if [ $CONTAINER -eq 1 ]
 then
   DIR='/app'
+  echo $UPTIME_START > /app/uptime.txt
 fi
 
 # read server vars from config file
