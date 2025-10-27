@@ -8,7 +8,7 @@
         async function handleform() {
             window.event.preventDefault();
             let start_time = new Date().getTime();
-            let base_url = "http://0.0.0.0:8000";
+            let base_url = "http://127.0.0.1:8000";
             let upload_parameters_url = `${base_url}/getUploadParameters/`;
             let sequential_chunk_url = `${base_url}/upload/`;
             let jwt_url = `${base_url}/token`;

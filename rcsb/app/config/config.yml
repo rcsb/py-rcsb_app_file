@@ -5,7 +5,7 @@
 ---
 configuration:
   # server host and port requires scheme e.g. http://127.0.0.1:80
-  SERVER_HOST_AND_PORT: http://0.0.0.0:8000
+  SERVER_HOST_AND_PORT: http://127.0.0.1:8000
   # reserve extra processors that will be used by, for example, redis or cron
   SURPLUS_PROCESSORS: 1
   # paths to mounted or local folders

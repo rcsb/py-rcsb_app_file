@@ -41,7 +41,7 @@
             if (!repositoryType || !depId) {
                 return;
             }
-            let base_url = "http://0.0.0.0:8000";
+            let base_url = "http://127.0.0.1:8000";
             let url = `${base_url}/list-dir?repositoryType=${repositoryType}&depId=${depId}`;
             let jwt_url = `${base_url}/token`;
             let validate_jwt_url = `${base_url}/validate-token`;
